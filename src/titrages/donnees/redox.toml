@@ -1,0 +1,128 @@
+# Couples rédox usuels : potentiels standard à 25 °C, en V par rapport à l'ENH.
+#
+# Chaque système va de sa forme la plus réduite à la plus oxydée. Pour chaque étape :
+# E0 (V), n (électrons), H (protons consommés par la réduction), et, pour un couple
+# dont une forme est dimérique, stoechiometrie = [a, b] dans a Ox + n e- = b Red.
+#
+# Valeurs des tables usuelles (CRC Handbook, « Electrochemical series »). Les
+# potentiels de couples ioniques en solution dépendent du milieu (complexation) :
+# la note le dit quand l'écart est notable.
+
+[[couple]]
+nom = "fer"
+E0 = [0.77]
+n = [1]
+formes = ["Fe2+", "Fe3+"]
+noms = [["ion fer(II)", "sel de Mohr"], ["ion fer(III)"]]
+
+[[couple]]
+nom = "cérium"
+E0 = [1.72]
+n = [1]
+formes = ["Ce3+", "Ce4+"]
+noms = [["ion cérium(III)"], ["ion cérium(IV)"]]
+note = "1,72 V en milieu perchlorique ; 1,61 V en milieu nitrique, 1,44 V en milieu sulfurique 1 mol/L, où l'on titre d'ordinaire."
+
+[[couple]]
+nom = "permanganate"
+E0 = [1.51]
+n = [5]
+H = [8]
+formes = ["Mn2+", "MnO4-"]
+noms = [["ion manganèse(II)"], ["ion permanganate", "permanganate de potassium", "KMnO4"]]
+
+[[couple]]
+nom = "dichromate"
+E0 = [1.33]
+n = [6]
+H = [14]
+stoechiometrie = [1, 2]
+formes = ["Cr3+", "Cr2O7^2-"]
+noms = [["ion chrome(III)"], ["ion dichromate", "dichromate de potassium", "K2Cr2O7"]]
+note = "Les tables donnent de 1,23 à 1,36 V ; 1,33 V est la valeur de l'enseignement."
+
+[[couple]]
+nom = "diiode"
+E0 = [0.54]
+n = [2]
+stoechiometrie = [1, 2]
+formes = ["I-", "I2"]
+noms = [["ion iodure", "iodure de potassium", "KI"], ["diiode", "eau iodée"]]
+note = "En présence d'iodure, le diiode est sous forme I3- ; le potentiel (0,536 V) est le même."
+
+[[couple]]
+nom = "tétrathionate"
+E0 = [0.08]
+n = [2]
+stoechiometrie = [1, 2]
+formes = ["S2O3^2-", "S4O6^2-"]
+noms = [["ion thiosulfate", "thiosulfate de sodium", "Na2S2O3"], ["ion tétrathionate"]]
+
+[[couple]]
+nom = "dibrome"
+E0 = [1.09]
+n = [2]
+stoechiometrie = [1, 2]
+formes = ["Br-", "Br2"]
+noms = [["ion bromure", "bromure de potassium"], ["dibrome", "eau de brome"]]
+
+[[couple]]
+nom = "dichlore"
+E0 = [1.36]
+n = [2]
+stoechiometrie = [1, 2]
+formes = ["Cl-", "Cl2"]
+noms = [["ion chlorure"], ["dichlore", "eau de chlore"]]
+
+[[couple]]
+nom = "étain"
+E0 = [0.15]
+n = [2]
+formes = ["Sn2+", "Sn4+"]
+noms = [["ion étain(II)"], ["ion étain(IV)"]]
+
+[[couple]]
+nom = "hexacyanoferrate"
+E0 = [0.36]
+n = [1]
+formes = ["Fe(CN)6^4-", "Fe(CN)6^3-"]
+noms = [["ion hexacyanoferrate(II)", "ferrocyanure de potassium"], ["ion hexacyanoferrate(III)", "ferricyanure de potassium"]]
+
+[[couple]]
+nom = "cuivre(II)/cuivre(I)"
+E0 = [0.16]
+n = [1]
+formes = ["Cu+", "Cu2+"]
+noms = [["ion cuivre(I)"], ["ion cuivre(II)"]]
+
+[[couple]]
+nom = "mercure"
+E0 = [0.91]
+n = [2]
+stoechiometrie = [2, 1]
+formes = ["Hg2^2+", "Hg2+"]
+noms = [["ion dimercure(I)"], ["ion mercure(II)"]]
+
+[[couple]]
+nom = "thallium"
+E0 = [1.25]
+n = [2]
+formes = ["Tl+", "Tl3+"]
+noms = [["ion thallium(I)"], ["ion thallium(III)"]]
+
+[[couple]]
+nom = "quinone"
+E0 = [0.70]
+n = [2]
+H = [2]
+formes = ["QH2", "Q"]
+noms = [["hydroquinone"], ["benzoquinone", "quinone"]]
+
+[[couple]]
+nom = "vanadium"
+E0 = [-0.26, 0.34, 1.00]
+n = [1, 1, 1]
+H = [0, 2, 2]
+formes = ["V2+", "V3+", "VO^2+", "VO2^+"]
+noms = [["ion vanadium(II)"], ["ion vanadium(III)"], ["ion vanadyle", "vanadium(IV)"], ["ion pervanadyle", "vanadium(V)"]]
+note = "VO^2+ (vanadyle) et VO2^+ (pervanadyle) ne se distinguent pas par la formule une fois les charges normalisées : on les cherche par leur nom."

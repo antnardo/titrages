@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+
+# Outils
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# LaTeX : seules les sources et la documentation compilée sont suivies
+latex/*.aux
+latex/*.log
+latex/*.out
+latex/*.toc
+latex/*.synctex.gz
+latex/*.fls
+latex/*.fdb_latexmk
+latex/tests/*.pdf
+latex/tests/*.aux
+latex/tests/*.log
+latex/ctan/
+examples/*.pdf
+examples/*.png
+
+# Systèmes
+.DS_Store
+.vscode/

@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Test ${{ matrix.os }} / ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      # Un interpréteur Lua, pour confronter le moteur du paquet LaTeX au moteur Python.
+      - run: sudo apt-get install -y lua5.3
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - run: uv sync --group dev
+      - run: uv run pytest -q
+      - run: cd latex/tests && lua5.3 test_titrages.lua
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - run: uv sync --group dev
+      - run: uv run ruff check src tests examples scripts
+      - run: uv run ruff format --check src tests examples scripts
+      - run: uv run mypy
+
+  latex:
+    name: Paquet LaTeX
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: xu-cheng/texlive-action@v2
+        with:
+          scheme: full
+          run: |
+            cd latex
+            lualatex -interaction=nonstopmode -halt-on-error titrages-doc.tex
+            lualatex -interaction=nonstopmode -halt-on-error titrages-doc.tex
+            cd tests
+            TEXINPUTS=..: lualatex -interaction=nonstopmode -halt-on-error titrages-test-lua.tex
+            TEXINPUTS=..: pdflatex -interaction=nonstopmode -halt-on-error titrages-test-pgf.tex
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
+      - run: uv build
+      - run: uvx twine check dist/*

@@ -1,0 +1,323 @@
+# Couples acide-base usuels, à 25 °C, en solution aqueuse diluée.
+#
+# Chaque couple est décrit comme un polyacide : `formes` va de la plus acide à la
+# plus basique, et `noms[j]` donne les noms sous lesquels on cherche la forme j —
+# le nom de l'ion, et celui du sel qu'on pèse pour l'introduire.
+#
+# Les valeurs sont celles des tables usuelles (CRC Handbook of Chemistry and
+# Physics, « Dissociation constants of organic acids and bases » et « of inorganic
+# acids and bases »), arrondies au centième. D'une table à l'autre elles diffèrent
+# couramment de quelques centièmes, et parfois davantage : la note le dit alors.
+#
+# Les acides et bases forts sont à part, en fin de fichier : ils ne sont pas des
+# couples au sens du calcul, leur dissociation est totale.
+
+# --- acides carboxyliques ---------------------------------------------------
+
+[[couple]]
+nom = "acide méthanoïque"
+pKa = [3.75]
+formes = ["HCOOH", "HCOO-"]
+noms = [["acide méthanoïque", "acide formique"], ["ion méthanoate", "ion formiate", "méthanoate de sodium", "formiate de sodium"]]
+
+[[couple]]
+nom = "acide éthanoïque"
+pKa = [4.76]
+formes = ["CH3COOH", "CH3COO-"]
+noms = [["acide éthanoïque", "acide acétique", "vinaigre"], ["ion éthanoate", "ion acétate", "éthanoate de sodium", "acétate de sodium"]]
+
+[[couple]]
+nom = "acide propanoïque"
+pKa = [4.87]
+formes = ["C2H5COOH", "C2H5COO-"]
+noms = [["acide propanoïque", "acide propionique"], ["ion propanoate"]]
+
+[[couple]]
+nom = "acide butanoïque"
+pKa = [4.82]
+formes = ["C3H7COOH", "C3H7COO-"]
+noms = [["acide butanoïque", "acide butyrique"], ["ion butanoate"]]
+
+[[couple]]
+nom = "acide chloroéthanoïque"
+pKa = [2.87]
+formes = ["ClCH2COOH", "ClCH2COO-"]
+noms = [["acide chloroéthanoïque", "acide chloroacétique"], ["ion chloroéthanoate"]]
+
+[[couple]]
+nom = "acide benzoïque"
+pKa = [4.20]
+formes = ["C6H5COOH", "C6H5COO-"]
+noms = [["acide benzoïque"], ["ion benzoate", "benzoate de sodium"]]
+
+[[couple]]
+nom = "acide lactique"
+pKa = [3.86]
+formes = ["CH3CHOHCOOH", "CH3CHOHCOO-"]
+noms = [["acide lactique"], ["ion lactate"]]
+
+[[couple]]
+nom = "acide acétylsalicylique"
+pKa = [3.5]
+formes = ["C8H7O2COOH", "C8H7O2COO-"]
+noms = [["acide acétylsalicylique", "aspirine"], ["ion acétylsalicylate"]]
+
+[[couple]]
+nom = "acide oxalique"
+pKa = [1.25, 4.27]
+formes = ["H2C2O4", "HC2O4-", "C2O4^2-"]
+noms = [["acide oxalique", "acide éthanedioïque"], ["ion hydrogénooxalate"], ["ion oxalate", "oxalate de sodium"]]
+
+[[couple]]
+nom = "acide malonique"
+pKa = [2.83, 5.69]
+formes = ["CH2(COOH)2", "HOOCCH2COO-", "CH2(COO)2^2-"]
+noms = [["acide malonique", "acide propanedioïque"], ["ion hydrogénomalonate"], ["ion malonate"]]
+
+[[couple]]
+nom = "acide succinique"
+pKa = [4.21, 5.64]
+formes = ["H2Succ", "HSucc-", "Succ^2-"]
+noms = [["acide succinique", "acide butanedioïque"], ["ion hydrogénosuccinate"], ["ion succinate"]]
+
+[[couple]]
+nom = "acide tartrique"
+pKa = [3.04, 4.37]
+formes = ["H2Tart", "HTart-", "Tart^2-"]
+noms = [["acide tartrique"], ["ion hydrogénotartrate", "crème de tartre"], ["ion tartrate"]]
+
+[[couple]]
+nom = "acide ascorbique"
+pKa = [4.10, 11.6]
+formes = ["H2Asc", "HAsc-", "Asc^2-"]
+noms = [["acide ascorbique", "vitamine C"], ["ion ascorbate", "ascorbate de sodium"], ["ion ascorbate(2-)"]]
+note = "La seconde acidité, très faible, n'intervient pas dans un titrage usuel."
+
+[[couple]]
+nom = "acide citrique"
+pKa = [3.13, 4.76, 6.40]
+formes = ["H3Cit", "H2Cit-", "HCit^2-", "Cit^3-"]
+noms = [["acide citrique"], ["ion dihydrogénocitrate"], ["ion hydrogénocitrate"], ["ion citrate", "citrate de sodium"]]
+
+# --- acides minéraux faibles ------------------------------------------------
+
+[[couple]]
+nom = "acide fluorhydrique"
+pKa = [3.17]
+formes = ["HF", "F-"]
+noms = [["acide fluorhydrique", "fluorure d'hydrogène"], ["ion fluorure", "fluorure de sodium"]]
+
+[[couple]]
+nom = "acide nitreux"
+pKa = [3.25]
+formes = ["HNO2", "NO2-"]
+noms = [["acide nitreux"], ["ion nitrite", "nitrite de sodium"]]
+
+[[couple]]
+nom = "acide hypochloreux"
+pKa = [7.53]
+formes = ["HClO", "ClO-"]
+noms = [["acide hypochloreux"], ["ion hypochlorite", "hypochlorite de sodium", "eau de Javel"]]
+note = "Les tables donnent entre 7,40 et 7,54."
+
+[[couple]]
+nom = "acide cyanhydrique"
+pKa = [9.21]
+formes = ["HCN", "CN-"]
+noms = [["acide cyanhydrique", "cyanure d'hydrogène"], ["ion cyanure", "cyanure de potassium"]]
+
+[[couple]]
+nom = "acide borique"
+pKa = [9.24]
+formes = ["B(OH)3", "B(OH)4-"]
+noms = [["acide borique"], ["ion borate", "ion tétrahydroxoborate"]]
+
+[[couple]]
+nom = "acide carbonique"
+pKa = [6.35, 10.33]
+formes = ["H2CO3", "HCO3-", "CO3^2-"]
+noms = [["acide carbonique", "dioxyde de carbone dissous", "CO2", "CO2,H2O"], ["ion hydrogénocarbonate", "hydrogénocarbonate de sodium", "bicarbonate de sodium", "NaHCO3"], ["ion carbonate", "carbonate de sodium", "Na2CO3"]]
+note = "H2CO3 désigne ici le dioxyde de carbone dissous et l'acide carbonique ensemble, comme dans les tables."
+
+[[couple]]
+nom = "acide phosphorique"
+pKa = [2.15, 7.20, 12.35]
+formes = ["H3PO4", "H2PO4-", "HPO4^2-", "PO4^3-"]
+noms = [["acide phosphorique", "acide orthophosphorique"], ["ion dihydrogénophosphate", "dihydrogénophosphate de sodium", "NaH2PO4"], ["ion hydrogénophosphate", "hydrogénophosphate de sodium", "Na2HPO4"], ["ion phosphate", "phosphate de sodium", "Na3PO4"]]
+
+[[couple]]
+nom = "acide sulfurique"
+pKa = [-3.0, 1.99]
+formes = ["H2SO4", "HSO4-", "SO4^2-"]
+noms = [["acide sulfurique"], ["ion hydrogénosulfate", "hydrogénosulfate de sodium"], ["ion sulfate", "sulfate de sodium"]]
+note = "La première acidité est forte ; un pKa de -3 la rend totale dans tout le domaine utile."
+
+[[couple]]
+nom = "acide sulfureux"
+pKa = [1.85, 7.20]
+formes = ["H2SO3", "HSO3-", "SO3^2-"]
+noms = [["acide sulfureux", "dioxyde de soufre dissous", "SO2,H2O"], ["ion hydrogénosulfite"], ["ion sulfite", "sulfite de sodium"]]
+
+[[couple]]
+nom = "sulfure d'hydrogène"
+pKa = [7.0, 13.0]
+formes = ["H2S", "HS-", "S^2-"]
+noms = [["sulfure d'hydrogène", "acide sulfhydrique"], ["ion hydrogénosulfure"], ["ion sulfure", "sulfure de sodium"]]
+note = "La seconde acidité est mal connue : 13 est la valeur classique de l'enseignement, des mesures récentes la placent vers 17 à 19."
+
+# --- bases faibles azotées --------------------------------------------------
+
+[[couple]]
+nom = "ion ammonium"
+pKa = [9.25]
+formes = ["NH4+", "NH3"]
+noms = [["ion ammonium", "chlorure d'ammonium", "NH4Cl"], ["ammoniac", "ammoniaque"]]
+
+[[couple]]
+nom = "ion méthylammonium"
+pKa = [10.64]
+formes = ["CH3NH3+", "CH3NH2"]
+noms = [["ion méthylammonium"], ["méthylamine"]]
+
+[[couple]]
+nom = "ion triéthylammonium"
+pKa = [10.75]
+formes = ["(C2H5)3NH+", "(C2H5)3N"]
+noms = [["ion triéthylammonium"], ["triéthylamine"]]
+
+[[couple]]
+nom = "ion éthanolammonium"
+pKa = [9.50]
+formes = ["HOC2H4NH3+", "HOC2H4NH2"]
+noms = [["ion éthanolammonium"], ["éthanolamine", "2-aminoéthanol"]]
+
+[[couple]]
+nom = "ion hydrazinium"
+pKa = [8.10]
+formes = ["N2H5+", "N2H4"]
+noms = [["ion hydrazinium"], ["hydrazine"]]
+
+[[couple]]
+nom = "ion hydroxylammonium"
+pKa = [5.96]
+formes = ["NH3OH+", "NH2OH"]
+noms = [["ion hydroxylammonium"], ["hydroxylamine"]]
+
+[[couple]]
+nom = "ion pyridinium"
+pKa = [5.23]
+formes = ["C5H5NH+", "C5H5N"]
+noms = [["ion pyridinium"], ["pyridine"]]
+
+[[couple]]
+nom = "ion anilinium"
+pKa = [4.60]
+formes = ["C6H5NH3+", "C6H5NH2"]
+noms = [["ion anilinium"], ["aniline"]]
+
+[[couple]]
+nom = "phénol"
+pKa = [9.99]
+formes = ["C6H5OH", "C6H5O-"]
+noms = [["phénol"], ["ion phénolate"]]
+
+# --- acides aminés, complexants ---------------------------------------------
+
+[[couple]]
+nom = "glycine"
+pKa = [2.34, 9.60]
+formes = ["H3N+CH2COOH", "H3N+CH2COO-", "H2NCH2COO-"]
+noms = [["ion glycinium"], ["glycine"], ["ion glycinate"]]
+note = "La glycine s'introduit sous sa forme zwitterionique, la forme 1."
+
+[[couple]]
+nom = "EDTA"
+pKa = [2.00, 2.67, 6.16, 10.26]
+formes = ["H4Y", "H3Y-", "H2Y^2-", "HY^3-", "Y^4-"]
+noms = [["acide éthylènediaminetétraacétique", "EDTA"], ["ion trihydrogénoéthylènediaminetétraacétate"], ["sel disodique de l'EDTA", "Na2H2Y"], ["ion hydrogénoéthylènediaminetétraacétate"], ["ion éthylènediaminetétraacétate"]]
+note = "Les deux premières acidités (H6Y2+ et H5Y+, pKa 0,0 et 1,5) sont omises, comme dans l'enseignement."
+
+# --- acides et bases forts --------------------------------------------------
+
+[[fort]]
+nature = "acide"
+formules = ["HCl", "H3O+"]
+contre_ion = "Cl-"
+noms = ["acide chlorhydrique", "chlorure d'hydrogène"]
+
+[[fort]]
+nature = "acide"
+formules = ["HNO3"]
+contre_ion = "NO3-"
+noms = ["acide nitrique"]
+
+[[fort]]
+nature = "acide"
+formules = ["HBr"]
+contre_ion = "Br-"
+noms = ["acide bromhydrique"]
+
+[[fort]]
+nature = "acide"
+formules = ["HI"]
+contre_ion = "I-"
+noms = ["acide iodhydrique"]
+
+[[fort]]
+nature = "acide"
+formules = ["HClO4"]
+contre_ion = "ClO4-"
+noms = ["acide perchlorique"]
+
+[[fort]]
+nature = "base"
+formules = ["NaOH", "HO-", "OH-"]
+contre_ion = "Na+"
+noms = ["soude", "hydroxyde de sodium", "ion hydroxyde"]
+
+[[fort]]
+nature = "base"
+formules = ["KOH"]
+contre_ion = "K+"
+noms = ["potasse", "hydroxyde de potassium"]
+
+# --- sels : le contre-ion qu'apporte chaque nom de sel ------------------------
+#
+# Il ne compte que pour la conductivité. Un ion désigné par sa formule ou par son
+# nom d'ion (« CH3COO- », « ion éthanoate ») reçoit le contre-ion par défaut de
+# titrages.solution : Na+ pour un anion, Cl- pour un cation.
+
+[sels]
+"méthanoate de sodium" = "Na+"
+"formiate de sodium" = "Na+"
+"éthanoate de sodium" = "Na+"
+"acétate de sodium" = "Na+"
+"benzoate de sodium" = "Na+"
+"oxalate de sodium" = "Na+"
+"crème de tartre" = "K+"
+"ascorbate de sodium" = "Na+"
+"citrate de sodium" = "Na+"
+"fluorure de sodium" = "Na+"
+"nitrite de sodium" = "Na+"
+"hypochlorite de sodium" = "Na+"
+"eau de Javel" = "Na+"
+"cyanure de potassium" = "K+"
+"hydrogénocarbonate de sodium" = "Na+"
+"bicarbonate de sodium" = "Na+"
+"NaHCO3" = "Na+"
+"carbonate de sodium" = "Na+"
+"Na2CO3" = "Na+"
+"dihydrogénophosphate de sodium" = "Na+"
+"NaH2PO4" = "Na+"
+"hydrogénophosphate de sodium" = "Na+"
+"Na2HPO4" = "Na+"
+"phosphate de sodium" = "Na+"
+"Na3PO4" = "Na+"
+"hydrogénosulfate de sodium" = "Na+"
+"sulfate de sodium" = "Na+"
+"sulfite de sodium" = "Na+"
+"sulfure de sodium" = "Na+"
+"chlorure d'ammonium" = "Cl-"
+"NH4Cl" = "Cl-"
+"sel disodique de l'EDTA" = "Na+"
+"Na2H2Y" = "Na+"

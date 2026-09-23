@@ -1,0 +1,832 @@
+% titrages.sty — courbes de titrage sans approximation, dans pgfplots :
+% pH-métrie, conductimétrie, potentiométrie.
+%
+% Copyright (c) 2026 antnardo — licence MIT (voir LICENSE).
+%
+% Deux moteurs derrière une seule interface :
+%   - lua (défaut sous LuaLaTeX) : titrages.lua calcule en double précision, résout
+%     le pH ou le potentiel à volume donné, repère les sauts, construit la méthode des
+%     tangentes, traite les couples rédox dimériques (I2/I-, Cr2O7^2-/Cr3+) ;
+%   - pgf (défaut ailleurs) : les courbes sont des courbes paramétrées par le pH (ou
+%     le potentiel), V = V(pH), l'expression étant construite ici. Courbes pH, σ et E
+%     (couples monomères) et fractions ; pas de nombres : pgfmath ne résout rien.
+%
+% Le principe est celui du paquet Python titrages : à pH (ou potentiel) imposé tout
+% est explicite, et V = -V0 R_becher / R_burette, R étant le résidu de
+% l'électroneutralité (ou du bilan d'électrons) de chaque solution.
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesExplPackage{titrages}{2026-09-23}{0.1.0}{Courbes de titrage sans approximation}
+
+\RequirePackage{pgfplots}
+
+% --- options du paquet --------------------------------------------------------
+
+\str_new:N \g__titrages_moteur_str
+\sys_if_engine_luatex:TF
+  { \str_gset:Nn \g__titrages_moteur_str { lua } }
+  { \str_gset:Nn \g__titrages_moteur_str { pgf } }
+
+\keys_define:nn { titrages / paquet }
+  {
+    moteur .choices:nn = { lua , pgf }
+      { \str_gset:Nx \g__titrages_moteur_str { \l_keys_choice_tl } } ,
+  }
+\ProcessKeyOptions [ titrages / paquet ]
+
+\str_if_eq:VnT \g__titrages_moteur_str { lua }
+  {
+    \sys_if_engine_luatex:F
+      {
+        \msg_new:nnn { titrages } { lua-sans-luatex }
+          { Le~moteur~lua~demande~LuaLaTeX~;~moteur~pgf~retenu. }
+        \msg_warning:nn { titrages } { lua-sans-luatex }
+        \str_gset:Nn \g__titrages_moteur_str { pgf }
+      }
+  }
+
+% Chercher titrages.lua comme un fichier TeX, à côté du .sty : le chercheur Lua de
+% kpathsea ne lit que LUAINPUTS, que TEXINPUTS ne prolonge pas toujours. (Sous
+% \ExplSyntaxOn les espaces tombent : le code Lua n'en contient pas.)
+\str_if_eq:VnT \g__titrages_moteur_str { lua }
+  { \lua_now:n { titrages=dofile(kpse.find_file("titrages.lua","tex")) } }
+
+\msg_new:nnn { titrages } { lua-seulement }
+  { \token_to_str:N #1~demande~le~moteur~lua~(LuaLaTeX). }
+\msg_new:nnn { titrages } { inconnu }
+  { Aucun~titrage~«~#1~»~:~le~définir~par~\token_to_str:N \titragedefinir. }
+\msg_new:nnn { titrages } { abscisse-pgf }
+  { abscisse~=~n~demande~le~moteur~lua~;~avec~pgf,~écrire~echelle~=~<volume~équivalent>. }
+\msg_new:nnn { titrages } { dimere-pgf }
+  { Un~couple~dimérique~(stoechiometrie~=~{#1})~demande~le~moteur~lua. }
+\msg_new:nnn { titrages } { sigma-pgf }
+  { Conductivité~de~«~#1~»~:~il~manque~un~lambda~(forme~chargée~ou~contre-ion). }
+\msg_new:nnn { titrages } { pas-redox }
+  { «~#1~»~est~un~titrage~rédox~:~pas~de~conductimétrie. }
+
+% --- variables ----------------------------------------------------------------
+
+\tl_new:N \l__titrages_lua_tl        % les espèces de la solution en cours, en Lua
+\tl_new:N \l__titrages_pgf_tl        % sa charge, en expression pgfmath
+\tl_new:N \l__titrages_sigma_tl      % sa conductivité ionique, en expression pgfmath
+\bool_new:N \l__titrages_sigma_bool  % tous les lambda sont connus
+\fp_new:N \l__titrages_acide_fp
+\fp_new:N \l__titrages_base_fp
+\fp_new:N \l__titrages_lamA_fp
+\fp_new:N \l__titrages_lamB_fp
+
+\clist_new:N \l__titrages_pKa_clist
+\clist_new:N \l__titrages_lambda_clist
+\fp_new:N \l__titrages_C_fp
+\fp_new:N \l__titrages_lamci_fp
+\bool_new:N \l__titrages_lamci_bool
+\int_new:N \l__titrages_q_int
+\int_new:N \l__titrages_z_int
+\tl_new:N \l__titrages_forme_tl
+
+\clist_new:N \l__titrages_E_clist
+\clist_new:N \l__titrages_n_clist
+\clist_new:N \l__titrages_H_clist
+\clist_new:N \l__titrages_st_clist
+
+\fp_new:N \l__titrages_V_fp
+\fp_new:N \l__titrages_pKe_fp
+\fp_new:N \l__titrages_Vmax_fp
+\fp_new:N \l__titrages_echelle_fp
+\fp_new:N \l__titrages_pH_fp
+\fp_new:N \l__titrages_nernst_fp
+\tl_new:N \l__titrages_reference_tl
+\int_new:N \l__titrages_points_int
+\bool_new:N \l__titrages_dilution_bool
+\bool_new:N \l__titrages_corrigee_bool
+\str_new:N \l__titrages_abscisse_str
+\str_new:N \l__titrages_unite_str
+
+\seq_new:N \l__titrages_A_seq
+\seq_new:N \l__titrages_B_seq
+\seq_new:N \l__titrages_c_seq
+\seq_new:N \l__titrages_x_seq
+\fp_new:N \l__titrages_s_fp
+\fp_new:N \l__titrages_t_fp
+\int_new:N \l__titrages_N_int
+
+% Réglages globaux
+\int_new:N \g__titrages_chiffres_int
+\int_gset:Nn \g__titrages_chiffres_int { 2 }
+\fp_new:N \g__titrages_pHmin_fp
+\fp_new:N \g__titrages_pHmax_fp
+\fp_gset:Nn \g__titrages_pHmax_fp { 14 }
+\fp_new:N \g__titrages_Emin_fp
+\fp_new:N \g__titrages_Emax_fp
+\fp_gset:Nn \g__titrages_Emin_fp { -0.5 }
+\fp_gset:Nn \g__titrages_Emax_fp { 2 }
+
+% --- l'outil commun : les fractions en expression pgfmath -------------------------
+%
+% Les fractions ont la même forme en pH et en potentiel :
+%   x_j = 1 / sum_m 10^( (A_m - A_j) MA + (B_m - B_j) MB + (c_m - c_j) MC ),
+% avec A, B, c des nombres (calculés ici) et MA, MB, MC des expressions (le pH x,
+% ou E/s et pH pour le rédox). Aucun quotient de nombres démesurés.
+
+\cs_new_protected:Npn \__titrages_pgf_fractions:nnn #1 #2 #3
+  {
+    \seq_clear:N \l__titrages_x_seq
+    \int_set:Nn \l__titrages_N_int { \seq_count:N \l__titrages_A_seq }
+    \int_step_inline:nn { \l__titrages_N_int }
+      {
+        \tl_set:Nn \l__titrages_pgf_tl { 1 / ( 0 }
+        \int_step_inline:nn { \l__titrages_N_int }
+          {
+            \tl_put_right:Nx \l__titrages_pgf_tl
+              {
+                + 10^( ( \fp_eval:n { \seq_item:Nn \l__titrages_A_seq { ####1 }
+                                      - \seq_item:Nn \l__titrages_A_seq { ##1 } } ) * ( \exp_not:n { #1 } )
+                       + ( \fp_eval:n { \seq_item:Nn \l__titrages_B_seq { ####1 }
+                                        - \seq_item:Nn \l__titrages_B_seq { ##1 } } ) * ( \exp_not:n { #2 } )
+                       + ( \fp_eval:n { \seq_item:Nn \l__titrages_c_seq { ####1 }
+                                        - \seq_item:Nn \l__titrages_c_seq { ##1 } } ) * ( \exp_not:n { #3 } ) )
+              }
+          }
+        \tl_put_right:Nn \l__titrages_pgf_tl { ) }
+        \seq_put_right:NV \l__titrages_x_seq \l__titrages_pgf_tl
+      }
+  }
+
+% Les pKa, évalués et triés : l'ordre donné n'engage pas.
+\cs_new_protected:Npn \__titrages_pKa_trier:
+  {
+    \clist_set:Nx \l__titrages_pKa_clist
+      { \clist_map_function:NN \l__titrages_pKa_clist \__titrages_fp_virgule:n }
+    \clist_sort:Nn \l__titrages_pKa_clist
+      { \fp_compare:nNnTF { ##1 } > { ##2 } { \sort_return_swapped: } { \sort_return_same: } }
+  }
+\cs_new:Npn \__titrages_fp_virgule:n #1 { \fp_eval:n { #1 } , }
+
+% A_j = -(pKa_1 + … + pKa_j), c_j = j.
+\cs_new_protected:Npn \__titrages_pgf_acidobasique:
+  {
+    \seq_clear:N \l__titrages_A_seq
+    \seq_clear:N \l__titrages_B_seq
+    \seq_clear:N \l__titrages_c_seq
+    \fp_zero:N \l__titrages_s_fp
+    \seq_put_right:Nn \l__titrages_A_seq { 0 }
+    \clist_map_inline:Nn \l__titrages_pKa_clist
+      {
+        \fp_sub:Nn \l__titrages_s_fp { ##1 }
+        \seq_put_right:Nx \l__titrages_A_seq { \fp_use:N \l__titrages_s_fp }
+      }
+    \int_step_inline:nnn { 0 } { \clist_count:N \l__titrages_pKa_clist }
+      {
+        \seq_put_right:Nn \l__titrages_B_seq { 0 }
+        \seq_put_right:Nn \l__titrages_c_seq { ##1 }
+      }
+    \__titrages_pgf_fractions:nnn { 1 } { 0 } { x }
+  }
+
+% --- clés : une espèce acido-basique ------------------------------------------------
+
+\keys_define:nn { titrages / espece }
+  {
+    pKa     .code:n = { \clist_set:Nx \l__titrages_pKa_clist { #1 } } ,
+    C       .code:n = { \fp_set:Nn \l__titrages_C_fp { #1 } } ,
+    forme   .code:n = { \int_set:Nn \l__titrages_q_int { #1 } } ,
+    lambda  .code:n = { \clist_set:Nx \l__titrages_lambda_clist { #1 } } ,
+    charge  .code:n = { \int_set:Nn \l__titrages_z_int { #1 } } ,
+    contre~ion .code:n =
+      { \fp_set:Nn \l__titrages_lamci_fp { #1 } \bool_set_true:N \l__titrages_lamci_bool } ,
+  }
+
+\cs_new_protected:Npn \__titrages_espece:n #1
+  {
+    \clist_clear:N \l__titrages_pKa_clist
+    \clist_clear:N \l__titrages_lambda_clist
+    \fp_zero:N \l__titrages_C_fp
+    \int_zero:N \l__titrages_q_int
+    \int_zero:N \l__titrages_z_int
+    \bool_set_false:N \l__titrages_lamci_bool
+    \keys_set:nn { titrages / espece } { #1 }
+    \__titrages_pKa_trier:
+    \tl_put_right:Nx \l__titrages_lua_tl
+      {
+        { pKa = { \l__titrages_pKa_clist } ,
+          C = \fp_use:N \l__titrages_C_fp ,
+          q = \int_use:N \l__titrages_q_int ,
+          z0 = \int_use:N \l__titrages_z_int ,
+          lam = { \clist_map_function:NN \l__titrages_lambda_clist \__titrages_fp_virgule:n } ,
+          lamci = \bool_if:NTF \l__titrages_lamci_bool { \fp_use:N \l__titrages_lamci_fp } { nil } } ,
+      }
+    \__titrages_pgf_acidobasique:
+    % la charge : C (sum_j j x_j - q)
+    \tl_put_right:Nx \l__titrages_charge_tl
+      { + ( \fp_use:N \l__titrages_C_fp ) * ( 0 - \int_use:N \l__titrages_q_int }
+    \int_step_inline:nn { \seq_count:N \l__titrages_x_seq }
+      {
+        \tl_put_right:Nx \l__titrages_charge_tl
+          { + \int_eval:n { ##1 - 1 } * ( \seq_item:Nn \l__titrages_x_seq { ##1 } ) }
+      }
+    \tl_put_right:Nn \l__titrages_charge_tl { ) }
+    % la conductivité : C sum_j lambda_j x_j sur les formes chargées, et le contre-ion
+    \int_step_inline:nn { \seq_count:N \l__titrages_x_seq }
+      {
+        \int_compare:nNnF { \l__titrages_z_int - ##1 + 1 } = { 0 }
+          {
+            \int_compare:nNnTF { \clist_count:N \l__titrages_lambda_clist } < { ##1 }
+              { \bool_set_false:N \l__titrages_sigma_bool }
+              {
+                \tl_put_right:Nx \l__titrages_sigma_tl
+                  {
+                    + ( \fp_eval:n { \clist_item:Nn \l__titrages_lambda_clist { ##1 }
+                                     * \l__titrages_C_fp } )
+                      * ( \seq_item:Nn \l__titrages_x_seq { ##1 } )
+                  }
+              }
+          }
+      }
+    \int_compare:nNnF { \l__titrages_z_int } = { \l__titrages_q_int }
+      {
+        \bool_if:NTF \l__titrages_lamci_bool
+          {
+            \tl_put_right:Nx \l__titrages_sigma_tl
+              {
+                + \fp_eval:n { \l__titrages_lamci_fp * \l__titrages_C_fp
+                               * abs ( \l__titrages_z_int - \l__titrages_q_int ) }
+              }
+          }
+          { \bool_set_false:N \l__titrages_sigma_bool }
+      }
+  }
+\tl_new:N \l__titrages_charge_tl
+
+% --- clés : une solution acido-basique ----------------------------------------------
+
+\keys_define:nn { titrages / solution }
+  {
+    espece     .code:n = { \__titrages_espece:n { #1 } } ,
+    acide~fort .code:n = { \fp_add:Nn \l__titrages_acide_fp { #1 } } ,
+    base~forte .code:n = { \fp_add:Nn \l__titrages_base_fp { #1 } } ,
+    lambda~acide~fort .code:n = { \fp_set:Nn \l__titrages_lamA_fp { #1 } } ,
+    lambda~base~forte .code:n = { \fp_set:Nn \l__titrages_lamB_fp { #1 } } ,
+  }
+
+\cs_new_protected:Npn \__titrages_solution:nn #1 #2
+  {
+    \tl_clear:N \l__titrages_lua_tl
+    \tl_set:Nn \l__titrages_charge_tl { 0 }
+    \tl_set:Nn \l__titrages_sigma_tl { 0 }
+    \bool_set_true:N \l__titrages_sigma_bool
+    \fp_zero:N \l__titrages_acide_fp
+    \fp_zero:N \l__titrages_base_fp
+    \fp_set:Nn \l__titrages_lamA_fp { 7.63 }  % Cl-
+    \fp_set:Nn \l__titrages_lamB_fp { 5.01 }  % Na+
+    \keys_set:nn { titrages / solution } { #2 }
+    \tl_set_eq:cN { l__titrages_ #1 _lua_tl } \l__titrages_lua_tl
+    \tl_set_eq:cN { l__titrages_ #1 _pgf_tl } \l__titrages_charge_tl
+    \tl_set:cx { l__titrages_ #1 _sigma_tl }
+      {
+        \l__titrages_sigma_tl
+        + \fp_eval:n { \l__titrages_acide_fp * \l__titrages_lamA_fp
+                       + \l__titrages_base_fp * \l__titrages_lamB_fp }
+      }
+    \bool_set_eq:cN { l__titrages_ #1 _sigma_bool } \l__titrages_sigma_bool
+    \tl_set:cx { l__titrages_ #1 _acide_tl } { \fp_use:N \l__titrages_acide_fp }
+    \tl_set:cx { l__titrages_ #1 _base_tl } { \fp_use:N \l__titrages_base_fp }
+    \tl_set:cx { l__titrages_ #1 _lamA_tl } { \fp_use:N \l__titrages_lamA_fp }
+    \tl_set:cx { l__titrages_ #1 _lamB_tl } { \fp_use:N \l__titrages_lamB_fp }
+    \fp_set:cn { l__titrages_ #1 _b_fp } { \l__titrages_base_fp - \l__titrages_acide_fp }
+  }
+\tl_new:N \l__titrages_becher_lua_tl
+\tl_new:N \l__titrages_burette_lua_tl
+\tl_new:N \l__titrages_becher_pgf_tl
+\tl_new:N \l__titrages_burette_pgf_tl
+\tl_new:N \l__titrages_becher_sigma_tl
+\tl_new:N \l__titrages_burette_sigma_tl
+\bool_new:N \l__titrages_becher_sigma_bool
+\bool_new:N \l__titrages_burette_sigma_bool
+\tl_new:N \l__titrages_becher_acide_tl
+\tl_new:N \l__titrages_becher_base_tl
+\tl_new:N \l__titrages_burette_acide_tl
+\tl_new:N \l__titrages_burette_base_tl
+\tl_new:N \l__titrages_becher_lamA_tl
+\tl_new:N \l__titrages_becher_lamB_tl
+\tl_new:N \l__titrages_burette_lamA_tl
+\tl_new:N \l__titrages_burette_lamB_tl
+\fp_new:N \l__titrages_becher_b_fp
+\fp_new:N \l__titrages_burette_b_fp
+
+% --- clés : un titrage acido-basique ---------------------------------------------
+
+\keys_define:nn { titrages / titrage }
+  {
+    volume     .code:n = { \fp_set:Nn \l__titrages_V_fp { #1 } } ,
+    becher     .code:n = { \__titrages_solution:nn { becher } { #1 } } ,
+    burette    .code:n = { \__titrages_solution:nn { burette } { #1 } } ,
+    pKe        .code:n = { \fp_set:Nn \l__titrages_pKe_fp { #1 } } ,
+    dilution   .bool_set:N = \l__titrages_dilution_bool ,
+    volume~max .code:n = { \fp_set:Nn \l__titrages_Vmax_fp { #1 } } ,
+    points     .code:n = { \int_set:Nn \l__titrages_points_int { #1 } } ,
+    echelle    .code:n = { \fp_set:Nn \l__titrages_echelle_fp { #1 } } ,
+    abscisse   .choices:nn = { volume , n }
+      { \str_set:Nx \l__titrages_abscisse_str { \l_keys_choice_tl } } ,
+    conductivite~corrigee .bool_set:N = \l__titrages_corrigee_bool ,
+    unite      .choices:nn = { S/m , mS/cm , mS/m }
+      { \str_set:Nx \l__titrages_unite_str { \l_keys_choice_tl } } ,
+  }
+
+\cs_new_protected:Npn \__titrages_initialiser:
+  {
+    \fp_set:Nn \l__titrages_V_fp { 10 }
+    \fp_set:Nn \l__titrages_pKe_fp { 14 }
+    \fp_zero:N \l__titrages_Vmax_fp
+    \fp_set:Nn \l__titrages_echelle_fp { 1 }
+    \int_set:Nn \l__titrages_points_int { 300 }
+    \bool_set_true:N \l__titrages_dilution_bool
+    \bool_set_false:N \l__titrages_corrigee_bool
+    \str_set:Nn \l__titrages_abscisse_str { volume }
+    \str_set:Nn \l__titrages_unite_str { mS/cm }
+  }
+
+\NewDocumentCommand \titragedefinir { m m }
+  {
+    \group_begin:
+      \__titrages_initialiser:
+      \__titrages_solution:nn { becher } { }
+      \__titrages_solution:nn { burette } { }
+      \keys_set:nn { titrages / titrage } { #2 }
+      \str_if_eq:VnTF \g__titrages_moteur_str { lua }
+        { \__titrages_definir_lua:n { #1 } }
+        { \__titrages_definir_pgf:n { #1 } }
+    \group_end:
+  }
+
+\cs_new_protected:Npn \__titrages_definir_lua:n #1
+  {
+    \lua_now:e
+      {
+        titrages.definir("\lua_escape:e { #1 }", {
+          V0 = \fp_use:N \l__titrages_V_fp ,
+          pKe = \fp_use:N \l__titrages_pKe_fp ,
+          dilution = \bool_if:NTF \l__titrages_dilution_bool { true } { false } ,
+          corrigee = \bool_if:NTF \l__titrages_corrigee_bool { true } { false } ,
+          unite = "\l__titrages_unite_str" ,
+          Vmax = \fp_use:N \l__titrages_Vmax_fp ,
+          points = \int_use:N \l__titrages_points_int ,
+          abscisse = "\l__titrages_abscisse_str" ,
+          echelle = \fp_use:N \l__titrages_echelle_fp ,
+          becher = { especes = { \l__titrages_becher_lua_tl } ,
+                     acide = \l__titrages_becher_acide_tl ,
+                     base = \l__titrages_becher_base_tl ,
+                     lamA = \l__titrages_becher_lamA_tl ,
+                     lamB = \l__titrages_becher_lamB_tl } ,
+          burette = { especes = { \l__titrages_burette_lua_tl } ,
+                      acide = \l__titrages_burette_acide_tl ,
+                      base = \l__titrages_burette_base_tl ,
+                      lamA = \l__titrages_burette_lamA_tl ,
+                      lamB = \l__titrages_burette_lamB_tl } ,
+        })
+      }
+  }
+
+% Moteur pgf : on garde les expressions de V(x) et de sigma(x), x étant le pH.
+\cs_new_protected:Npn \__titrages_definir_pgf:n #1
+  {
+    \str_if_eq:VnT \l__titrages_abscisse_str { n }
+      { \msg_error:nn { titrages } { abscisse-pgf } }
+    \tl_gclear_new:c { g__titrages_ #1 _type_tl }
+    \tl_gset:cn { g__titrages_ #1 _type_tl } { ab }
+    % V(x), brut, sans l'échelle
+    \tl_gclear_new:c { g__titrages_ #1 _V_tl }
+    \tl_gset:cx { g__titrages_ #1 _V_tl }
+      {
+        ( -( \fp_use:N \l__titrages_V_fp )
+        * ( \l__titrages_becher_pgf_tl - ( \fp_use:N \l__titrages_becher_b_fp )
+            + 10^( x - \fp_use:N \l__titrages_pKe_fp ) - 10^( 0 - x ) )
+        / ( \l__titrages_burette_pgf_tl - ( \fp_use:N \l__titrages_burette_b_fp )
+            \bool_if:NT \l__titrages_dilution_bool
+              { + 10^( x - \fp_use:N \l__titrages_pKe_fp ) - 10^( 0 - x ) } ) )
+      }
+    \tl_gclear_new:c { g__titrages_ #1 _expr_tl }
+    \tl_gset:cx { g__titrages_ #1 _expr_tl }
+      { \tl_use:c { g__titrages_ #1 _V_tl } / ( \fp_use:N \l__titrages_echelle_fp ) }
+    % sigma(x) = [V0 sigma_b + V sigma_bu] / (V0 + V) + lambda(H3O+) h + lambda(HO-) w
+    \bool_if:nTF { \l__titrages_becher_sigma_bool && \l__titrages_burette_sigma_bool }
+      {
+        \tl_gclear_new:c { g__titrages_ #1 _sigma_tl }
+        \tl_gset:cx { g__titrages_ #1 _sigma_tl }
+          {
+            \str_case_e:nn { \l__titrages_unite_str } { { S/m } { 1 } { mS/cm } { 10 } { mS/m } { 1000 } }
+            * ( ( \fp_use:N \l__titrages_V_fp * ( \l__titrages_becher_sigma_tl )
+                  + \tl_use:c { g__titrages_ #1 _V_tl } * ( \l__titrages_burette_sigma_tl ) )
+                / ( \fp_use:N \l__titrages_V_fp + \tl_use:c { g__titrages_ #1 _V_tl } )
+                + 34.98 * 10^( 0 - x ) + 19.86 * 10^( x - \fp_use:N \l__titrages_pKe_fp ) )
+            \bool_if:NT \l__titrages_corrigee_bool
+              {
+                * ( \fp_use:N \l__titrages_V_fp + \tl_use:c { g__titrages_ #1 _V_tl } )
+                / \fp_use:N \l__titrages_V_fp
+              }
+          }
+      }
+      { \cs_undefine:c { g__titrages_ #1 _sigma_tl } }
+    \__titrages_domaine_pgf:n { #1 }
+  }
+
+\cs_new_protected:Npn \__titrages_domaine_pgf:n #1
+  {
+    \tl_gclear_new:c { g__titrages_ #1 _vmax_tl }
+    \tl_gset:cx { g__titrages_ #1 _vmax_tl }
+      {
+        \fp_compare:nNnTF { \l__titrages_Vmax_fp } > { 0 }
+          { \fp_eval:n { \l__titrages_Vmax_fp / \l__titrages_echelle_fp } }
+          { \fp_eval:n { 2 * \l__titrages_V_fp / \l__titrages_echelle_fp } }
+      }
+    \tl_gclear_new:c { g__titrages_ #1 _points_tl }
+    \tl_gset:cx { g__titrages_ #1 _points_tl } { \int_use:N \l__titrages_points_int }
+  }
+
+\cs_new_protected:Npn \__titrages_verifier_pgf:n #1
+  { \tl_if_exist:cF { g__titrages_ #1 _expr_tl } { \msg_error:nnn { titrages } { inconnu } { #1 } } }
+
+% --- clés : une espèce rédox --------------------------------------------------------
+%
+% forme = red (0, défaut), ox (la plus oxydée), ou un numéro de forme.
+
+\keys_define:nn { titrages / redox / espece }
+  {
+    E0    .code:n = { \clist_set:Nx \l__titrages_E_clist { #1 } } ,
+    n     .code:n = { \clist_set:Nx \l__titrages_n_clist { #1 } } ,
+    H     .code:n = { \clist_set:Nx \l__titrages_H_clist { #1 } } ,
+    stoechiometrie .code:n = { \clist_set:Nx \l__titrages_st_clist { #1 } } ,
+    C     .code:n = { \fp_set:Nn \l__titrages_C_fp { #1 } } ,
+    forme .code:n = { \tl_set:Nx \l__titrages_forme_tl { #1 } } ,
+  }
+
+% A_j = -sum_{i<=j} n_i E0_i, B_j = sum_{i<=j} H_i, c_j = sum_{i<=j} n_i ; les
+% multiplicateurs 1/s, pH et (E + E_ref)/s ne sont connus qu'à la fin de la
+% définition : on les écrit par des variables, développées à ce moment-là.
+\cs_new_protected:Npn \__titrages_espece_redox:n #1
+  {
+    \clist_clear:N \l__titrages_E_clist
+    \clist_clear:N \l__titrages_n_clist
+    \clist_clear:N \l__titrages_H_clist
+    \clist_set:Nn \l__titrages_st_clist { 1 , 1 }
+    \fp_zero:N \l__titrages_C_fp
+    \tl_set:Nn \l__titrages_forme_tl { red }
+    \keys_set:nn { titrages / redox / espece } { #1 }
+    \int_set:Nn \l__titrages_N_int { \clist_count:N \l__titrages_E_clist }
+    \tl_put_right:Nx \l__titrages_lua_tl
+      {
+        { E0 = { \clist_map_function:NN \l__titrages_E_clist \__titrages_fp_virgule:n } ,
+          n = { \l__titrages_n_clist } ,
+          H = { \l__titrages_H_clist } ,
+          st = { \l__titrages_st_clist } ,
+          C = \fp_use:N \l__titrages_C_fp ,
+          q = \str_case_e:nnF { \l__titrages_forme_tl }
+                { { ox } { "ox" } { red } { "red" } } { \l__titrages_forme_tl } } ,
+      }
+    \str_if_eq:eeF { \clist_item:Nn \l__titrages_st_clist { 1 } \clist_item:Nn \l__titrages_st_clist { 2 } } { 11 }
+      { \bool_set_false:N \l__titrages_monomere_bool }
+    \bool_if:NT \l__titrages_monomere_bool
+      {
+        \seq_clear:N \l__titrages_A_seq
+        \seq_clear:N \l__titrages_B_seq
+        \seq_clear:N \l__titrages_c_seq
+        \seq_put_right:Nn \l__titrages_A_seq { 0 }
+        \seq_put_right:Nn \l__titrages_B_seq { 0 }
+        \seq_put_right:Nn \l__titrages_c_seq { 0 }
+        \fp_zero:N \l__titrages_s_fp  % A
+        \fp_zero:N \l__titrages_t_fp  % c
+        \int_zero:N \l__titrages_z_int % B
+        \int_step_inline:nn { \l__titrages_N_int }
+          {
+            \fp_sub:Nn \l__titrages_s_fp
+              { \__titrages_n:n { ##1 } * ( \clist_item:Nn \l__titrages_E_clist { ##1 } ) }
+            \fp_add:Nn \l__titrages_t_fp { \__titrages_n:n { ##1 } }
+            \int_add:Nn \l__titrages_z_int { \__titrages_H:n { ##1 } }
+            \seq_put_right:Nx \l__titrages_A_seq { \fp_use:N \l__titrages_s_fp }
+            \seq_put_right:Nx \l__titrages_B_seq { \int_use:N \l__titrages_z_int }
+            \seq_put_right:Nx \l__titrages_c_seq { \fp_use:N \l__titrages_t_fp }
+          }
+        \__titrages_pgf_fractions:nnn
+          { 1 / \l__titrages_nernst_tl } { \l__titrages_pH_tl } { ( x + \l__titrages_reference_tl ) / \l__titrages_nernst_tl }
+        % électrons introduits par unité : c_q
+        \int_set:Nn \l__titrages_q_int
+          {
+            \str_case_e:nnF { \l__titrages_forme_tl }
+              { { ox } { \clist_count:N \l__titrages_E_clist } { red } { 0 } } { \l__titrages_forme_tl }
+          }
+        \tl_put_right:Nx \l__titrages_charge_tl
+          {
+            + ( \fp_use:N \l__titrages_C_fp ) * ( 0
+              - \seq_item:Nn \l__titrages_c_seq { \l__titrages_q_int + 1 }
+          }
+        \int_step_inline:nn { \seq_count:N \l__titrages_x_seq }
+          {
+            \tl_put_right:Nx \l__titrages_charge_tl
+              {
+                + \seq_item:Nn \l__titrages_c_seq { ##1 }
+                  * ( \seq_item:Nn \l__titrages_x_seq { ##1 } )
+              }
+          }
+        \tl_put_right:Nn \l__titrages_charge_tl { ) }
+      }
+  }
+\cs_new:Npn \__titrages_n:n #1
+  { \int_compare:nNnTF { \clist_count:N \l__titrages_n_clist } < { #1 } { 1 } { \clist_item:Nn \l__titrages_n_clist { #1 } } }
+\cs_new:Npn \__titrages_H:n #1
+  { \int_compare:nNnTF { \clist_count:N \l__titrages_H_clist } < { #1 } { 0 } { \clist_item:Nn \l__titrages_H_clist { #1 } } }
+\bool_new:N \l__titrages_monomere_bool
+\tl_new:N \l__titrages_nernst_tl
+\tl_new:N \l__titrages_pH_tl
+
+\keys_define:nn { titrages / redox / solution }
+  { espece .code:n = { \__titrages_espece_redox:n { #1 } } }
+
+\cs_new_protected:Npn \__titrages_solution_redox:nn #1 #2
+  {
+    \tl_clear:N \l__titrages_lua_tl
+    \tl_set:Nn \l__titrages_charge_tl { 0 }
+    \keys_set:nn { titrages / redox / solution } { #2 }
+    \tl_set_eq:cN { l__titrages_ #1 _lua_tl } \l__titrages_lua_tl
+    \tl_set_eq:cN { l__titrages_ #1 _pgf_tl } \l__titrages_charge_tl
+  }
+
+\keys_define:nn { titrages / redox / titrage }
+  {
+    volume     .code:n = { \fp_set:Nn \l__titrages_V_fp { #1 } } ,
+    becher     .code:n = { \__titrages_solution_redox:nn { becher } { #1 } } ,
+    burette    .code:n = { \__titrages_solution_redox:nn { burette } { #1 } } ,
+    pH         .code:n = { \fp_set:Nn \l__titrages_pH_fp { #1 } } ,
+    pente~nernst .code:n = { \fp_set:Nn \l__titrages_nernst_fp { #1 } } ,
+    volume~max .code:n = { \fp_set:Nn \l__titrages_Vmax_fp { #1 } } ,
+    points     .code:n = { \int_set:Nn \l__titrages_points_int { #1 } } ,
+    echelle    .code:n = { \fp_set:Nn \l__titrages_echelle_fp { #1 } } ,
+    abscisse   .choices:nn = { volume , n }
+      { \str_set:Nx \l__titrages_abscisse_str { \l_keys_choice_tl } } ,
+  }
+
+% La référence, en V/ENH : un nom connu, ou un nombre.
+\cs_new:Npn \__titrages_reference:n #1
+  { \str_case:nnF { #1 } { { ENH } { 0 } { ECS } { 0.244 } { Ag/AgCl } { 0.197 } } { \fp_eval:n { #1 } } }
+
+\NewDocumentCommand \titrageredoxdefinir { m m }
+  {
+    \group_begin:
+      \__titrages_initialiser:
+      \fp_zero:N \l__titrages_pH_fp
+      \fp_set:Nn \l__titrages_nernst_fp { 0.05916 }
+      \bool_set_true:N \l__titrages_monomere_bool
+      % les multiplicateurs restent symboliques jusqu'à la fin
+      \tl_set:Nn \l__titrages_nernst_tl { \l__titrages_nernst_val_tl }
+      \tl_set:Nn \l__titrages_pH_tl { \l__titrages_pH_val_tl }
+      \tl_set:Nn \l__titrages_reference_tl { \l__titrages_ref_val_tl }
+      \__titrages_solution_redox:nn { becher } { }
+      \__titrages_solution_redox:nn { burette } { }
+      \tl_set:Nn \l__titrages_ref_nom_tl { ENH }
+      \keys_set:nn { titrages / redox / titrage } { #2 }
+      \str_if_eq:VnTF \g__titrages_moteur_str { lua }
+        { \__titrages_definir_redox_lua:n { #1 } }
+        { \__titrages_definir_redox_pgf:n { #1 } }
+    \group_end:
+  }
+\tl_new:N \l__titrages_ref_nom_tl
+\tl_new:N \l__titrages_nernst_val_tl
+\tl_new:N \l__titrages_pH_val_tl
+\tl_new:N \l__titrages_ref_val_tl
+
+% La clé reference écrase la variable symbolique : on la relit.
+\keys_define:nn { titrages / redox / titrage }
+  { reference .code:n = { \tl_set:Nn \l__titrages_ref_nom_tl { #1 } } }
+
+\cs_new_protected:Npn \__titrages_definir_redox_lua:n #1
+  {
+    \lua_now:e
+      {
+        titrages.definir_redox("\lua_escape:e { #1 }", {
+          V0 = \fp_use:N \l__titrages_V_fp ,
+          pH = \fp_use:N \l__titrages_pH_fp ,
+          pente = \fp_use:N \l__titrages_nernst_fp ,
+          reference = \__titrages_reference:V \l__titrages_ref_nom_tl ,
+          Vmax = \fp_use:N \l__titrages_Vmax_fp ,
+          points = \int_use:N \l__titrages_points_int ,
+          abscisse = "\l__titrages_abscisse_str" ,
+          echelle = \fp_use:N \l__titrages_echelle_fp ,
+          becher = { especes = { \l__titrages_becher_lua_tl } } ,
+          burette = { especes = { \l__titrages_burette_lua_tl } } ,
+        })
+      }
+  }
+\cs_generate_variant:Nn \__titrages_reference:n { V }
+
+\cs_new_protected:Npn \__titrages_definir_redox_pgf:n #1
+  {
+    \bool_if:NF \l__titrages_monomere_bool
+      { \msg_error:nnn { titrages } { dimere-pgf } { 1,2 } }
+    \str_if_eq:VnT \l__titrages_abscisse_str { n }
+      { \msg_error:nn { titrages } { abscisse-pgf } }
+    \tl_set:Nx \l__titrages_nernst_val_tl { \fp_use:N \l__titrages_nernst_fp }
+    \tl_set:Nx \l__titrages_pH_val_tl { \fp_use:N \l__titrages_pH_fp }
+    \tl_set:Nx \l__titrages_ref_val_tl { \__titrages_reference:V \l__titrages_ref_nom_tl }
+    \tl_gclear_new:c { g__titrages_ #1 _type_tl }
+    \tl_gset:cn { g__titrages_ #1 _type_tl } { redox }
+    \tl_gclear_new:c { g__titrages_ #1 _expr_tl }
+    \tl_gset:cx { g__titrages_ #1 _expr_tl }
+      {
+        -( \fp_use:N \l__titrages_V_fp ) / ( \fp_use:N \l__titrages_echelle_fp )
+        * ( \l__titrages_becher_pgf_tl ) / ( \l__titrages_burette_pgf_tl )
+      }
+    \__titrages_domaine_pgf:n { #1 }
+  }
+
+% --- réglages globaux -----------------------------------------------------------
+
+\cs_new_protected:Npn \__titrages_reglage:Nnn #1 #2 #3
+  {
+    \fp_gset:Nn #1 { #3 }
+    \str_if_eq:VnT \g__titrages_moteur_str { lua }
+      { \lua_now:e { titrages.reglages.#2 = \fp_eval:n { #3 } } }
+  }
+
+\keys_define:nn { titrages / reglages }
+  {
+    chiffres .code:n =
+      {
+        \int_gset:Nn \g__titrages_chiffres_int { #1 }
+        \str_if_eq:VnT \g__titrages_moteur_str { lua }
+          { \lua_now:e { titrages.reglages.chiffres = \int_eval:n { #1 } } }
+      } ,
+    pH~min .code:n = { \__titrages_reglage:Nnn \g__titrages_pHmin_fp { pHmin } { #1 } } ,
+    pH~max .code:n = { \__titrages_reglage:Nnn \g__titrages_pHmax_fp { pHmax } { #1 } } ,
+    E~min  .code:n = { \__titrages_reglage:Nnn \g__titrages_Emin_fp { Emin } { #1 } } ,
+    E~max  .code:n = { \__titrages_reglage:Nnn \g__titrages_Emax_fp { Emax } { #1 } } ,
+  }
+\NewDocumentCommand \titragesreglages { m } { \keys_set:nn { titrages / reglages } { #1 } }
+
+% --- les tracés -----------------------------------------------------------------
+
+\cs_new_protected:Npn \__titrages_lua_seulement:N #1
+  {
+    \str_if_eq:VnF \g__titrages_moteur_str { lua }
+      { \msg_error:nnn { titrages } { lua-seulement } { #1 } }
+  }
+
+% Les options pgfplots passent à Lua en chaîne, et reviennent par tex.sprint.
+\cs_new:Npn \__titrages_options:n #1 { "\lua_escape:e { \tl_to_str:n { #1 } }" }
+
+\NewDocumentCommand \addplottitrage { O{} m }
+  {
+    \str_if_eq:VnTF \g__titrages_moteur_str { lua }
+      { \lua_now:e { titrages.tex_courbe("\lua_escape:e { #2 }", \__titrages_options:n { #1 }) } }
+      {
+        \__titrages_verifier_pgf:n { #2 }
+        \str_if_eq:eeTF { \tl_use:c { g__titrages_ #2 _type_tl } } { redox }
+          {
+            \__titrages_addplot_pgf:nvvvee { #1 }
+              { g__titrages_ #2 _expr_tl } { g__titrages_ #2 _vmax_tl } { g__titrages_ #2 _points_tl }
+              { \fp_use:N \g__titrages_Emin_fp } { \fp_use:N \g__titrages_Emax_fp }
+          }
+          {
+            \__titrages_addplot_pgf:nvvvee { #1 }
+              { g__titrages_ #2 _expr_tl } { g__titrages_ #2 _vmax_tl } { g__titrages_ #2 _points_tl }
+              { \fp_use:N \g__titrages_pHmin_fp } { \fp_use:N \g__titrages_pHmax_fp }
+          }
+      }
+  }
+
+% Sous \ExplSyntaxOn, « : » est une lettre : pgfplots ne reconnaîtrait pas le
+% domaine. \c_colon_str, développé par \use:e, en rend un de catcode 12.
+% #1 options, #2 abscisse V(x), #3 V max, #4 points, #5 #6 domaine en x, #7 ordonnée.
+\cs_new_protected:Npn \__titrages_addplot_param:nnnnnnn #1 #2 #3 #4 #5 #6 #7
+  {
+    \use:e
+      {
+        \exp_not:N \addplot+
+          [
+            domain = #5 \c_colon_str #6 ,
+            no~markers ,
+            samples = #4 ,
+            restrict~x~to~domain = 0 \c_colon_str #3 ,
+            \exp_not:n { #1 }
+          ]
+          ( { \exp_not:n { #2 } } , { \exp_not:n { #7 } } ) ;
+      }
+  }
+\cs_new_protected:Npn \__titrages_addplot_pgf:nnnnnn #1 #2 #3 #4 #5 #6
+  { \__titrages_addplot_param:nnnnnnn { #1 } { #2 } { #3 } { #4 } { #5 } { #6 } { x } }
+\cs_generate_variant:Nn \__titrages_addplot_pgf:nnnnnn { nvvvee }
+\cs_generate_variant:Nn \__titrages_addplot_param:nnnnnnn { nvvveev }
+
+\NewDocumentCommand \addplottitrageconductivite { O{} m }
+  {
+    \str_if_eq:VnTF \g__titrages_moteur_str { lua }
+      { \lua_now:e { titrages.tex_conductivite("\lua_escape:e { #2 }", \__titrages_options:n { #1 }) } }
+      {
+        \__titrages_verifier_pgf:n { #2 }
+        \str_if_eq:eeT { \tl_use:c { g__titrages_ #2 _type_tl } } { redox }
+          { \msg_error:nnn { titrages } { pas-redox } { #2 } }
+        \tl_if_exist:cF { g__titrages_ #2 _sigma_tl }
+          { \msg_error:nnn { titrages } { sigma-pgf } { #2 } }
+        \__titrages_addplot_param:nvvveev { #1 }
+          { g__titrages_ #2 _expr_tl } { g__titrages_ #2 _vmax_tl } { g__titrages_ #2 _points_tl }
+          { \fp_use:N \g__titrages_pHmin_fp } { \fp_use:N \g__titrages_pHmax_fp }
+          { g__titrages_ #2 _sigma_tl }
+      }
+  }
+
+\NewDocumentCommand \addplottitragederivee { O{} m }
+  {
+    \__titrages_lua_seulement:N \addplottitragederivee
+    \lua_now:e { titrages.tex_derivee("\lua_escape:e { #2 }", \__titrages_options:n { #1 }) }
+  }
+
+\NewDocumentCommand \addplottitragesauts { O{} m }
+  {
+    \__titrages_lua_seulement:N \addplottitragesauts
+    \lua_now:e { titrages.tex_sauts("\lua_escape:e { #2 }", \__titrages_options:n { #1 }) }
+  }
+
+\NewDocumentCommand \addplottitragetangentes { O{} m m }
+  {
+    \__titrages_lua_seulement:N \addplottitragetangentes
+    \lua_now:e
+      {
+        titrages.tex_tangentes("\lua_escape:e { #2 }", \fp_eval:n { #3 },
+          \__titrages_options:n { #1 })
+      }
+  }
+
+% Les fractions : une courbe par forme, pH en abscisse.
+\NewDocumentCommand \addplotfractions { O{} m }
+  {
+    \clist_set:Nx \l__titrages_pKa_clist { #2 }
+    \__titrages_pKa_trier:
+    \str_if_eq:VnTF \g__titrages_moteur_str { lua }
+      {
+        \lua_now:e
+          {
+            titrages.tex_fractions({ \l__titrages_pKa_clist }, \__titrages_options:n { #1 })
+          }
+      }
+      {
+        \__titrages_pgf_acidobasique:
+        \seq_map_inline:Nn \l__titrages_x_seq { \__titrages_addplot_fraction:nn { #1 } { ##1 } }
+      }
+  }
+
+\cs_new_protected:Npn \__titrages_addplot_fraction:nn #1 #2
+  {
+    \use:e
+      {
+        \exp_not:N \addplot+
+          [
+            domain = \fp_use:N \g__titrages_pHmin_fp \c_colon_str \fp_use:N \g__titrages_pHmax_fp ,
+            no~markers ,
+            samples = 200 ,
+            \exp_not:n { #1 }
+          ]
+          { \exp_not:n { #2 } } ;
+      }
+  }
+
+% --- les nombres ----------------------------------------------------------------
+%
+% Développables : \num{\titragepH{acetique}{5}} fonctionne.
+
+\NewExpandableDocumentCommand \titragepH { m m }
+  { \lua_now:e { titrages.tex_nombre("\lua_escape:e { #1 }", "pH", \fp_eval:n { #2 }) } }
+
+\NewExpandableDocumentCommand \titragepHinitial { m }
+  { \lua_now:e { titrages.tex_nombre("\lua_escape:e { #1 }", "pH", 0) } }
+
+\NewExpandableDocumentCommand \titrageE { m m }
+  { \lua_now:e { titrages.tex_nombre("\lua_escape:e { #1 }", "E", \fp_eval:n { #2 }) } }
+
+\NewExpandableDocumentCommand \titrageconductivite { m m }
+  { \lua_now:e { titrages.tex_nombre("\lua_escape:e { #1 }", "conductivite", \fp_eval:n { #2 }) } }
+
+\NewExpandableDocumentCommand \titragevolume { m m }
+  { \lua_now:e { titrages.tex_nombre("\lua_escape:e { #1 }", "volume", \fp_eval:n { #2 }) } }
+
+\NewExpandableDocumentCommand \titrageequivalence { m m }
+  { \lua_now:e { titrages.tex_nombre("\lua_escape:e { #1 }", "equivalence", #2) } }
+
+\NewExpandableDocumentCommand \titragesaut { O{volume} m m }
+  { \lua_now:e { titrages.tex_nombre("\lua_escape:e { #2 }", "saut", #3, "#1") } }
+
+\NewExpandableDocumentCommand \titragetangentes { O{volume} m m }
+  {
+    \lua_now:e
+      { titrages.tex_nombre("\lua_escape:e { #2 }", "tangentes", \fp_eval:n { #3 }, "#1") }
+  }
+
+% Sous pgf, les nombres n'existent pas : on le dit au lieu d'une erreur Lua obscure.
+\str_if_eq:VnF \g__titrages_moteur_str { lua }
+  {
+    \clist_map_inline:nn
+      { \titragepH , \titrageE , \titrageconductivite , \titragevolume , \titrageequivalence }
+      { \RenewDocumentCommand #1 { m m } { \msg_error:nnn { titrages } { lua-seulement } { #1 } } }
+    \RenewDocumentCommand \titragepHinitial { m }
+      { \msg_error:nnn { titrages } { lua-seulement } { \titragepHinitial } }
+    \clist_map_inline:nn { \titragesaut , \titragetangentes }
+      { \RenewDocumentCommand #1 { O{} m m } { \msg_error:nnn { titrages } { lua-seulement } { #1 } } }
+  }
+
+\endinput

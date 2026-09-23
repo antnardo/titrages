@@ -1,0 +1,120 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "titrages"
+dynamic = ["version"]
+description = "Courbes de titrage acido-basique sans approximation : pH, polyacides, mélanges, dilution, équivalences, méthode des tangentes, et une base de couples."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "antnardo", email = "antnardo@users.noreply.github.com" }]
+keywords = [
+    "chimie",
+    "chemistry",
+    "titrage",
+    "titration",
+    "pH",
+    "acide-base",
+    "polyacide",
+    "enseignement",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: French",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Education",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Typing :: Typed",
+]
+# numpy seul : les fractions et les dichotomies sont vectorisées. matplotlib n'est
+# demandé que pour tracer.
+dependencies = ["numpy>=1.24"]
+
+[project.optional-dependencies]
+trace = ["matplotlib>=3.7"]
+
+[project.urls]
+Homepage = "https://github.com/antnardo/titrages"
+Documentation = "https://github.com/antnardo/titrages/blob/main/docs/DOC.md"
+Repository = "https://github.com/antnardo/titrages"
+Issues = "https://github.com/antnardo/titrages/issues"
+Changelog = "https://github.com/antnardo/titrages/blob/main/CHANGELOG.md"
+
+[project.scripts]
+titrages = "titrages.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "matplotlib>=3.7",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+# La version vit dans le module : une seule source, que la publication compare
+# à l'étiquette.
+[tool.hatch.version]
+path = "src/titrages/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/titrages"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/docs",
+    "/examples",
+    "/scripts",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+]
+# Le paquet LaTeX vit dans le même dépôt mais part sur CTAN, pas sur PyPI.
+exclude = ["/latex"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "N", "C4", "PTH", "RET"]
+# RUF001-003 : ambiguïtés unicode, la prose est en français.
+# N802, N803, N806, N815, N816 : les notations de la chimie — pH, pKa, V, N, Y1 —
+# se lisent mieux que leur transcription en minuscules.
+ignore = ["RUF001", "RUF002", "RUF003", "N802", "N803", "N806", "N815", "N816"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501", "SIM300"]  # SIM300 prend Y1, V pour des constantes
+
+[tool.ruff.lint.isort]
+known-first-party = ["titrages"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "lua: confronte le moteur Lua du paquet LaTeX au moteur Python (demande texlua ou lua)",
+]
+
+[tool.mypy]
+# 3.12 et non 3.11 : les annotations de numpy ≥ 2.3 emploient l'instruction `type`.
+# Le code reste compatible 3.11, ce que vérifie la matrice de la CI.
+python_version = "3.12"
+files = ["src"]
+ignore_missing_imports = true
+warn_unused_ignores = true

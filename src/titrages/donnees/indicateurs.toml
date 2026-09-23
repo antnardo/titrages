@@ -1,0 +1,76 @@
+# Indicateurs colorés usuels : pKa, zone de virage et couleurs des deux formes.
+#
+# Zones de virage des tables usuelles (CRC Handbook, « Acid-base indicators »).
+# Les teintes sont des approximations pour le tracé, pas des mesures.
+
+[[indicateur]]
+nom = "hélianthine"
+alias = ["méthylorange", "orange de méthyle"]
+pKa = 3.46
+zone = [3.1, 4.4]
+couleurs = ["rouge", "jaune orangé"]
+teintes = ["#d62728", "#f5a623"]
+
+[[indicateur]]
+nom = "vert de bromocrésol"
+alias = []
+pKa = 4.7
+zone = [3.8, 5.4]
+couleurs = ["jaune", "bleu"]
+teintes = ["#e6d600", "#1f5fbf"]
+
+[[indicateur]]
+nom = "rouge de méthyle"
+alias = []
+pKa = 5.0
+zone = [4.2, 6.2]
+couleurs = ["rouge", "jaune"]
+teintes = ["#d62728", "#e6d600"]
+
+[[indicateur]]
+nom = "bleu de bromothymol"
+alias = ["BBT"]
+pKa = 7.1
+zone = [6.0, 7.6]
+couleurs = ["jaune", "bleu"]
+teintes = ["#e6d600", "#1f5fbf"]
+
+[[indicateur]]
+nom = "rouge de phénol"
+alias = []
+pKa = 7.9
+zone = [6.8, 8.4]
+couleurs = ["jaune", "rouge"]
+teintes = ["#e6d600", "#d62728"]
+
+[[indicateur]]
+nom = "rouge de crésol"
+alias = []
+pKa = 8.3
+zone = [7.2, 8.8]
+couleurs = ["jaune", "rouge pourpre"]
+teintes = ["#e6d600", "#a0205a"]
+
+[[indicateur]]
+nom = "bleu de thymol"
+alias = []
+pKa = 8.9
+zone = [8.0, 9.6]
+couleurs = ["jaune", "bleu"]
+teintes = ["#e6d600", "#1f5fbf"]
+
+[[indicateur]]
+nom = "phénolphtaléine"
+alias = []
+pKa = 9.4
+zone = [8.2, 10.0]
+couleurs = ["incolore", "rose"]
+teintes = ["#f4f4f4", "#e0409a"]
+
+[[indicateur]]
+nom = "thymolphtaléine"
+alias = []
+pKa = 9.9
+zone = [9.3, 10.5]
+couleurs = ["incolore", "bleu"]
+teintes = ["#f4f4f4", "#1f5fbf"]

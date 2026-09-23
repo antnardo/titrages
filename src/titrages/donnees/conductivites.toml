@@ -1,0 +1,49 @@
+# Conductivités molaires ioniques limites λ°, à 25 °C, en mS·m²·mol⁻¹.
+#
+# Valeurs des tables usuelles (CRC Handbook of Chemistry and Physics, « Equivalent
+# conductivity of electrolytes » / « Ionic conductivity »), données ici **par ion**
+# et non par équivalent : pour SO4^2-, λ°(SO4^2-) = 2 λ°(½ SO4^2-) = 16,0.
+# La clé est la formule telle que l'écrit couples.toml.
+#
+# H3O+ (34,98) et HO- (19,86) sont dans le code : ils sont de toute solution.
+
+[lambda]
+# cations
+"Li+" = 3.87
+"Na+" = 5.01
+"K+" = 7.35
+"NH4+" = 7.35
+"Ag+" = 6.19
+"CH3NH3+" = 5.87
+"Mg2+" = 10.60
+"Ca2+" = 11.90
+"Ba2+" = 12.72
+"Cu2+" = 10.72
+"Zn2+" = 10.56
+"Fe2+" = 10.80
+"Fe3+" = 20.40
+# anions
+"F-" = 5.54
+"Cl-" = 7.63
+"Br-" = 7.81
+"I-" = 7.68
+"NO3-" = 7.14
+"NO2-" = 7.18
+"ClO4-" = 6.73
+"CN-" = 7.80
+"HS-" = 6.50
+"HCO3-" = 4.45
+"CO3^2-" = 13.86
+"HSO4-" = 5.20
+"SO4^2-" = 16.00
+"H2PO4-" = 3.60
+"HPO4^2-" = 11.40
+"PO4^3-" = 20.76
+"HCOO-" = 5.46
+"CH3COO-" = 4.09
+"C2H5COO-" = 3.58
+"ClCH2COO-" = 4.22
+"C6H5COO-" = 3.23
+"HC2O4-" = 4.02
+"C2O4^2-" = 14.82
+"Cit^3-" = 21.00
