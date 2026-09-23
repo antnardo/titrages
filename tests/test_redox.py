@@ -151,3 +151,61 @@ def test_base_redox():
 def test_couple_incoherent():
     with pytest.raises(ValueError):
         CoupleRedox("x", (0.5, 1.0), (1, 1), ("A", "B", "C"), stoechiometrie=(1, 2))
+
+
+# Les points d'inflexion, confrontés à mpmath (60 chiffres) : le zéro de d²V/dE² ou
+# d²V/dpH² de la courbe directe, calculée sans le paquet (voir le script ci-dessous).
+#
+#   V(E) = -V0 R_bécher(E) / R_burette(E), Y = n / (1 + 10^(-n (E - E°)/s)),
+#   E = mp.findroot(lambda E: mp.diff(V, E, 2), E_approché)
+#
+# Le dichromate, dimérique, est résolu en V à chaque potentiel par mp.findroot sur le
+# bilan d'électrons du mélange.
+INFLEXIONS = {
+    "Fe2+ par Ce4+": ({"Ce4+": 0.1}, 1.24499999952),
+    "Fe2+ par MnO4-": ({"KMnO4": 0.02}, 1.37288297818),
+    "Fe2+ par Cr2O7 2-": ({"K2Cr2O7": 0.1 / 6}, 1.24933080527),
+}
+
+
+@pytest.mark.parametrize("nom", INFLEXIONS)
+def test_inflexion_a_la_precision_de_la_machine(nom):
+    """Le point d'inflexion à 1e-10 V près, là où une recherche en V ne le résout pas.
+
+    Le saut de Fe2+ par MnO4- tient en 1e-9 mL : une section dorée en V trouvait
+    1,3716 V, une section dorée en E 1,37289 V (précision sqrt(eps)), la variance
+    écrite Y2 - Y^2 1,37300 V (six chiffres perdus dans le saut).
+    """
+    burette, attendu = INFLEXIONS[nom]
+    t = TitrageRedox(solution_redox({"Fe2+": 0.1}), solution_redox(burette), 10)
+    (s,) = t.sauts(20)
+    assert s.E == pytest.approx(attendu, abs=1e-10)
+    assert s.volume == pytest.approx(10, abs=1e-7)
+    assert s.pente == pytest.approx(float(t.pente(s.volume)), rel=1e-6)
+
+
+def test_inflexion_n_est_pas_l_equivalence():
+    """n1 ≠ n2 : 13 mV d'écart en potentiel, 6e-10 mL en volume."""
+    t = TitrageRedox(solution_redox({"Fe2+": 0.1}), solution_redox({"KMnO4": 0.02}), 10)
+    (s,) = t.sauts(20)
+    (Veq,) = t.volumes_equivalents()
+    assert float(t.E(Veq)) - s.E == pytest.approx(0.0138, abs=1e-4)
+    assert Veq - s.volume == pytest.approx(6.2e-10, rel=0.05)
+
+
+@pytest.mark.parametrize(
+    "becher, burette",
+    [
+        ({"Fe2+": 0.1}, {"KMnO4": 0.02}),
+        ({"Fe2+": 0.1}, {"K2Cr2O7": 0.1 / 6}),
+        ({"I2": 0.05}, {"Na2S2O3": 0.1}),
+    ],
+)
+def test_pente_exacte(becher, burette):
+    """dE/dV analytique, y compris pour un ou deux couples dimériques."""
+    t = TitrageRedox(solution_redox(becher), solution_redox(burette), 10)
+    V, h = np.array([3.0, 7.0, 13.0]), 1e-5
+    fd = (t.E(V + h) - t.E(V - h)) / (2 * h)
+    assert t.pente(V) == pytest.approx(fd, rel=1e-6)
+    E = t.E(V)
+    assert t.derivee_volume(E) * t.pente(V) == pytest.approx(1, rel=1e-9)

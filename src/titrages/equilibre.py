@@ -30,11 +30,14 @@ __all__ = [
     "PKE",
     "concentration_pour_pH",
     "delta",
+    "ecart_moyen",
     "fractions",
     "log_k",
+    "minimum_lisse",
     "moments",
     "racine_croissante",
     "somme_h_w",
+    "variance",
 ]
 
 LN10 = math.log(10)
@@ -93,6 +96,27 @@ def moments(constantes: Constantes, pH: npt.ArrayLike, ordre: int = 2) -> tuple[
     return tuple(np.asarray((j**k * x).sum(axis=0), dtype=np.float64) for k in range(1, ordre + 1))
 
 
+def variance(constantes: Constantes, pH: npt.ArrayLike) -> Tableau:
+    """:math:`Y_2 - Y_1^2`, écrite :math:`\\sum_{j<k} x_jx_k(k-j)^2` pour ne rien perdre.
+
+    Quand une forme domine à :math:`1 - 10^{-10}`, :math:`Y_2` et :math:`Y_1^2` coïncident
+    sur dix chiffres et leur différence n'en garde que six ; c'est justement le cas
+    dans un saut, où l'on cherche le point d'inflexion.
+    """
+    x = fractions(constantes, pH)
+    total = np.zeros(x.shape[1:], dtype=np.float64)
+    for j in range(x.shape[0]):
+        for k in range(j + 1, x.shape[0]):
+            total = total + x[j] * x[k] * (k - j) ** 2
+    return total
+
+
+def ecart_moyen(constantes: Constantes, pH: npt.ArrayLike, q: float) -> Tableau:
+    """:math:`Y_1 - q = \\sum_j x_j (j - q)`, sans soustraire deux nombres voisins."""
+    x = fractions(constantes, pH)
+    return np.asarray(sum(x[j] * (j - q) for j in range(x.shape[0])), dtype=np.float64)
+
+
 def delta(pH: npt.ArrayLike, pKe: float = PKE) -> Tableau:
     """:math:`\\delta = w - h`, l'écart à la neutralité de l'eau."""
     p = np.asarray(pH, dtype=np.float64)
@@ -141,3 +165,29 @@ def racine_croissante(
         b = np.where(positif, m, b)
         a = np.where(positif, a, m)
     return np.asarray((a + b) / 2, dtype=np.float64)
+
+
+def minimum_lisse(f: Callable[[float], float], a: float, b: float, pas: float, iterations: int = 64) -> float:
+    """Le minimum d'une fonction positive et lisse, à la précision de la machine.
+
+    Une section dorée compare des valeurs de :math:`f` ; près du minimum elles ne
+    diffèrent qu'au second ordre, et sa précision plafonne à :math:`\\sqrt\\varepsilon`
+    — une dizaine de microvolts sur un saut de potentiel. On cherche plutôt le zéro de
+    :math:`(\\ln f)'`, estimée par différence centrée de pas ``pas`` : une dérivée
+    s'annule au premier ordre, et la dichotomie sur son signe atteint la précision de
+    la machine. ``[a, b]`` doit encadrer un seul minimum.
+    """
+
+    def pente(x: float) -> float:
+        return math.log(f(x + pas)) - math.log(f(x - pas))
+
+    a, b = sorted((float(a), float(b)))
+    if not (pente(a) < 0 < pente(b)):  # pas d'encadrement net : on se contente de a ou b
+        return float(a if f(a) <= f(b) else b)
+    for _ in range(iterations):
+        m = (a + b) / 2
+        if pente(m) > 0:
+            b = m
+        else:
+            a = m
+    return float((a + b) / 2)

@@ -35,7 +35,12 @@ Pour un acide titré par une base forte on retrouve
 $n = V C_B/(C_A V_0) = (Y_1 + \delta/C_A)/(1 - \delta/C_B)$. Sans dilution
 (`dilution=False`), $\delta$ disparaît du dénominateur. La pente est analytique :
 
-$$\frac{\mathrm{d}V}{\mathrm{d\,pH}} = V_0\,\frac{R_\text{b}\,\beta_\text{bu} - \beta_\text{b}\,R_\text{bu}}{R_\text{bu}^2}.$$
+$$\frac{\mathrm{d}V}{\mathrm{d\,pH}} = -\frac{V_0\,\beta_\text{b} + V\,\beta_\text{bu}}{R_\text{bu}},$$
+
+obtenue en dérivant $V_0 R_\text{b} + V R_\text{bu} = 0$ : le numérateur est une
+somme de termes positifs, quand la forme $V_0(R_\text{b}\beta_\text{bu} -
+\beta_\text{b}R_\text{bu})/R_\text{bu}^2$ soustrairait deux nombres presque égaux au
+cœur du saut.
 
 **Le sens inverse** — le pH d'une solution, le pH après $V$ — se trouve par
 dichotomie sur $R$ ou sur $V_0 R_\text{bécher} + V R_\text{burette}$, toutes deux
@@ -43,7 +48,19 @@ croissantes : une racine unique, sans réglage, là où un Newton divergerait au
 
 **La précision.** $x_j$ se calcule en retranchant le plus grand exposant
 ($\log_{10} k_j + j\,\mathrm{pH}$) avant d'élever à la puissance : aucune fraction
-n'est le quotient de deux nombres démesurés.
+n'est le quotient de deux nombres démesurés. Et rien ne soustrait deux nombres
+voisins : la variance s'écrit $\sum_{j<k} x_jx_k(k-j)^2$ et non $Y_2 - Y_1^2$, qui
+perd six chiffres quand une forme domine à $1 - 10^{-10}$ près — c'est-à-dire dans
+un saut —, et $Y_1 - q$ s'écrit $\sum_j x_j(j-q)$.
+
+**Les points d'inflexion**, ce qu'on mesure, se calculent à la précision de la
+machine. Ce sont les minima de $|\mathrm{d}V/\mathrm{d\,pH}|$ (ou
+$|\mathrm{d}V/\mathrm{d}E|$), cherchés sur la courbe directe — en $V$, le saut de
+Fe²⁺ par MnO₄⁻ tient en $10^{-9}$ mL — et affinés non par une section dorée, qui
+compare des valeurs et plafonne à $\sqrt\varepsilon$, mais par le zéro de
+$(\ln|\mathrm{d}V/\mathrm{d\,pH}|)'$, trouvé par dichotomie
+(`titrages.equilibre.minimum_lisse`). Les tests les confrontent à `mpmath` à 60
+chiffres : $10^{-10}$ unité de pH, $10^{-11}$ V, couples dimériques compris.
 
 **La dilution.** La séparation $V_0 R_\text{b} + V R_\text{bu} = 0$ est
 toute la correction de dilution. Tracer $n_0 = Y_1 + \delta/C_T$ comme une
@@ -156,13 +173,16 @@ au-delà. La courbe se calcule par $E(V)$, par dichotomie sur le bilan du mélan
 | --- | --- |
 | `E(V)` | le potentiel mesuré (par rapport à `reference`) |
 | `volume(E)` | le volume qui y amène |
-| `pente(V)` | $\mathrm{d}E/\mathrm{d}V$, par dérivation implicite |
+| `pente(V)` | $\mathrm{d}E/\mathrm{d}V = -g_V/g_E$, dérivées partielles du bilan analytiques, dimères compris |
+| `derivee_volume(E)` | $\mathrm{d}V/\mathrm{d}E$, la dérivée de la courbe directe |
 | `courbe`, `sauts`, `volumes_equivalents` | comme en acide-base |
 | `volume_initial(volume_max)` | 0, ou $V_\text{max}/1000$ si le bécher ne contient qu'une forme par couple, dont le potentiel n'est pas défini |
 
 ## Fonctions d'équilibre
 
-`fractions(couple_ou_pKa, pH)`, `moments(…, pH, ordre)`, `log_k`, `delta(pH, pKe)`,
+`fractions(couple_ou_pKa, pH)`, `moments(…, pH, ordre)`, `variance(…, pH)` et
+`ecart_moyen(…, pH, q)` — $Y_2 - Y_1^2$ et $Y_1 - q$ écrits sans soustraction —,
+`minimum_lisse(f, a, b, pas)`, `log_k`, `delta(pH, pKe)`,
 et `concentration_pour_pH(espece, pH)` — la concentration d'une espèce seule qui
 donne ce pH, $C = -\delta/(Y_1 - q)$, le sens direct de la courbe pH = f(pC).
 

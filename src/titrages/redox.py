@@ -49,6 +49,7 @@ from dataclasses import dataclass, replace
 import numpy as np
 import numpy.typing as npt
 
+from titrages.equilibre import minimum_lisse
 from titrages.modeles import CoupleRedox, CourbeRedox, EspeceRedox, SautRedox
 
 __all__ = [
@@ -103,6 +104,22 @@ def _racine_1_plus(lx: Tableau) -> Tableau:
     return np.asarray(np.where(lx > 0, grand, petit), dtype=np.float64)
 
 
+def _dimere(couple: CoupleRedox, E: Tableau, T: Tableau, pH: float, s: float) -> tuple[Tableau, Tableau]:
+    """Un couple dimérique : :math:`u`, la forme monomère, et :math:`D = T - u`, en unités.
+
+    Avec :math:`\\kappa` la constante de Nernst du dimère, :math:`T = u + 2\\kappa u^2`, dont
+    la racine positive s'écrit :math:`u = 2T/(1+q)`, :math:`q = \\sqrt{1+8\\kappa T}`.
+    :math:`D = T(q-1)/(q+1)` se calcule sans soustraire deux nombres voisins.
+    """
+    n, m, E0 = couple.n[0], couple.H[0], couple.E0[0]
+    logK = n * (E - (E0 - s * m / n * pH)) / s
+    # (1, 2) : Ox dimère, u = Red, κ = K ; (2, 1) : Red dimère, u = Ox, κ = 1/K
+    lx = np.log10(8 * T) + (logK if couple.stoechiometrie == (1, 2) else -logK)
+    q = _racine_1_plus(lx)
+    q_1 = np.where(lx < 0, np.power(10.0, np.minimum(lx, 0)) / (q + 1), q - 1)
+    return 2 * T / (1 + q), T * q_1 / (q + 1)
+
+
 def electrons_cedes(
     couple: CoupleRedox,
     E: npt.ArrayLike,
@@ -114,23 +131,46 @@ def electrons_cedes(
 
     ``T`` (en unités de l'élément) n'intervient que pour un couple dimérique.
     """
+    return _electrons_et_derivees(couple, E, T, pH, s)[0]
+
+
+def _electrons_et_derivees(
+    couple: CoupleRedox, E: npt.ArrayLike, T: npt.ArrayLike, pH: float, s: float, e_ref: float = 0.0
+) -> tuple[Tableau, Tableau, Tableau]:
+    """:math:`Y - e_\\text{réf}` et ses dérivées :math:`\\partial_E Y`, :math:`\\partial_T Y`, exactement.
+
+    Couple monomère : :math:`\\partial Y/\\partial E = (\\ln 10/s)\\,\\mathrm{Var}(e)`, la
+    variance étant écrite :math:`\\sum_{j<k} x_jx_k(e_k-e_j)^2` et :math:`Y - e_\\text{réf}`
+    :math:`\\sum_j x_j(e_j-e_\\text{réf})` : ni l'une ni l'autre ne soustrait deux nombres
+    voisins, là où :math:`Y_2 - Y^2` perdrait six chiffres quand une forme domine à
+    :math:`10^{-10}` près — c'est-à-dire précisément dans un saut. :math:`Y` ne dépend
+    pas de :math:`T`. Couple dimérique, avec :math:`u` et :math:`D` de :func:`_dimere` :
+    :math:`\\partial Y/\\partial E = e_1 (n\\ln 10/s)\\,uD/(T(2T-u))` et
+    :math:`\\partial Y/\\partial T = \\pm e_1 uD/(T^2(2T-u))`, positif quand le dimère est oxydé.
+    """
     E_ = np.asarray(E, dtype=np.float64)
     if couple.stoechiometrie == (1, 1):
         e, _ = _log_niveaux(couple, pH, s)
         x = fractions_redox(couple, E_, pH, s)
-        forme = (-1,) + (1,) * E_.ndim
-        return np.asarray((e.reshape(forme) * x).sum(axis=0), dtype=np.float64)
+        Y = sum(x[j] * (e[j] - e_ref) for j in range(len(e)))
+        var = sum(x[j] * x[k] * (e[k] - e[j]) ** 2 for j in range(len(e)) for k in range(j + 1, len(e)))
+        dE = np.log(10) / s * var
+        return np.asarray(Y, np.float64), np.asarray(dE, np.float64), np.zeros(np.shape(Y))
     T_ = np.maximum(np.asarray(T, dtype=np.float64), 1e-300)
-    n, m, E0 = couple.n[0], couple.H[0], couple.E0[0]
-    logK = n * (E_ - (E0 - s * m / n * pH)) / s
-    e1 = couple.electrons[1]
-    if couple.stoechiometrie == (1, 2):  # Ox dimère : o = K r², 2o + r = T
-        r = 2 * T_ / (1 + _racine_1_plus(np.log10(8 * T_) + logK))
-        oxyde = 1 - r / T_
-    else:  # Red dimère : o² = K r, o + 2r = T
-        o = 2 * T_ / (1 + _racine_1_plus(np.log10(8 * T_) - logK))
-        oxyde = o / T_
-    return np.asarray(e1 * oxyde, dtype=np.float64)
+    E_, T_ = np.broadcast_arrays(E_, T_)
+    u, D = _dimere(couple, E_, T_, pH, s)
+    e1, n = couple.electrons[1], couple.n[0]
+    # les fractions oxydée et réduite, chacune par sa part : pas de 1 - (1 - ε)
+    petit = np.minimum(u, D) / T_
+    monomere = np.where(u < D, petit, 1 - petit)
+    dimere = np.where(u < D, 1 - petit, petit)
+    oxyde, reduit = (dimere, monomere) if couple.stoechiometrie == (1, 2) else (monomere, dimere)
+    Y = -e1 * reduit if e_ref == e1 else e1 * oxyde - e_ref
+    with np.errstate(divide="ignore", invalid="ignore"):
+        commun = np.nan_to_num(e1 * u * D / (T_ * (2 * T_ - u)))
+    dE = n * np.log(10) / s * commun
+    dT = (1 if couple.stoechiometrie == (1, 2) else -1) * commun / T_
+    return np.asarray(Y, np.float64), np.asarray(dE, np.float64), np.asarray(dT, np.float64)
 
 
 def _dichotomie(f: Callable[[Tableau], Tableau], forme: tuple[int, ...]) -> Tableau:
@@ -285,23 +325,54 @@ class TitrageRedox:
         """Le potentiel mesuré après avoir versé ``volume`` (V, par rapport à la référence)."""
         return np.asarray(self._E_enh(volume) - self.E_reference, dtype=np.float64)
 
-    def pente(self, volume: npt.ArrayLike) -> Tableau:
-        """:math:`\\mathrm{d}E/\\mathrm{d}V`, par dérivation implicite du résidu.
+    def _derivees(self, E: Tableau, V: Tableau) -> tuple[Tableau, Tableau]:
+        """:math:`\\partial g/\\partial E` et :math:`\\partial g/\\partial V`, exactement.
 
-        :math:`g(E, V) = 0` donne :math:`\\mathrm{d}E/\\mathrm{d}V = -g_V/g_E` ; les deux
-        dérivées partielles se prennent par différences centrées, sur une fonction
-        lisse et en un point où elle est exactement nulle.
+        Avec :math:`S = V_0T_b + VT_u` et :math:`T = S/(V_0+V)`, pour chaque couple,
+        :math:`g = S\\,Y(E,T) - (V_0I_b + VI_u)`, d'où
+        :math:`g_E = \\sum S\\,\\partial_E Y` et
+        :math:`g_V = \\sum T_u Y + S\\,\\partial_T Y\\,(T_u - T)/(V_0+V) - I_u`.
+        """
+        V0, pH, s = self.volume_becher, self.becher.pH, self.becher.pente_nernst
+        b, bu = _bilan(self.becher.composants), _bilan(self.burette.composants)
+        E, V = np.broadcast_arrays(np.asarray(E, np.float64), np.asarray(V, np.float64))
+        gE = np.zeros(E.shape)
+        gV = np.zeros(E.shape)
+        for couple in {**b, **bu}:
+            Tb, _ = b.get(couple, (0.0, 0.0))
+            Tu, Iu = bu.get(couple, (0.0, 0.0))
+            S = V0 * Tb + V * Tu
+            T = S / (V0 + V)
+            e_ref = Iu / Tu if Tu > 0 else 0.0
+            Y_ref, dY_E, dY_T = _electrons_et_derivees(couple, E, T, pH, s, e_ref)
+            gE = gE + S * dY_E
+            gV = gV + Tu * Y_ref + S * dY_T * (Tu - T) / (V0 + V)
+        return gE, gV
+
+    def pente(self, volume: npt.ArrayLike) -> Tableau:
+        """:math:`\\mathrm{d}E/\\mathrm{d}V = -g_V/g_E`, par dérivation implicite exacte.
+
+        :math:`g(E, V) = 0` est le bilan d'électrons du mélange ; ses deux dérivées
+        partielles sont analytiques (:meth:`_derivees`), au point où il est nul.
         """
         V = np.asarray(volume, dtype=np.float64)
-        E = self._E_enh(V)
-        hE = 1e-7
-        hV = 1e-7 * np.maximum(V, self.volume_becher)
-        gE = (self._residu(E + hE, V) - self._residu(E - hE, V)) / (2 * hE)
-        gV = (self._residu(E, V + hV) - self._residu(E, np.maximum(V - hV, 0))) / (
-            V + hV - np.maximum(V - hV, 0)
-        )
+        gE, gV = self._derivees(self._E_enh(V), V)
         with np.errstate(divide="ignore", invalid="ignore"):
             return np.asarray(-gV / gE, dtype=np.float64)
+
+    def derivee_volume(self, E: npt.ArrayLike) -> Tableau:
+        """:math:`\\mathrm{d}V/\\mathrm{d}E` au potentiel mesuré ``E`` (mL/V) ; ``nan`` hors courbe.
+
+        C'est la dérivée de la courbe directe :math:`V(E)` : fonction lisse du potentiel,
+        même là où :math:`E(V)` saute sur :math:`10^{-9}` mL.
+        """
+        return self._derivee_volume_enh(np.asarray(E, dtype=np.float64) + self.E_reference)
+
+    def _derivee_volume_enh(self, E: Tableau) -> Tableau:
+        V = self._volume_enh(E)
+        gE, gV = self._derivees(E, np.nan_to_num(V))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.asarray(np.where(np.isfinite(V), -gE / gV, np.nan), dtype=np.float64)
 
     # --- le sens direct : V(E) --------------------------------------------------
 
@@ -320,7 +391,9 @@ class TitrageRedox:
         - **plusieurs** : l'équation est de degré plus élevé ; on la résout en :math:`V`
           par dichotomie, :math:`E(V)` étant monotone.
         """
-        E_ = np.asarray(E, dtype=np.float64) + self.E_reference
+        return self._volume_enh(np.asarray(E, dtype=np.float64) + self.E_reference)
+
+    def _volume_enh(self, E_: Tableau) -> Tableau:
         V0, pH, s = self.volume_becher, self.becher.pH, self.becher.pente_nernst
         b, bu = _bilan(self.becher.composants), _bilan(self.burette.composants)
         couples = list({**b, **bu})
@@ -386,17 +459,34 @@ class TitrageRedox:
         return CourbeRedox(V, self.E(V), self.pente(V))
 
     def sauts(self, volume_max: float, points: int = 4000) -> tuple[SautRedox, ...]:
-        """Les points d'inflexion : les maxima locaux de :math:`|\\mathrm{d}E/\\mathrm{d}V|`."""
-        grille = np.linspace(self.volume_initial(volume_max), volume_max, points)
-        E = self._E_enh(grille)
-        d = np.abs(np.diff(E)) / np.diff(grille)
-        maxima = np.flatnonzero((d[1:-1] > d[:-2]) & (d[1:-1] >= d[2:])) + 1
+        """Les points d'inflexion de la courbe entre 0 et ``volume_max``.
+
+        Comme en acide-base, on les cherche sur la courbe directe : ce sont les minima
+        locaux de :math:`|\\mathrm{d}V/\\mathrm{d}E|`, fonction lisse du potentiel, repérés
+        sur une grille en :math:`E` puis affinés par le zéro de leur dérivée
+        (:func:`~titrages.equilibre.minimum_lisse`). En :math:`V`, le
+        saut de :math:`\\mathrm{Fe^{2+}}` par :math:`\\mathrm{MnO_4^-}` tient en
+        :math:`10^{-9}` mL, qu'aucune grille ne résout ; en :math:`E`, il occupe des
+        dizaines de millivolts.
+        """
+        E0 = float(self._E_enh(self.volume_initial(volume_max)))
+        E1 = float(self._E_enh(volume_max))
+        grille = np.linspace(E0, E1, points)
+        d = np.abs(self._derivee_volume_enh(grille))
+        d = np.where(np.isfinite(d), d, np.inf)
+        minima = np.flatnonzero((d[1:-1] < d[:-2]) & (d[1:-1] <= d[2:])) + 1
         resultat = []
-        for i in maxima.tolist():
-            a, b = float(grille[max(i - 1, 0)]), float(grille[min(i + 2, points - 1)])
-            V = _section_doree(lambda v: -float(abs(self.pente(v))), a, b)
-            if 0 < V < volume_max:
-                resultat.append(SautRedox(V, float(self.E(V)), float(self.pente(V))))
+        for i in minima.tolist():
+            E = minimum_lisse(
+                lambda x: float(np.abs(self._derivee_volume_enh(np.asarray(x)))),
+                grille[i - 1],
+                grille[i + 1],
+                1e-6 * self.becher.pente_nernst,
+            )
+            V = float(self._volume_enh(np.asarray(E)))
+            if np.isfinite(V) and 0 < V < volume_max:
+                pente = 1 / float(self._derivee_volume_enh(np.asarray(E)))
+                resultat.append(SautRedox(V, E - self.E_reference, pente))
         return tuple(resultat)
 
     def volumes_equivalents(self) -> tuple[float, ...]:
@@ -473,19 +563,3 @@ def _volume_un_dimere(
     tol = 1e-12 * (V0 * Tb + Tu * np.abs(racines) + 1e-300)
     ok = np.isfinite(racines) & (racines >= 0) & (W + tol >= 0) & (reste + tol >= 0)
     return np.asarray(np.where(ok, racines, np.inf).min(axis=0), dtype=np.float64)
-
-
-def _section_doree(f: Callable[[float], float], a: float, b: float, iterations: int = 80) -> float:
-    r = (np.sqrt(5) - 1) / 2
-    c, d = b - r * (b - a), a + r * (b - a)
-    fc, fd = f(c), f(d)
-    for _ in range(iterations):
-        if fc < fd:
-            b, d, fd = d, c, fc
-            c = b - r * (b - a)
-            fc = f(c)
-        else:
-            a, c, fc = c, d, fd
-            d = a + r * (b - a)
-            fd = f(d)
-    return float((a + b) / 2)

@@ -6,6 +6,28 @@ LaTeX partagent un numéro de version.
 
 ## [Unreleased]
 
+### Modifié
+
+- Les points d'inflexion (`sauts`) se calculent à la précision de la machine, en
+  acide-base comme en rédox : minima de |dV/dpH| ou |dV/dE| sur la courbe directe,
+  affinés par le zéro de la dérivée de leur logarithme (`equilibre.minimum_lisse`)
+  et non plus par une section dorée ; confrontés à `mpmath` dans les tests. Les
+  sauts rédox se cherchaient en V, où celui de Fe²⁺ par MnO₄⁻ tient en 10⁻⁹ mL
+  (1,3716 V au lieu de 1,37288 V).
+- La variance des formes s'écrit Σ_{j<k} x_j x_k (k−j)², et Y₁ − q Σ x_j (j−q) :
+  plus de soustraction de nombres voisins dans un saut. `derivee_volume` dérive
+  V₀R_b + VR_bu = 0, somme de termes positifs.
+- `TitrageRedox.pente` est analytique, couples dimériques compris ; nouvelle
+  méthode `TitrageRedox.derivee_volume(E)`.
+
+### Corrigé
+
+- Un saut sur une courbe décroissante (base titrée par un acide, titrant réducteur)
+  se rabattait sur un point de la grille : l'ammoniac par l'acide chlorhydrique
+  donnait pH 5,2734 au lieu de 5,27558.
+- La fraction oxydée d'un couple dimérique pouvait dépasser 1 d'un ulp, ce qui
+  rendait défini le potentiel d'un bécher de diiode pur.
+
 ## [0.1.0] — non publiée
 
 Première version. Le calcul reprend un module privé de 2024

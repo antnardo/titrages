@@ -62,6 +62,35 @@ local function moments(e, pH)
 end
 M.moments = moments
 
+--- Les fractions x_0 … x_N d'une espèce (indices Lua 1 … N+1).
+local function fractions_espece(e, pH)
+  local tmax, t = -math.huge, {}
+  for j = 0, e.N do
+    t[j] = e.L[j] + j * pH
+    if t[j] > tmax then tmax = t[j] end
+  end
+  local S, x = 0, {}
+  for j = 0, e.N do
+    x[j + 1] = 10 ^ (t[j] - tmax)
+    S = S + x[j + 1]
+  end
+  for j = 1, e.N + 1 do x[j] = x[j] / S end
+  return x
+end
+
+--- Y1 - q et la variance Y2 - Y1^2, sans soustraire deux nombres voisins :
+--- sum_j x_j (j - q) et sum_{j<k} x_j x_k (k - j)^2. Dans un saut, une forme domine
+--- à 1 - 1e-10 près, et Y2 - Y1*Y1 n'y garderait que six chiffres.
+local function ecart_et_variance(e, pH)
+  local x = fractions_espece(e, pH)
+  local ecart, var = 0, 0
+  for j = 0, e.N do
+    ecart = ecart + x[j + 1] * (j - e.q)
+    for k = j + 1, e.N do var = var + x[j + 1] * x[k + 1] * (k - j) ^ 2 end
+  end
+  return ecart, var
+end
+
 --- Les fractions x_0 … x_N (indices Lua 1 … N+1).
 function M.fractions(pKa, pH)
   local e = M.espece(pKa)
@@ -90,8 +119,8 @@ end
 function M.charge(s, pH)
   local r = -s.b
   for _, e in ipairs(s.especes) do
-    local Y1 = moments(e, pH)
-    r = r + e.C * (Y1 - e.q)
+    local ecart = ecart_et_variance(e, pH)
+    r = r + e.C * ecart
   end
   return r
 end
@@ -99,8 +128,8 @@ end
 function M.derivee_charge(s, pH)
   local r = 0
   for _, e in ipairs(s.especes) do
-    local Y1, Y2 = moments(e, pH)
-    r = r + e.C * (Y2 - Y1 * Y1)
+    local _, var = ecart_et_variance(e, pH)
+    r = r + e.C * var
   end
   return LN10 * r
 end
@@ -160,10 +189,12 @@ function M.volume(t, p)
   return V
 end
 
+--- dV/dpH = -(V0 N' + V D')/D, en dérivant V0 N + V D = 0 : une somme de termes
+--- positifs, qui ne perd aucun chiffre au cœur du saut.
 function M.derivee_volume(t, p)
-  local N, D = M.residu(t.becher, p), denominateur(t, p)
-  local dN, dD = M.tampon(t.becher, p), derivee_denominateur(t, p)
-  return t.V0 * (N * dD - dN * D) / (D * D)
+  local D = denominateur(t, p)
+  local V = -t.V0 * M.residu(t.becher, p) / D
+  return -(t.V0 * M.tampon(t.becher, p) + V * derivee_denominateur(t, p)) / D
 end
 
 function M.pente(t, p) return 1 / M.derivee_volume(t, p) end
@@ -204,20 +235,19 @@ function M.courbe(t, Vmax, n)
   return points
 end
 
-local function section_doree(f, a, b)
-  local r = (math.sqrt(5) - 1) / 2
-  local c, d = b - r * (b - a), a + r * (b - a)
-  local fc, fd = f(c), f(d)
-  for _ = 1, 60 do
-    if fc < fd then
-      b, d, fd = d, c, fc
-      c = b - r * (b - a)
-      fc = f(c)
-    else
-      a, c, fc = c, d, fd
-      d = a + r * (b - a)
-      fd = f(d)
-    end
+--- Le minimum d'une fonction positive et lisse, à la précision de la machine : le zéro
+--- de (ln f)', estimée par différence centrée de pas `pas`, trouvé par dichotomie.
+--- Une section dorée, qui compare des valeurs de f, plafonnerait à sqrt(epsilon).
+local function minimum_lisse(f, a, b, pas)
+  local function pente(x) return math.log(f(x + pas)) - math.log(f(x - pas)) end
+  if a > b then a, b = b, a end
+  if not (pente(a) < 0 and pente(b) > 0) then
+    if f(a) <= f(b) then return a end
+    return b
+  end
+  for _ = 1, ITERATIONS do
+    local m = (a + b) / 2
+    if pente(m) > 0 then b = m else a = m end
   end
   return (a + b) / 2
 end
@@ -235,7 +265,7 @@ function M.sauts(t, Vmax, n)
   local resultat = {}
   for i = 2, n - 1 do
     if d[i] < d[i - 1] and d[i] <= d[i + 1] then
-      local p = section_doree(absd, g[i - 1], g[i + 1])
+      local p = minimum_lisse(absd, g[i - 1], g[i + 1], 1e-6)
       local V = M.volume(t, p)
       if V and V > 0 and V < Vmax then
         resultat[#resultat + 1] = { V, p, M.pente(t, p) }
@@ -315,21 +345,6 @@ end
 
 M.LAMBDA_H3O, M.LAMBDA_HO = 34.98, 19.86
 
-local function fractions_espece(e, pH)
-  local tmax, t = -math.huge, {}
-  for j = 0, e.N do
-    t[j] = e.L[j] + j * pH
-    if t[j] > tmax then tmax = t[j] end
-  end
-  local S, x = 0, {}
-  for j = 0, e.N do
-    x[j + 1] = 10 ^ (t[j] - tmax)
-    S = S + x[j + 1]
-  end
-  for j = 1, e.N + 1 do x[j] = x[j] / S end
-  return x
-end
-
 --- La part des ions, sans H3O+ ni HO- : linéaire en concentrations.
 function M.conductivite_ions(s, pH)
   local total = 0
@@ -395,8 +410,19 @@ function M.couple_redox(E0, n, H, st)
   return c
 end
 
---- Les électrons cédés par unité, à ce potentiel (V/ENH).
-function M.electrons_cedes(c, E, T, pH, s)
+local function racine_1_plus(lx)
+  lx = math.max(math.min(lx, 600), -600)
+  if lx > 0 then return 10 ^ (lx / 2) * math.sqrt(1 + 10 ^ (-lx)) end
+  return math.sqrt(1 + 10 ^ lx)
+end
+
+--- Y - eref, dY/dE et dY/dT, exactement, à ce potentiel (V/ENH).
+--- Monomère : dY/dE = ln10/s * sum_{j<k} x_j x_k (e_k - e_j)^2, et Y - eref =
+--- sum_j x_j (e_j - eref) : rien ne s'y soustrait. Dimère : u la forme monomère,
+--- D = T - u, T = u + 2 kappa u^2, u = 2T/(1+q), D = T (q-1)/(q+1), q = sqrt(1+8 kappa T) ;
+--- dY/dE = e1 n ln10/s u D/(T(2T-u)), dY/dT = ±e1 u D/(T^2(2T-u)).
+local function electrons_et_derivees(c, E, T, pH, s, eref)
+  eref = eref or 0
   if c.a == 1 and c.b == 1 then
     local tmax, t, L = -math.huge, {}, 0
     for j = 0, c.N do
@@ -404,27 +430,44 @@ function M.electrons_cedes(c, E, T, pH, s)
       t[j] = (c.e[j] * E + L) / s
       if t[j] > tmax then tmax = t[j] end
     end
-    local S, Y = 0, 0
+    local S, x = 0, {}
     for j = 0, c.N do
-      local x = 10 ^ (t[j] - tmax)
-      S, Y = S + x, Y + c.e[j] * x
+      x[j] = 10 ^ (t[j] - tmax)
+      S = S + x[j]
     end
-    return Y / S
+    local Y, var = 0, 0
+    for j = 0, c.N do
+      x[j] = x[j] / S
+      Y = Y + x[j] * (c.e[j] - eref)
+    end
+    for j = 0, c.N do
+      for k = j + 1, c.N do var = var + x[j] * x[k] * (c.e[k] - c.e[j]) ^ 2 end
+    end
+    return Y, LN10 / s * var, 0
   end
   T = math.max(T, 1e-300)
-  local logK = c.n[1] * (E - (c.E0[1] - s * c.H[1] / c.n[1] * pH)) / s
-  local function racine(lx)
-    lx = math.max(math.min(lx, 600), -600)
-    if lx > 0 then return 10 ^ (lx / 2) * math.sqrt(1 + 10 ^ (-lx)) end
-    return math.sqrt(1 + 10 ^ lx)
-  end
-  local ox
-  if c.a == 1 then
-    ox = 1 - 2 / (1 + racine(math.log(8 * T, 10) + logK))
-  else
-    ox = 2 / (1 + racine(math.log(8 * T, 10) - logK))
-  end
-  return c.e[1] * ox
+  local n = c.n[1]
+  local logK = n * (E - (c.E0[1] - s * c.H[1] / n * pH)) / s
+  local lx = math.log(8 * T, 10) + ((c.a == 1) and logK or -logK)
+  local q = racine_1_plus(lx)
+  local q_1 = (lx < 0) and 10 ^ lx / (q + 1) or q - 1
+  local u, D = 2 * T / (1 + q), T * q_1 / (q + 1)
+  local petit = math.min(u, D) / T
+  local mono, dim = 1 - petit, petit
+  if u < D then mono, dim = petit, 1 - petit end
+  local ox, red = dim, mono
+  if c.a ~= 1 then ox, red = mono, dim end
+  local e1 = c.e[1]
+  local Y = (eref == e1) and -e1 * red or e1 * ox - eref
+  local den = T * (2 * T - u)
+  local commun = (den > 0) and e1 * u * D / den or 0
+  local signe = (c.a == 1) and 1 or -1
+  return Y, n * LN10 / s * commun, signe * commun / T
+end
+
+--- Les électrons cédés par unité, à ce potentiel (V/ENH).
+function M.electrons_cedes(c, E, T, pH, s)
+  return (electrons_et_derivees(c, E, T, pH, s, 0))
 end
 
 --- Le bilan d'une solution rédox : par couple, T (unités) et I (électrons introduits).
@@ -486,13 +529,30 @@ function M.E_enh(t, V)
   return dichotomie(function(E) return residu_redox(t, E, V) end, EMIN, EMAX)
 end
 
---- dE/dV, par dérivation implicite du résidu.
+--- dg/dE et dg/dV, exactement, g étant le résidu du mélange multiplié par V0 + V.
+local function derivees_redox(t, E, V)
+  local bb, ob = bilan(t.becher)
+  local bu, ou = bilan(t.burette)
+  local cles, vu = {}, {}
+  for _, k in ipairs(ob) do cles[#cles + 1], vu[k] = k, true end
+  for _, k in ipairs(ou) do if not vu[k] then cles[#cles + 1] = k end end
+  local gE, gV = 0, 0
+  for _, k in ipairs(cles) do
+    local x, y = bb[k] or { T = 0, I = 0 }, bu[k] or { T = 0, I = 0 }
+    local c = (bb[k] or bu[k]).couple
+    local S = t.V0 * x.T + V * y.T
+    local T = S / (t.V0 + V)
+    local eref = (y.T > 0) and y.I / y.T or 0
+    local Yr, dE, dT = electrons_et_derivees(c, E, T, t.becher.pH, t.becher.s, eref)
+    gE = gE + S * dE
+    gV = gV + y.T * Yr + S * dT * (y.T - T) / (t.V0 + V)
+  end
+  return gE, gV
+end
+
+--- dE/dV = -g_V/g_E, par dérivation implicite exacte.
 function M.pente_redox(t, V)
-  local E = M.E_enh(t, V)
-  local hE, hV = 1e-7, 1e-7 * math.max(V, t.V0)
-  local gE = (residu_redox(t, E + hE, V) - residu_redox(t, E - hE, V)) / (2 * hE)
-  local Va = math.max(V - hV, 0)
-  local gV = (residu_redox(t, E, V + hV) - residu_redox(t, E, Va)) / (V + hV - Va)
+  local gE, gV = derivees_redox(t, M.E_enh(t, V), V)
   return -gV / gE
 end
 
@@ -532,21 +592,45 @@ function M.courbe_redox(t, Vmax, n)
   return points
 end
 
+--- Le volume versé qui amène au potentiel E (V/ENH), par dichotomie en log V, sans contrôle.
+local function volume_brut(t, E)
+  if not t.sens_redox then
+    t.sens_redox = (M.E_enh(t, t.V0) > M.E_enh(t, M.volume_initial(t, t.V0))) and 1 or -1
+  end
+  local sens = t.sens_redox
+  local a, b = math.log(t.V0, 10) - 12, math.log(t.V0, 10) + 6
+  for _ = 1, 80 do
+    local m = (a + b) / 2
+    if sens * residu_redox(t, E, 10 ^ m) < 0 then b = m else a = m end
+  end
+  return 10 ^ ((a + b) / 2)
+end
+
+--- dV/dE (V/ENH) le long de la courbe directe : -g_E/g_V, au volume V(E).
+function M.derivee_volume_redox(t, E)
+  local V = volume_brut(t, E)
+  local gE, gV = derivees_redox(t, E, V)
+  return -gE / gV, V
+end
+
 --- Les points d'inflexion de E(V) : { {V, E, pente}, ... } (E en V/ENH).
+--- Comme en acide-base, les minima de |dV/dE|, fonction lisse du potentiel : en V,
+--- un saut tient parfois en 1e-9 mL.
 function M.sauts_redox(t, Vmax, n)
   n = n or 2000
-  local debut = M.volume_initial(t, Vmax)
-  local g, E, d = {}, {}, {}
+  local E0, E1 = M.E_enh(t, M.volume_initial(t, Vmax)), M.E_enh(t, Vmax)
+  local g, d = {}, {}
+  local function absd(E) return math.abs((M.derivee_volume_redox(t, E))) end
   for i = 1, n do
-    g[i] = debut + (Vmax - debut) * (i - 1) / (n - 1)
-    E[i] = M.E_enh(t, g[i])
+    g[i] = E0 + (E1 - E0) * (i - 1) / (n - 1)
+    d[i] = absd(g[i])
   end
-  for i = 1, n - 1 do d[i] = math.abs(E[i + 1] - E[i]) / (g[i + 1] - g[i]) end
   local resultat = {}
-  for i = 2, n - 2 do
-    if d[i] > d[i - 1] and d[i] >= d[i + 1] then
-      local V = section_doree(function(v) return -math.abs(M.pente_redox(t, v)) end, g[i - 1], g[i + 2])
-      if V > 0 and V < Vmax then resultat[#resultat + 1] = { V, M.E_enh(t, V), M.pente_redox(t, V) } end
+  for i = 2, n - 1 do
+    if d[i] < d[i - 1] and d[i] <= d[i + 1] then
+      local E = minimum_lisse(absd, g[i - 1], g[i + 1], 1e-6 * t.becher.s)
+      local dV, V = M.derivee_volume_redox(t, E)
+      if V > 0 and V < Vmax then resultat[#resultat + 1] = { V, E, 1 / dV } end
     end
   end
   return resultat
@@ -775,13 +859,7 @@ end
 --- Les nombres, pour \titragepH, \titragevolume, \titrageequivalence, \titragesaut.
 --- Le volume versé qui amène au potentiel E (V/ENH), par dichotomie en log V.
 function M.volume_redox(t, E)
-  local sens = (M.E_enh(t, t.V0) > M.E_enh(t, M.volume_initial(t, t.V0))) and 1 or -1
-  local a, b = math.log(t.V0, 10) - 12, math.log(t.V0, 10) + 6
-  for _ = 1, 80 do
-    local m = (a + b) / 2
-    if sens * residu_redox(t, E, 10 ^ m) < 0 then b = m else a = m end
-  end
-  local V = 10 ^ ((a + b) / 2)
+  local V = volume_brut(t, E)
   if math.abs(M.E_enh(t, V) - E) > 1e-6 then return nil end
   return V
 end

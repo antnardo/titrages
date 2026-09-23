@@ -61,6 +61,8 @@ Les tests du paquet Python confrontent cette formule à un calcul indépendant, 
 
 Les fractions sont calculées en échelle logarithmique : la forme naïve $x_j = x_0\,k_j/h^j$ fait intervenir $10^{\pm 56}$ pour l'EDTA à pH 14, ce qui dépasse la précision de \textsf{pgfmath} et approche les limites de la double précision.
 
+Les points d'inflexion, ce qu'on mesure, sont calculés à la précision de la machine par le moteur \textsf{lua} : ce sont les minima de $|\mathrm{d}V/\mathrm{d\,pH}|$ (ou $|\mathrm{d}V/\mathrm{d}E|$) sur la courbe directe --- en $V$, le saut de $\mathrm{Fe^{2+}}$ par $\mathrm{MnO_4^-}$ tient en $10^{-9}$\,mL ---, affinés par le zéro de la dérivée de leur logarithme plutôt que par une section dorée, qui plafonne à $\sqrt\varepsilon$. La variance des formes s'écrit $\sum_{j<k}x_jx_k(k-j)^2$, et la pente en dérivant $V_0R_\text{bécher}+VR_\text{burette}=0$ : aucune soustraction de deux nombres voisins au cœur du saut. Les tests les confrontent à un calcul en précision arbitraire : $10^{-10}$ unité de pH, $10^{-11}$\,V.
+
 \section{Installation et chargement}
 
 Les deux fichiers \texttt{titrages.sty} et \texttt{titrages.lua} vont ensemble, dans un dossier que \TeX{} trouve (\texttt{TEXMFHOME/tex/latex/titrages/}, ou le dossier du document).

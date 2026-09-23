@@ -102,9 +102,18 @@ local T = require("titrages")
 local t = T.titrage(T.solution_redox({lb}), T.solution_redox({lu}), 10)
 local E = {{}}
 for i, V in ipairs({{{", ".join(map(str, VOLUMES[1:]))}}}) do E[i] = string.format("%.12g", T.E_enh(t, V)) end
-io.write("[" .. table.concat(E, ",") .. "]")
+local S = {{}}
+for i, s in ipairs(T.sauts_redox(t, 20)) do S[i] = string.format("[%.15g,%.15g,%.12g]", s[1], s[2], s[3]) end
+io.write('{{"E":[' .. table.concat(E, ",") .. '],"sauts":[' .. table.concat(S, ",") .. ']}}')
 """
     fichier = tmp_path / "redox.lua"
     fichier.write_text(script, encoding="utf-8")
     sortie = subprocess.run([INTERPRETE, str(fichier)], capture_output=True, text=True, check=True)
-    assert json.loads(sortie.stdout) == pytest.approx(t.E(VOLUMES[1:]).tolist(), abs=1e-9)
+    lua = json.loads(sortie.stdout)
+    assert lua["E"] == pytest.approx(t.E(VOLUMES[1:]).tolist(), abs=1e-9)
+    sauts = t.sauts(20)
+    assert len(lua["sauts"]) == len(sauts)
+    for (V, E, pente), s in zip(lua["sauts"], sauts, strict=True):
+        assert V == pytest.approx(s.volume, rel=1e-9)
+        assert E == pytest.approx(s.E, abs=1e-9)
+        assert pente == pytest.approx(s.pente, rel=1e-6)

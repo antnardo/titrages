@@ -27,7 +27,7 @@ from dataclasses import dataclass
 import numpy as np
 import numpy.typing as npt
 
-from titrages.equilibre import MARGE_PH, racine_croissante
+from titrages.equilibre import MARGE_PH, minimum_lisse, racine_croissante
 from titrages.modeles import Courbe, CourbeConductimetrique, Saut, Tangentes
 from titrages.solution import LAMBDA_H3O, LAMBDA_HO, Solution
 
@@ -84,16 +84,20 @@ class Titrage:
     def derivee_volume(self, pH: npt.ArrayLike) -> Tableau:
         """:math:`\\mathrm{d}V/\\mathrm{d\\,pH}`, analytiquement.
 
-        :math:`V = -V_0 N/D` donne :math:`V' = V_0\\,(N D' - N' D)/D^2`, avec
-        :math:`N' = \\beta_\\text{bécher}` et :math:`D' = \\beta_\\text{burette}` : les
-        pouvoirs tampons des deux solutions **non diluées**, au pH du mélange.
+        En dérivant :math:`V_0 N + V D = 0` :
+        :math:`V' = -(V_0 N' + V D')/D`, avec :math:`N' = \\beta_\\text{bécher}` et
+        :math:`D' = \\beta_\\text{burette}`, les pouvoirs tampons des deux solutions
+        **non diluées**, au pH du mélange. Le numérateur est une somme de termes positifs :
+        il ne perd aucun chiffre, même au cœur du saut, là où la forme
+        :math:`V_0(ND' - N'D)/D^2` soustrairait deux nombres presque égaux.
         """
-        N = self.becher.residu(pH)
         D = self._denominateur(pH)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            V = -self.volume_becher * self.becher.residu(pH) / D
         dN = self.becher.pouvoir_tampon(pH)
         dD = self._derivee_denominateur(pH)
         with np.errstate(divide="ignore", invalid="ignore"):
-            return np.asarray(self.volume_becher * (N * dD - dN * D) / D**2, dtype=np.float64)
+            return np.asarray(-(self.volume_becher * dN + V * dD) / D, dtype=np.float64)
 
     def pente(self, pH: npt.ArrayLike) -> Tableau:
         """:math:`\\mathrm{d\\,pH}/\\mathrm{d}V` au point de la courbe de ce pH."""
@@ -160,8 +164,9 @@ class Titrage:
 
         Ce sont les maxima locaux de la pente, donc les minima de
         :math:`|\\mathrm{d}V/\\mathrm{d\\,pH}|`, repérés sur une grille puis affinés
-        par section dorée. Une acidité trop faible ou deux pKa trop proches ne donnent
-        pas de saut : c'est justement ce que cette liste permet de voir, face à
+        par le zéro de leur dérivée (:func:`~titrages.equilibre.minimum_lisse`), à la
+        précision de la machine. Une acidité trop faible ou deux pKa trop proches ne
+        donnent pas de saut : c'est justement ce que cette liste permet de voir, face à
         :meth:`volumes_equivalents`.
         """
         pH0 = self.pH_initial
@@ -171,7 +176,9 @@ class Titrage:
         interieurs = np.flatnonzero((d[1:-1] < d[:-2]) & (d[1:-1] <= d[2:])) + 1
         resultat = []
         for i in interieurs:
-            p = _section_doree(lambda x: float(np.abs(self.derivee_volume(x))), grille[i - 1], grille[i + 1])
+            p = minimum_lisse(
+                lambda x: float(np.abs(self.derivee_volume(x))), grille[i - 1], grille[i + 1], 1e-6
+            )
             V = float(self.volume(p))
             if np.isfinite(V) and 0 < V < volume_max:
                 resultat.append(Saut(V, p, float(self.pente(p))))
@@ -285,23 +292,6 @@ class Titrage:
 
         pH = _changement_de_signe(mediane, pH1, pH2)
         return Tangentes(V1, pH1, V2, pH2, s, float(self.volume(pH)), pH)
-
-
-def _section_doree(f: Callable[[float], float], a: float, b: float, iterations: int = 60) -> float:
-    """Le minimum d'une fonction unimodale sur ``[a, b]``."""
-    r = (np.sqrt(5) - 1) / 2
-    c, d = b - r * (b - a), a + r * (b - a)
-    fc, fd = f(c), f(d)
-    for _ in range(iterations):
-        if fc < fd:
-            b, d, fd = d, c, fc
-            c = b - r * (b - a)
-            fc = f(c)
-        else:
-            a, c, fc = c, d, fd
-            d = a + r * (b - a)
-            fd = f(d)
-    return float((a + b) / 2)
 
 
 def _changement_de_signe(f: Callable[[float], float], a: float, b: float, iterations: int = 64) -> float:

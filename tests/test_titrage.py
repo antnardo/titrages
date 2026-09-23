@@ -156,3 +156,18 @@ def test_pKe_different_refuse():
 
     with pytest.raises(ValueError):
         Titrage(Solution(pKe=14), Solution(pKe=13), 10)
+
+
+@pytest.mark.parametrize(
+    "becher, burette, attendu",
+    [
+        ({"CH3COOH": 0.1}, {"NaOH": 0.1}, 8.729420699201),
+        ({"HCl": 0.1}, {"NaOH": 0.1}, 6.999998262822),
+        ({"NH3": 0.1}, {"HCl": 0.1}, 5.275575942902),  # pH décroissant
+    ],
+)
+def test_inflexion_a_la_precision_de_la_machine(becher, burette, attendu):
+    """Face à mpmath : le zéro de d²V/dpH² de V(pH) = -V0 R_bécher/R_burette, 60 chiffres."""
+    t = Titrage(solution(becher), solution(burette), 10)
+    (s,) = t.sauts(20)
+    assert s.pH == pytest.approx(attendu, abs=1e-9)

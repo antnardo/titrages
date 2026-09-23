@@ -36,10 +36,11 @@ from titrages.equilibre import (
     MARGE_PH,
     PKE,
     delta,
+    ecart_moyen,
     fractions,
-    moments,
     racine_croissante,
     somme_h_w,
+    variance,
 )
 from titrages.modeles import Couple, Espece, Spectateur, charge
 
@@ -153,8 +154,7 @@ class Solution:
         p = np.asarray(pH, dtype=np.float64)
         total = np.full(p.shape, -self.exces_base, dtype=np.float64)
         for c in self.composants:
-            (Y1,) = moments(c.espece.couple, p, ordre=1)
-            total = total + c.concentration * (Y1 - c.espece.q)
+            total = total + c.concentration * ecart_moyen(c.espece.couple, p, c.espece.q)
         return total
 
     def derivee_charge(self, pH: npt.ArrayLike) -> Tableau:
@@ -162,8 +162,7 @@ class Solution:
         p = np.asarray(pH, dtype=np.float64)
         total = np.zeros(p.shape, dtype=np.float64)
         for c in self.composants:
-            Y1, Y2 = moments(c.espece.couple, p, ordre=2)
-            total = total + c.concentration * (Y2 - Y1**2)
+            total = total + c.concentration * variance(c.espece.couple, p)
         return LN10 * total
 
     def residu(self, pH: npt.ArrayLike) -> Tableau:
