@@ -52,6 +52,8 @@ jobs:
           run: |
             cd latex
             lualatex -interaction=nonstopmode -halt-on-error titrages-doc.tex
+            makeindex -s gind.ist -o titrages-doc.ind titrages-doc.idx
+            lualatex -interaction=nonstopmode -halt-on-error titrages-doc.tex
             lualatex -interaction=nonstopmode -halt-on-error titrages-doc.tex
             cd tests
             TEXINPUTS=..: lualatex -interaction=nonstopmode -halt-on-error titrages-test-lua.tex

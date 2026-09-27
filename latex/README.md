@@ -28,7 +28,14 @@ l'électroneutralité de chaque solution.
 \end{tikzpicture}
 ```
 
-Documentation : `titrages-doc.pdf` (en français).
+Documentation : `titrages-doc.pdf` (en français). Pour la recompiler :
+
+```sh
+lualatex titrages-doc
+makeindex -s gind.ist -o titrages-doc.ind titrages-doc.idx
+lualatex titrages-doc
+lualatex titrages-doc
+```
 
 Installation : `titrages.sty` et `titrages.lua` dans un même dossier du chemin de
 TeX, par exemple `TEXMFHOME/tex/latex/titrages/`. Dépend de pgfplots.

@@ -8,6 +8,9 @@ LaTeX partagent un numéro de version.
 
 ### Modifié
 
+- La documentation du paquet LaTeX est réécrite en `l3doc` : une fiche de syntaxe
+  par commande, toutes les clés avec leur défaut, les messages et leur remède,
+  l'interface Lua, la comparaison des deux moteurs, un index.
 - Les points d'inflexion (`sauts`) se calculent à la précision de la machine, en
   acide-base comme en rédox : minima de |dV/dpH| ou |dV/dE| sur la courbe directe,
   affinés par le zéro de la dérivée de leur logarithme (`equilibre.minimum_lisse`)

@@ -2,7 +2,7 @@
 
     uv run python scripts/ctan.py
 
-Compile la documentation (lualatex, deux passes), vérifie que les versions du .sty,
+Compile la documentation (lualatex, makeindex, puis deux passes), vérifie que les versions du .sty,
 du .lua et du paquet Python concordent, puis écrit ``dist/titrages-ctan.zip`` au
 format que CTAN attend : un dossier ``titrages/`` avec les sources, la
 documentation et son PDF, le README et la licence. L'envoi reste un geste manuel.
@@ -33,14 +33,11 @@ def main() -> int:
     if len(set(v.values())) != 1:
         print(f"versions discordantes : {v}", file=sys.stderr)
         return 1
-    for _ in range(2):
-        subprocess.run(
-            ["lualatex", "-interaction=nonstopmode", "-halt-on-error", "titrages-doc.tex"],
-            cwd=LATEX,
-            check=True,
-            stdout=subprocess.DEVNULL,
-        )
-    for ext in ("aux", "log", "out", "toc", "listing"):
+    lualatex = ["lualatex", "-interaction=nonstopmode", "-halt-on-error", "titrages-doc.tex"]
+    index = ["makeindex", "-q", "-s", "gind.ist", "-o", "titrages-doc.ind", "titrages-doc.idx"]
+    for commande in (lualatex, index, lualatex, lualatex):
+        subprocess.run(commande, cwd=LATEX, check=True, stdout=subprocess.DEVNULL)
+    for ext in ("aux", "log", "out", "toc", "listing", "idx", "ind", "ilg", "glo", "hd"):
         (LATEX / f"titrages-doc.{ext}").unlink(missing_ok=True)
     dist = RACINE / "dist"
     dist.mkdir(exist_ok=True)

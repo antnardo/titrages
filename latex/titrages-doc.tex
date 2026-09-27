@@ -1,141 +1,359 @@
 % !TEX program = lualatex
-% La documentation du paquet titrages. Compiler par lualatex (deux passes).
-\documentclass[a4paper,11pt]{article}
+% titrages-doc.tex — la documentation du paquet LaTeX titrages.
+%
+% Compilation, depuis ce dossier :
+%   lualatex titrages-doc
+%   makeindex -s gind.ist -o titrages-doc.ind titrages-doc.idx
+%   lualatex titrages-doc
+%   lualatex titrages-doc
+%
+% Copyright (c) 2026 antnardo — licence MIT (voir LICENSE).
+\documentclass[a4paper,full]{l3doc}
 \usepackage{fontspec}
 \usepackage[french]{babel}
-\usepackage[margin=2.3cm]{geometry}
 \usepackage{amsmath}
 \usepackage{siunitx}
-\usepackage[version=4]{mhchem}
 \sisetup{locale=FR}
-\usepackage{booktabs,array}
+\usepackage[version=4]{mhchem}
+\usepackage{booktabs,tabularx,array}
 \usepackage{titrages}
 \pgfplotsset{compat=1.18}
 \usepackage[most]{tcolorbox}
 \tcbuselibrary{listings}
-\lstset{basicstyle=\ttfamily\small, columns=fullflexible, keepspaces, breaklines,
-  literate={é}{{\'e}}1 {è}{{\`e}}1 {à}{{\`a}}1 {ê}{{\^e}}1}
+\lstset{basicstyle=\ttfamily\small, columns=fullflexible, keepspaces,
+  breaklines, upquote,
+  literate={é}{{\'e}}1 {è}{{\`e}}1 {à}{{\`a}}1 {ê}{{\^e}}1 {œ}{{\oe}}1
+           {ï}{{\"i}}1 {É}{{\'E}}1 {ç}{{\c c}}1}
 \newtcblisting{exemple}{colback=gray!4, colframe=gray!50, listing above text,
+  left=2mm, right=2mm, breakable, title=Exemple, fonttitle=\sffamily\small}
+\newtcblisting{source}{colback=gray!4, colframe=gray!50, listing only,
   left=2mm, right=2mm}
-\newcommand{\cs}[1]{\texttt{\textbackslash#1}}
-\newcommand{\cle}[1]{\texttt{#1}}
-\usepackage[hidelinks]{hyperref}
 
-\title{\textsf{titrages} — courbes de titrage sans approximation\\pH-métrie, conductimétrie, potentiométrie, dans \textsf{pgfplots}}
+% Une clé : dans le texte, et à l'index (gind.ist : « = » sépare tri et
+% affichage, « > » les niveaux).
+\newcommand\cle[1]{\texttt{#1}}
+\newcommand\defcle[2]{\texttt{#2}\index{cles=\textsf{Clés}>#1=\texttt{#2}|hdpindex{main}}}
+\newcommand\paquet[1]{\textsf{#1}}
+\newcommand\lua[1]{\texttt{#1}}
+
+\newenvironment{cles}
+  {\par\smallskip\noindent\tabularx{\linewidth}{@{}>{\raggedright\arraybackslash}p{.30\linewidth}
+    >{\raggedright\arraybackslash}p{.14\linewidth}X@{}}\toprule
+    Clé & Défaut & Effet \\ \midrule}
+  {\bottomrule\endtabularx\par\smallskip}
+
+% l3doc fait de " et | des \verb abrégés à \begin{document} : ils servent ici.
+\AtBeginDocument{\DeleteShortVerb{\"}\DeleteShortVerb{\|}}
+\AtEndDocument{\MakeShortVerb{\"}\MakeShortVerb{\|}}
+\EnableCrossrefs
+\PageIndex
+\IndexPrologue{\section*{Index}\addcontentsline{toc}{section}{Index}
+  Les nombres soulignés renvoient à la définition d'une commande ou d'une clé,
+  les nombres en italique aux pages où elle est décrite, les autres aux pages où
+  elle est employée.}
+
+\title{Le paquet \paquet{titrages}\\[2pt]
+  \large Courbes de titrage sans approximation, pour Lua\LaTeX\\
+  pH-métrie, conductimétrie, potentiométrie}
 \author{antnardo\thanks{\url{https://github.com/antnardo/titrages}}}
-\date{version 0.1.0 — 23 septembre 2026}
+\date{Version 0.1.0 — 27 septembre 2026}
 
 \begin{document}
 \maketitle
 
-\begin{abstract}
-Le paquet trace les courbes pH $=f(V)$, $\sigma=f(V)$ et $E=f(V)$ du titrage d'un bécher quelconque par une burette quelconque — acides et bases forts ou faibles, polyacides, ampholytes, mélanges, titrant faible compris, couples rédox à plusieurs étapes ou dimériques — avec la dilution, sans aucune approximation de réaction prépondérante.
-Sous Lua\LaTeX, il donne aussi le pH, la conductivité ou le potentiel à un volume donné, les points d'inflexion, les équivalences stœchiométriques et la construction de la méthode des tangentes.
-Sous pdf\LaTeX, un second moteur trace les courbes avec \textsf{pgfmath} seul.
-Il accompagne le paquet Python \textsf{titrages}, qui ajoute une base de couples et d'indicateurs.
+\begin{abstract}\noindent
+Le paquet \paquet{titrages} trace dans \paquet{pgfplots} les courbes pH$=f(V)$,
+$\sigma=f(V)$ et $E=f(V)$ du titrage d'un bécher quelconque par une burette
+quelconque — acides et bases forts ou faibles, polyacides, ampholytes, mélanges,
+titrant faible compris, couples rédox à plusieurs étapes ou dimériques — en tenant
+compte de la dilution et sans aucune approximation de réaction prépondérante.
+Sous Lua\LaTeX{}, un moteur écrit en Lua calcule en double précision : il donne en
+plus le pH, la conductivité ou le potentiel à un volume donné, les équivalences, les
+points d'inflexion à la précision de la machine et la méthode des tangentes, sous
+forme de nombres développables. Sous pdf\LaTeX{}, un moteur de secours trace les
+seules courbes avec \paquet{pgfmath}.
 \end{abstract}
 
 \tableofcontents
 
-\section{Le principe}
+% =============================================================================
+\section{Premier exemple}
 
-Chercher le pH d'une composition donnée, c'est chercher la racine d'un polynôme de degré $N+2$, sans formule dès que $N>2$.
-Le sens inverse est au contraire explicite : \emph{à pH imposé, tout se calcule directement}.
-Pour une solution qui contient des espèces faibles $i$, décrites comme des polyacides $\mathrm{H}_{N_i}\mathrm{A}_i$ introduits sous leur forme $q_i$ (le nombre de protons déjà cédés), à la concentration $C_i$, et un excès $b$ de base forte sur l'acide fort, l'électroneutralité s'écrit $R(\mathrm{pH})=0$ avec
+Un document complet, à compiler par \texttt{lualatex} :
+\begin{source}
+\documentclass{article}
+\usepackage{titrages}              % charge pgfplots
+\pgfplotsset{compat=1.18}
+\begin{document}
+\titragedefinir{ethanoique}{
+  volume  = 10,                                   % mL d'acide dans le bécher
+  becher  = { espece = { pKa = 4.76, C = 0.1 } },  % acide éthanoïque 0,1 mol/L
+  burette = { base forte = 0.1 },                 % soude 0,1 mol/L
+}
+\begin{tikzpicture}
+\begin{axis}[xlabel={$V$ (mL)}, ylabel=pH]
+  \addplottitrage[thick]{ethanoique}
+\end{axis}
+\end{tikzpicture}
+
+pH à l'équivalence : \titragepH{ethanoique}{10}.
+\end{document}
+\end{source}
+On \emph{décrit} un titrage une fois, sous un nom (\cs{titragedefinir}) ; on le
+\emph{trace} (\cs{addplottitrage} et ses voisines) ou on en \emph{lit} des nombres
+(\cs{titragepH} et ses voisines) autant de fois qu'on veut.
+
+% =============================================================================
+\section{Installation et chargement}
+
+\subsection{Fichiers et dépendances}
+
+Le paquet tient en deux fichiers qui vont ensemble :
+\begin{itemize}
+  \item \texttt{titrages.sty}, l'interface \LaTeX{} ;
+  \item \texttt{titrages.lua}, le moteur de calcul.
+\end{itemize}
+Les deux se posent dans un même dossier que \TeX{} trouve, par exemple
+\path{TEXMFHOME/tex/latex/titrages/}, ou à côté du document. Le fichier Lua est
+cherché comme un fichier \TeX{} (\lua{kpse.find\_file(\dots, "tex")}) : il n'a pas à
+figurer dans \texttt{LUAINPUTS}. Sous une distribution qui l'inclut, rien n'est à
+installer.
+
+Le paquet demande :
+\begin{itemize}
+  \item un noyau \LaTeX{} du 1\textsuperscript{er} juin 2022 ou plus récent
+        (\cs[no-index]{ProcessKeyOptions}) ;
+  \item \paquet{pgfplots} (1.18 conseillé), qu'il charge lui-même ;
+  \item Lua\TeX{} pour le moteur \texttt{lua}, c'est-à-dire pour tout ce qui
+        n'est pas une simple courbe.
+\end{itemize}
+
+\subsection{L'option du paquet}
+
+\begin{function}{moteur}
+\begin{syntax}
+\cs[no-index]{usepackage}\oarg{moteur=lua|pgf}\marg{titrages}
+\end{syntax}
+Choisit le moteur de calcul. Par défaut, \texttt{lua} sous Lua\LaTeX{} et
+\texttt{pgf} sous tout autre moteur. Demander \texttt{lua} ailleurs qu'en Lua\TeX{}
+émet un avertissement et retient \texttt{pgf}. La section~\ref{sec:moteurs}
+compare les deux ; le reste de ce document suppose le moteur \texttt{lua}.
+\end{function}
+
+% =============================================================================
+\section{Le principe du calcul}\label{sec:principe}
+
+\subsection{L'acide-base}
+
+Chercher le pH d'une composition donnée, c'est chercher la racine d'un polynôme de
+degré $N+2$, sans formule dès que $N>2$. Le sens inverse est au contraire
+explicite : \emph{à pH imposé, tout se calcule directement}. Pour une solution qui
+contient des espèces faibles $i$, décrites comme des polyacides
+$\mathrm H_{N_i}\mathrm A_i$ introduits sous la forme $q_i$ (le nombre de protons
+déjà cédés), à la concentration $C_i$, et un excès $b$ de base forte sur l'acide
+fort, l'électroneutralité s'écrit $R(\mathrm{pH})=0$, avec
 \[
 R(\mathrm{pH}) = \sum_i C_i\,\bigl(Y_{1,i}(h) - q_i\bigr) - b + \delta(h),
 \qquad \delta = \frac{K_e}{h} - h,
-\qquad Y_1 = \sum_{j} j\,x_j .
+\qquad Y_1 = \sum_j j\,x_j ,
 \]
-Les fractions $x_j$ sont explicites en $h$, et $R$ est strictement croissante.
-Verser un volume $V$ de burette dans $V_0$ de bécher mélange les deux solutions ; l'électroneutralité du mélange, multipliée par $V_0+V$, se sépare en
+où les $x_j$ sont les fractions de chaque forme, explicites en $h$, et $R$ est
+strictement croissante. Verser $V$ de burette dans $V_0$ de bécher mélange les deux
+solutions ; l'électroneutralité du mélange, multipliée par $V_0+V$, se sépare en
 \[
 V_0\,R_\text{bécher}(\mathrm{pH}) + V\,R_\text{burette}(\mathrm{pH}) = 0
 \quad\Longrightarrow\quad
-V(\mathrm{pH}) = -V_0\,\frac{R_\text{bécher}(\mathrm{pH})}{R_\text{burette}(\mathrm{pH})} .
+V(\mathrm{pH}) = -V_0\,\frac{R_\text{bécher}(\mathrm{pH})}{R_\text{burette}(\mathrm{pH})}.
 \]
-Le volume est une fonction explicite du pH : la courbe se trace comme une courbe paramétrée par le pH, entre le pH initial (numérateur nul) et celui de la solution titrante (dénominateur nul, asymptote).
-Pour un monoacide titré par une base forte, on retrouve l'abscisse normalisée $n = (Y_1 + \delta/C_A)/(1 - \delta/C_B)$.
-Le dénominateur $1-\delta/C_B$ est la correction de dilution : tracer $n_0 = Y_1 + \delta/C_A$ comme une courbe de titrage, ainsi que le fait Kalka (2021), c'est compter la base versée sans l'eau qui l'accompagne, et surestimer le pH de $\log 3\approx\num{0,48}$ à deux fois l'équivalence pour des solutions de même concentration.
-Les tests du paquet Python confrontent cette formule à un calcul indépendant, qui dilue les concentrations à la main et résout l'électroneutralité du mélange.
+Le volume est une fonction explicite du pH : la courbe se trace comme une courbe
+paramétrée par le pH, du pH initial (numérateur nul) à celui de la solution
+titrante (dénominateur nul, asymptote). Le pH à un volume donné se trouve par
+dichotomie : la fonction est monotone, la racine unique.
 
-Les fractions sont calculées en échelle logarithmique : la forme naïve $x_j = x_0\,k_j/h^j$ fait intervenir $10^{\pm 56}$ pour l'EDTA à pH 14, ce qui dépasse la précision de \textsf{pgfmath} et approche les limites de la double précision.
+Pour un monoacide titré par une base forte, on retrouve l'abscisse normalisée
+$n = (Y_1 + \delta/C_A)/(1 - \delta/C_B)$. Le dénominateur $1-\delta/C_B$ est la
+correction de dilution : tracer $n_0 = Y_1 + \delta/C_A$ comme une courbe de
+titrage, ainsi que le fait Kalka (2021), c'est compter la base versée sans l'eau
+qui l'accompagne, et surestimer le pH de $\log 3\approx\num{0,48}$ à deux fois
+l'équivalence pour des solutions de même concentration. La clé
+\cle{dilution = false} reproduit ce calcul, pour comparer
+(exemple~\ref{ex:dilution}).
 
-Les points d'inflexion, ce qu'on mesure, sont calculés à la précision de la machine par le moteur \textsf{lua} : ce sont les minima de $|\mathrm{d}V/\mathrm{d\,pH}|$ (ou $|\mathrm{d}V/\mathrm{d}E|$) sur la courbe directe --- en $V$, le saut de $\mathrm{Fe^{2+}}$ par $\mathrm{MnO_4^-}$ tient en $10^{-9}$\,mL ---, affinés par le zéro de la dérivée de leur logarithme plutôt que par une section dorée, qui plafonne à $\sqrt\varepsilon$. La variance des formes s'écrit $\sum_{j<k}x_jx_k(k-j)^2$, et la pente en dérivant $V_0R_\text{bécher}+VR_\text{burette}=0$ : aucune soustraction de deux nombres voisins au cœur du saut. Les tests les confrontent à un calcul en précision arbitraire : $10^{-10}$ unité de pH, $10^{-11}$\,V.
+\subsection{La conductimétrie}
 
-\section{Installation et chargement}
+La loi de Kohlrausch, en solution idéale, donne $\sigma=\sum_i\lambda_i^\circ c_i$.
+À pH imposé toutes les concentrations sont explicites, et le volume aussi : la
+courbe $\sigma(V)$ est elle aussi paramétrée par le pH.
 
-Les deux fichiers \texttt{titrages.sty} et \texttt{titrages.lua} vont ensemble, dans un dossier que \TeX{} trouve (\texttt{TEXMFHOME/tex/latex/titrages/}, ou le dossier du document).
-\begin{lstlisting}
-\usepackage{titrages}                % lua sous LuaLaTeX, pgf ailleurs
-\usepackage[moteur=pgf]{titrages}    % forcer pgfmath, même sous LuaLaTeX
-\end{lstlisting}
-Le paquet charge \textsf{pgfplots}. Les tracés s'emploient dans un environnement \texttt{axis}.
+\subsection{L'oxydoréduction}
 
-\section{Décrire un titrage}
+C'est la transposition exacte de l'acide-base : les électrons remplacent les
+protons, $E/s$ le pH, avec $s=RT\ln 10/F$. Un couple a ses formes de la plus
+réduite (0) à la plus oxydée ; chaque étape a son $E^\circ$, son nombre d'électrons
+$n$ et le nombre de protons $m$ que consomme la réduction. À pH fixé — le milieu
+est supposé tamponné — $E^{\circ\prime}=E^\circ - s\,\frac mn\,\mathrm{pH}$, et les
+fractions s'écrivent comme celles d'un polyacide. Le bilan d'électrons remplace
+l'électroneutralité : $R(E)=\sum_i T_i\,\bigl(Y_i(E)-e_{q_i}\bigr)$, croissant, et
+$V(E) = -V_0R_\text{bécher}/R_\text{burette}$.
 
-\begin{lstlisting}
-\titragedefinir{<nom>}{<clés>}
-\end{lstlisting}
-enregistre un titrage sous un nom, que les commandes de tracé et de calcul reprennent.
+Un couple \emph{dimérique} (\ce{I2}/\ce{I-}, \ce{Cr2O7^2-}/\ce{Cr^3+},
+\ce{S4O6^2-}/\ce{S2O3^2-}) n'a pas de $Y(E)$ : sa loi de Nernst porte un carré, et
+une simple dilution change son potentiel. Le moteur \texttt{lua} résout alors
+$E(V)$ par dichotomie sur $g(E,V)=V_0R_\text{bécher}+VR_\text{burette}$, qui croît
+avec $E$.
+
+\subsection{La précision}\label{sec:precision}
+
+Les fractions se calculent en échelle logarithmique : la forme naïve
+$x_j = x_0\,k_j/h^j$ fait intervenir $10^{\pm 56}$ pour l'EDTA à pH 14. Aucune
+soustraction de deux nombres voisins n'intervient au cœur d'un saut : la variance
+des formes s'écrit $\sum_{j<k}x_jx_k(k-j)^2$, et la pente se tire de la dérivée de
+$V_0R_\text{bécher}+VR_\text{burette}=0$, somme de termes de même signe.
+
+Un point d'inflexion, ce qu'on mesure, est un minimum de $|\mathrm dV/\mathrm
+d\,\mathrm{pH}|$ (ou de $|\mathrm dV/\mathrm dE|$) sur la courbe directe, et non un
+maximum de la pente cherché en volume : le saut de \ce{Fe^2+} par \ce{MnO4-} tient
+en \qty{e-9}{mL}. Il est affiné par le zéro de la dérivée du logarithme, et non par
+une section dorée qui plafonne à $\sqrt\varepsilon$. Confrontés à un calcul en
+précision arbitraire, les points d'inflexion sont justes à $10^{-10}$ unité de pH
+et à $10^{-11}$\,V.
+
+Un point d'inflexion n'est pas l'équivalence : \cs{titragesaut} rend le premier,
+\cs{titrageequivalence} la seconde.
+
+% =============================================================================
+\section{Décrire un titrage acide-base}
+
+\begin{function}{\titragedefinir}
+\begin{syntax}
+\cs{titragedefinir}\marg{nom}\marg{clés}
+\end{syntax}
+Enregistre, globalement, le titrage \meta{nom}, que les commandes de tracé et de
+calcul reprennent ensuite. Redéfinir un nom remplace le titrage. Le \meta{nom} est
+une chaîne quelconque sans accolade ; il est partagé avec
+\cs{titrageredoxdefinir}.
+\end{function}
 
 \subsection{Les clés du titrage}
 
-\begin{tabular}{@{}lll@{}}
-\toprule
-Clé & Défaut & Rôle \\
-\midrule
-\cle{volume} & 10 & le volume $V_0$ du bécher \\
-\cle{becher} & vide & la solution du bécher (clés ci-dessous) \\
-\cle{burette} & vide & la solution titrante \\
-\cle{volume max} & voir ci-contre & le volume versé maximal \\
-\cle{points} & 300 & le nombre de points de la courbe \\
-\cle{pKe} & 14 & le produit ionique de l'eau \\
-\cle{dilution} & \cle{true} & \cle{false} : la burette apporte ses espèces, pas son eau \\
-\cle{abscisse} & \cle{volume} & \cle{n} : les volumes divisés par la première équivalence (lua) \\
-\cle{echelle} & 1 & diviser les volumes par ce nombre \\
-\bottomrule
-\end{tabular}
+\begin{cles}
+\defcle{volume}{volume} & 10 & le volume $V_0$ du bécher \\
+\defcle{becher}{becher} & vide & la solution du bécher (§\,\ref{sec:solution}) \\
+\defcle{burette}{burette} & vide & la solution titrante (§\,\ref{sec:solution}) \\
+\defcle{volume max}{volume max} & voir texte & le volume versé maximal \\
+\defcle{points}{points} & 300 & le nombre de points d'une courbe \\
+\defcle{pKe}{pKe} & 14 & le produit ionique de l'eau \\
+\defcle{dilution}{dilution} & \cle{true} & \cle{false} : la burette apporte ses
+  espèces, pas son eau \\
+\defcle{abscisse}{abscisse} & \cle{volume} & \cle{n} : les volumes divisés par la
+  première équivalence \\
+\defcle{echelle}{echelle} & 1 & diviser les volumes par ce nombre \\
+\cle{conductivite corrigee}, \cle{unite} & & voir §\,\ref{sec:conducto} \\
+\end{cles}
 
-\medskip
-Les volumes s'écrivent dans l'unité qu'on veut, la même partout.
-Sans \cle{volume max}, le moteur lua trace jusqu'à la dernière équivalence augmentée de la première ; le moteur pgf, jusqu'à $2V_0$.
+Les volumes s'écrivent dans l'unité qu'on veut, la même partout : les
+concentrations seules ont une unité imposée, la \unit{mol/L}. Les nombres passent
+par \cs[no-index]{fp_eval:n} : \cle{C = 1e-3}, \cle{C = 10\^{}(-2.5)} et
+\cle{volume = 2*10} sont acceptés.
 
-\subsection{Les clés d'une solution}
+Sans \cle{volume max}, le moteur \texttt{lua} trace jusqu'à la dernière équivalence
+augmentée de la première, et jusqu'à $2V_0$ quand il n'y a pas d'équivalence
+définie (titrant faible) ; le moteur \texttt{pgf}, jusqu'à $2V_0$.
 
-\begin{tabular}{@{}ll@{}}
-\toprule
-Clé & Rôle \\
-\midrule
-\cle{espece = \{pKa = <liste>, C = <mol/L>, forme = <q>\}} & une espèce faible, répétable \\
-\cle{acide fort = <mol/L>} & un acide fort, cumulable \\
-\cle{base forte = <mol/L>} & une base forte, cumulable \\
-\bottomrule
-\end{tabular}
+Les points d'une courbe sont répartis à longueur d'arc constante : un pas régulier
+en volume manquerait le saut, un pas régulier en pH laisserait vides les zones
+tampons. \cle{points} règle leur nombre, pas leur répartition.
 
-\medskip
-Une espèce est décrite par \emph{tous} les pKa de son couple, dans n'importe quel ordre, et par la forme sous laquelle on l'introduit : \cle{forme = 0} (défaut) est la forme la plus acide, \cle{forme = N} la plus basique.
-L'ammoniac est \cle{\{pKa = 9.25, forme = 1\}}, le carbonate de sodium \cle{\{pKa = \{6.35, 10.33\}, forme = 2\}}, l'hydrogénocarbonate \cle{forme = 1}.
-Les ions spectateurs n'ont pas à être décrits : une solution préparée est neutre, et leur charge se déduit de la forme.
-Les nombres passent par \texttt{\textbackslash fp\_eval:n} : \cle{C = 1e-3} et \cle{C = 10\^{}(-2.5)} sont acceptés.
+\subsection{Les clés d'une solution}\label{sec:solution}
 
+La valeur de \cle{becher} et de \cle{burette} est une liste de clés :
+
+\begin{cles}
+\defcle{espece}{espece} & & une espèce faible, décrite par les clés
+  ci-dessous ; répétable \\
+\defcle{acide fort}{acide fort} & 0 & un acide fort, en \unit{mol/L} ;
+  cumulable \\
+\defcle{base forte}{base forte} & 0 & une base forte, en \unit{mol/L} ;
+  cumulable \\
+\cle{lambda acide fort}, \cle{lambda base forte} & 7,63 ; 5,01 & voir
+  §\,\ref{sec:conducto} \\
+\end{cles}
+
+Une solution peut tout mêler : un acide fort, deux acides faibles et une base
+forte. Les ions spectateurs n'ont pas à être décrits pour le pH : une solution
+préparée est neutre, et leur charge se déduit de la forme introduite.
+
+\subsection{Les clés d'une espèce}
+
+\begin{cles}
+\defcle{pKa}{pKa} & & tous les pKa du couple, dans n'importe quel ordre ; une
+  liste entre accolades \\
+\defcle{C}{C} & 0 & la concentration de l'espèce, en \unit{mol/L} \\
+\defcle{forme}{forme} & 0 & la forme introduite : 0 est la plus acide, $N$ la plus
+  basique \\
+\cle{lambda}, \cle{charge}, \cle{contre ion} & & voir §\,\ref{sec:conducto} \\
+\end{cles}
+
+L'acide éthanoïque est \cle{\{pKa = 4.76, C = 0.1\}}, l'ammoniac
+\cle{\{pKa = 9.25, C = 0.1, forme = 1\}}, le carbonate de sodium
+\cle{\{pKa = \{6.35, 10.33\}, C = 0.05, forme = 2\}}, l'hydrogénocarbonate la même
+chose avec \cle{forme = 1}. Un acide fort est traité exactement, comme une
+dissociation totale, et non comme un couple de pKa très négatif.
+
+% =============================================================================
 \section{Tracer}
 
-{\small\begin{tabular}{@{}>{\raggedright\arraybackslash}p{7.8cm}>{\raggedright\arraybackslash}p{5.4cm}l@{}}
-\toprule
-Commande & Trace & Moteur \\
-\midrule
-\cs{addplottitrage[<options>]\{<nom>\}} & la courbe pH $=f(V)$ & lua, pgf \\
-\cs{addplottitragederivee[<options>]\{<nom>\}} & la pente $\mathrm{d\,pH}/\mathrm{d}V$, exacte & lua \\
-\cs{addplottitragesauts[<options>]\{<nom>\}} & les points d'inflexion & lua \\
-\cs{addplottitragetangentes}\allowbreak\texttt{[<options>]\{<nom>\}\{<V>\}} & la méthode des tangentes depuis $V$ & lua \\
-\cs{addplotfractions[<options>]\{<pKa>\}} & les fractions de chaque forme selon le pH & lua, pgf \\
-\bottomrule
-\end{tabular}}
+Toutes les commandes de tracé s'emploient dans un environnement \texttt{axis} (ou
+une de ses variantes) de \paquet{pgfplots}. Leur argument optionnel reçoit les
+options d'un \cs[no-index]{addplot} ; les courbes suivent le cycle de styles de l'axe, sans
+marques.
 
-\medskip
-Les options sont celles de \cs{addplot}.
-Les courbes suivent le cycle de styles de \textsf{pgfplots}, sans marques.
+\begin{function}{\addplottitrage}
+\begin{syntax}
+\cs{addplottitrage}\oarg{options}\marg{nom}
+\end{syntax}
+Trace la courbe du titrage : pH$=f(V)$ pour un titrage acide-base, $E=f(V)$ pour
+un titrage rédox, de $V=0$ à \cle{volume max}.
+\end{function}
+
+\begin{function}{\addplottitragederivee}
+\begin{syntax}
+\cs{addplottitragederivee}\oarg{options}\marg{nom}
+\end{syntax}
+Trace la pente exacte, $\mathrm d\,\mathrm{pH}/\mathrm dV$ ou $\mathrm dE/\mathrm
+dV$, calculée analytiquement et non par différences finies. Moteur \texttt{lua}.
+\end{function}
+
+\begin{function}{\addplottitragesauts}
+\begin{syntax}
+\cs{addplottitragesauts}\oarg{options}\marg{nom}
+\end{syntax}
+Place les points d'inflexion de la courbe (§\,\ref{sec:precision}). Donner
+\cle{mark=*} ou une autre marque pour les voir. Moteur \texttt{lua}.
+\end{function}
+
+\begin{function}{\addplottitragetangentes}
+\begin{syntax}
+\cs{addplottitragetangentes}\oarg{options}\marg{nom}\marg{V}
+\end{syntax}
+Construit la méthode des tangentes parallèles à partir du volume \meta{V}, pris
+avant le premier saut qui le suit : la tangente en $V$, la tangente parallèle
+après le saut, la parallèle équidistante, et les trois points (les deux points de
+contact et l'intersection avec la courbe). Réservée aux titrages acide-base.
+Moteur \texttt{lua}.
+\end{function}
+
+\begin{function}{\addplotfractions}
+\begin{syntax}
+\cs{addplotfractions}\oarg{options}\marg{pKa}
+\end{syntax}
+Trace les fractions de chaque forme d'un couple en fonction du pH, une courbe par
+forme, entre les réglages \cle{pH min} et \cle{pH max}. \meta{pKa} est la liste
+des pKa, dans n'importe quel ordre. N'a pas besoin d'un titrage défini.
+\end{function}
+
+La conductivité se trace par \cs{addplottitrageconductivite}, en
+§\,\ref{sec:conducto}.
 
 \begin{exemple}
 \titragedefinir{ethanoique}{
@@ -154,9 +372,11 @@ Les courbes suivent le cycle de styles de \textsf{pgfplots}, sans marques.
 \end{tikzpicture}
 \end{exemple}
 
-\subsection{Polyacides, et une équivalence qui ne se voit pas}
+\subsection{Un polyacide, et une équivalence qui ne se voit pas}
 
-L'acide phosphorique a trois acidités, donc trois équivalences stœchiométriques, mais la troisième ($\mathrm{pK_a} = 12{,}35$) ne donne aucun saut : la courbe n'a que deux points d'inflexion.
+L'acide phosphorique a trois acidités, donc trois équivalences stœchiométriques,
+mais la troisième ($\mathrm{pK_a} = 12{,}35$) ne donne aucun saut : la courbe n'a
+que deux points d'inflexion.
 \begin{exemple}
 \titragedefinir{phosphorique}{
   becher = { espece = { pKa = {2.15, 7.20, 12.35}, C = 0.1 } },
@@ -169,9 +389,9 @@ L'acide phosphorique a trois acidités, donc trois équivalences stœchiométriq
 \end{axis}
 \end{tikzpicture}
 
-Équivalences : \titrageequivalence{phosphorique}{1}, \titrageequivalence{phosphorique}{2}
-et \titrageequivalence{phosphorique}{3}~mL ; sauts à \titragesaut{phosphorique}{1}
-et \titragesaut{phosphorique}{2}~mL.
+Équivalences : \num{\titrageequivalence{phosphorique}{1}}, \num{\titrageequivalence{phosphorique}{2}}
+et \num{\titrageequivalence{phosphorique}{3}}~mL ; sauts à \num{\titragesaut{phosphorique}{1}}
+et \num{\titragesaut{phosphorique}{2}}~mL.
 \end{exemple}
 
 \subsection{Une base faible par un acide fort, en abscisse normalisée}
@@ -185,13 +405,16 @@ et \titragesaut{phosphorique}{2}~mL.
 \begin{tikzpicture}
 \begin{axis}[width=9cm, height=5cm, xlabel={$n = V/V_\mathrm{eq}$}, ylabel=pH]
   \addplottitrage[thick]{ammoniac}
+  \addplottitragesauts[black, mark=*]{ammoniac}
 \end{axis}
 \end{tikzpicture}
 \end{exemple}
 
 \subsection{Un mélange, par un titrant faible}
 
-Un bécher d'acide chlorhydrique et d'acide éthanoïque, titré par l'ammoniac : rien ne change dans la description.
+Un bécher d'acide chlorhydrique et d'acide éthanoïque, titré par l'ammoniac : rien
+ne change dans la description. Le titrant étant faible, les équivalences
+stœchiométriques ne sont pas définies, mais les points d'inflexion le sont.
 \begin{exemple}
 \titragedefinir{melange}{
   volume = 20,
@@ -205,6 +428,28 @@ Un bécher d'acide chlorhydrique et d'acide éthanoïque, titré par l'ammoniac 
   \addplottitragesauts[black, mark=*]{melange}
 \end{axis}
 \end{tikzpicture}
+\end{exemple}
+
+\subsection{La dilution}\label{ex:dilution}
+
+La même solution titrée avec et sans l'eau de la burette : l'écart, nul au départ,
+atteint $\log 3$ à deux fois l'équivalence.
+\begin{exemple}
+\titragedefinir{sans eau}{
+  becher = { espece = { pKa = 4.76, C = 0.1 } },
+  burette = { base forte = 0.1 },
+  volume max = 20, dilution = false,
+}
+\begin{tikzpicture}
+\begin{axis}[width=9cm, height=5cm, xlabel={$V$ (mL)}, ylabel=pH,
+             legend pos=south east]
+  \addplottitrage[thick]{ethanoique}
+  \addplottitrage[thick, dashed]{sans eau}
+  \legend{avec dilution, sans}
+\end{axis}
+\end{tikzpicture}
+
+À \qty{20}{mL} : \num{\titragepH{ethanoique}{20}} et \num{\titragepH{sans eau}{20}}.
 \end{exemple}
 
 \subsection{La dérivée}
@@ -221,7 +466,6 @@ Un bécher d'acide chlorhydrique et d'acide éthanoïque, titré par l'ammoniac 
 \subsection{Les fractions}
 
 \begin{exemple}
-\titragesreglages{pH min=0, pH max=14}
 \begin{tikzpicture}
 \begin{axis}[width=9cm, height=4.5cm, xlabel=pH, ylabel=fraction,
              legend pos=outer north east]
@@ -231,33 +475,56 @@ Un bécher d'acide chlorhydrique et d'acide éthanoïque, titré par l'ammoniac 
 \end{tikzpicture}
 \end{exemple}
 
-\section{Conductimétrie}
+% =============================================================================
+\section{Conductimétrie}\label{sec:conducto}
 
-La loi de Kohlrausch, en solution idéale, donne $\sigma=\sum_i\lambda_i^\circ c_i$.
-À pH imposé, toutes les concentrations sont explicites, et le volume aussi : la courbe $\sigma(V)$ est donc, elle aussi, une courbe paramétrée par le pH.
-La conductivité demande ce que le pH ignore : la conductivité molaire de chaque forme chargée, et les \emph{ions spectateurs}.
+La conductivité demande ce que le pH ignore : la conductivité molaire limite de
+chaque forme chargée, et celle des \emph{ions spectateurs}. \ce{H3O+}
+(\num{34,98}) et \ce{HO-} (\num{19,86}) sont connus du paquet ; tout le reste se
+déclare, en \unit{mS.m^2.mol^{-1}}. Une forme chargée sans $\lambda^\circ$ est une
+erreur, pas un zéro silencieux.
 
-{\small\begin{tabular}{@{}>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}p{10.2cm}@{}}
-\toprule
-Clé & Rôle \\
-\midrule
-\cle{lambda = \{<l0>, <l1>, …\}} & dans une espèce : $\lambda^\circ$ de chaque forme, en \unit{mS.m^2.mol^{-1}} (0 ou rien pour une forme neutre) \\
-\cle{charge = <z0>} & dans une espèce : la charge de sa forme la plus acide (0 par défaut ; 1 pour \ce{NH4+}) \\
-\cle{contre ion = <l>} & dans une espèce : $\lambda^\circ$ du contre-ion monovalent qui l'accompagne (\ce{Na+} de l'éthanoate de sodium) \\
-\cle{lambda acide fort}, \cle{lambda base forte} & dans une solution : ceux de l'anion de l'acide fort (7,63, \ce{Cl-}) et du cation de la base forte (5,01, \ce{Na+}) \\
-\cle{conductivite corrigee} & dans le titrage : multiplier par $(V_0+V)/V_0$, la correction de dilution de TP \\
-\cle{unite} & dans le titrage : \cle{mS/cm} (défaut), \cle{S/m} ou \cle{mS/m} \\
-\bottomrule
-\end{tabular}}
+\begin{function}{\addplottitrageconductivite}
+\begin{syntax}
+\cs{addplottitrageconductivite}\oarg{options}\marg{nom}
+\end{syntax}
+Trace la conductivité $\sigma=f(V)$ du titrage acide-base \meta{nom}, dans l'unité
+de la clé \cle{unite}.
+\end{function}
 
-\medskip
-\ce{H3O+} (34,98) et \ce{HO-} (19,86) sont connus du paquet.
-Une forme chargée sans $\lambda$ est une erreur, pas un zéro silencieux.
+Dans une espèce :
+
+\begin{cles}
+\defcle{lambda}{lambda} & vide & $\lambda^\circ$ de chaque forme, de la plus acide
+  à la plus basique ; 0 ou rien pour une forme neutre \\
+\defcle{charge}{charge} & 0 & la charge de la forme la plus acide (1 pour
+  \ce{NH4+}) \\
+\defcle{contre ion}{contre ion} & & $\lambda^\circ$ du contre-ion monovalent qui
+  accompagne l'espèce introduite (\ce{Na+} de l'éthanoate de sodium) \\
+\end{cles}
+
+Dans une solution :
+
+\begin{cles}
+\defcle{lambda acide fort}{lambda acide fort} & \num{7,63} & $\lambda^\circ$ de
+  l'anion de l'acide fort (\ce{Cl-}) \\
+\defcle{lambda base forte}{lambda base forte} & \num{5,01} & $\lambda^\circ$ du
+  cation de la base forte (\ce{Na+}) \\
+\end{cles}
+
+Dans le titrage :
+
+\begin{cles}
+\defcle{conductivite corrigee}{conductivite corrigee} & \cle{false} & multiplier
+  par $(V_0+V)/V_0$, la correction de dilution des TP \\
+\defcle{unite}{unite} & \cle{mS/cm} & \cle{mS/cm}, \cle{S/m} ou \cle{mS/m} \\
+\end{cles}
 
 \begin{exemple}
 \titragedefinir{conducto}{
   volume = 100,
-  becher = { acide fort = 0.01, espece = { pKa = 4.76, C = 0.01, lambda = {0, 4.09} } },
+  becher = { acide fort = 0.01,
+             espece = { pKa = 4.76, C = 0.01, lambda = {0, 4.09} } },
   burette = { base forte = 0.1 },
   volume max = 30,
   conductivite corrigee = true,
@@ -272,118 +539,340 @@ Une forme chargée sans $\lambda$ est une erreur, pas un zéro silencieux.
 À \qty{10}{mL} : \qty{\titrageconductivite{conducto}{10}}{mS/cm}.
 \end{exemple}
 
-\section{Oxydoréduction}
+% =============================================================================
+\section{Oxydoréduction}\label{sec:redox}
 
-C'est la transposition exacte : les électrons remplacent les protons, $E/s$ le pH, avec $s=RT\ln 10/F$.
-Un système a ses formes de la plus réduite (0) à la plus oxydée ; chaque étape a son $E^\circ$, son nombre d'électrons $n$ et le nombre de protons $m$ que consomme la réduction.
-À pH fixé — le milieu est supposé tamponné —, $E^{\circ\prime}=E^\circ - s\,\frac mn\,\mathrm{pH}$, et les fractions s'écrivent comme celles d'un polyacide.
-Le bilan d'électrons remplace l'électroneutralité : $R(E)=\sum_i T_i\,(Y_i(E)-e_{q_i})$, croissant, et $V(E) = -V_0R_\text{bécher}/R_\text{burette}$.
+\begin{function}{\titrageredoxdefinir}
+\begin{syntax}
+\cs{titrageredoxdefinir}\marg{nom}\marg{clés}
+\end{syntax}
+Enregistre le titrage potentiométrique \meta{nom}.
+\end{function}
 
-Un couple \emph{dimérique} (\ce{I2}/\ce{I-}, \ce{Cr2O7^2-}/\ce{Cr^3+}, \ce{S4O6^2-}/\ce{S2O3^2-}) n'a pas de $Y(E)$ : sa loi de Nernst porte un carré, et une simple dilution change son potentiel.
-Le moteur lua résout alors $E(V)$ par dichotomie sur le bilan du mélange ; le moteur pgf ne les accepte pas.
+{\raggedright Les commandes qui s'y appliquent sont \cs{addplottitrage},
+\cs{addplottitragederivee}, \cs{addplottitragesauts}, \cs{titrageE},
+\cs{titragevolume}, \cs{titrageequivalence} et \cs{titragesaut} ; la
+conductimétrie et la méthode des tangentes sont réservées à l'acide-base.\par}
 
-\begin{lstlisting}
-\titrageredoxdefinir{<nom>}{<clés>}
-\end{lstlisting}
+\subsection{Les clés du titrage}
 
-{\small\begin{tabular}{@{}>{\raggedright\arraybackslash}p{5.6cm}>{\raggedright\arraybackslash}p{9.8cm}@{}}
-\toprule
-Clé & Rôle \\
-\midrule
-\cle{volume}, \cle{becher}, \cle{burette}, \cle{volume max}, \cle{points}, \cle{abscisse}, \cle{echelle} & comme pour un titrage acide-base \\
-\cle{pH} & le pH du milieu (0 par défaut) \\
-\cle{reference} & l'électrode de mesure : \cle{ENH} (défaut), \cle{ECS}, \cle{Ag/AgCl}, ou son potentiel en V \\
-\cle{pente nernst} & $s$, 0,05916 V à \qty{25}{\degreeCelsius} \\
-\cle{espece = \{E0 = …, n = …, H = …, stoechiometrie = \{a, b\}, C = …, forme = …\}} & une espèce : les $E^\circ$ (V/ENH), $n$ et $m$ de chaque étape, la stœchiométrie $a\,\mathrm{Ox}+n\,e^-=b\,\mathrm{Red}$ d'un couple dimérique, la concentration de l'espèce, et sa forme : \cle{red} (défaut), \cle{ox} ou un numéro \\
-\bottomrule
-\end{tabular}}
+\begin{cles}
+\cle{volume}, \cle{becher}, \cle{burette}, \cle{volume max}, \cle{points},
+  \cle{abscisse}, \cle{echelle} & & comme pour un titrage acide-base \\
+\defcle{pH}{pH} & 0 & le pH du milieu, supposé tamponné \\
+\defcle{reference}{reference} & \cle{ENH} & l'électrode de référence :
+  \cle{ENH} (\qty{0}{V}), \cle{ECS} (\qty{0,244}{V}), \cle{Ag/AgCl}
+  (\qty{0,197}{V}), ou son potentiel en volts par rapport à l'ENH \\
+\defcle{pente nernst}{pente nernst} & \num{0,05916} & $s=RT\ln10/F$, en volts \\
+\end{cles}
 
-\medskip
-\cs{addplottitrage}, \cs{addplottitragesauts}, \cs{addplottitragederivee}, \cs{titrageequivalence}, \cs{titragevolume} et \cs{titragesaut[E]} s'appliquent ; \cs{titrageE\{<nom>\}\{<V>\}} donne le potentiel, par rapport à la référence.
-Les réglages \cle{E min} et \cle{E max} (−0,5 et 2 V) bornent la courbe du moteur pgf.
+Les solutions n'ont qu'une clé, \cle{espece}, répétable.
+
+\subsection{Les clés d'une espèce rédox}
+
+\begin{cles}
+\defcle{E0}{E0} & & les $E^\circ$ de chaque étape, en V par rapport à l'ENH, de la
+  forme la plus réduite à la plus oxydée \\
+\defcle{n}{n} & & le nombre d'électrons de chaque étape \\
+\defcle{H}{H} & 0 & le nombre de protons consommés par chaque réduction \\
+\defcle{stoechiometrie}{stoechiometrie} & \{1, 1\} & $\{a, b\}$ pour
+  $a\,\mathrm{Ox}+n\,e^-=b\,\mathrm{Red}$ : \{1, 2\} pour \ce{I2}/\ce{I-} ;
+  une seule étape \\
+\defcle{C}{C} & 0 & la concentration de l'espèce, en \unit{mol/L} \\
+\defcle{forme}{forme} & \cle{red} & \cle{red}, \cle{ox}, ou le numéro de la forme
+  introduite \\
+\end{cles}
+
+Le permanganate est
+\cle{\{E0 = 1.51, n = 5, H = 8, C = 0.02, forme = ox\}} ; le vanadium, à trois
+étapes, \cle{\{E0 = \{-0.26, 0.34, 1.00\}, n = \{1, 1, 1\}, H = \{0, 2, 2\}\}}.
 
 \begin{exemple}
 \titrageredoxdefinir{vanadium}{
   volume = 10, pH = 0, reference = ECS,
-  becher = { espece = { E0 = {-0.26, 0.34, 1.00}, n = {1, 1, 1}, H = {0, 2, 2}, C = 0.1 } },
+  becher = { espece = { E0 = {-0.26, 0.34, 1.00}, n = {1, 1, 1},
+                        H = {0, 2, 2}, C = 0.1 } },
   burette = { espece = { E0 = 1.51, n = 5, H = 8, C = 0.02, forme = ox } },
   volume max = 40,
 }
 \titrageredoxdefinir{iodometrie}{
   volume = 10, reference = ECS,
-  becher = { espece = { E0 = 0.54, n = 2, stoechiometrie = {1, 2}, C = 0.05, forme = ox } },
+  becher = { espece = { E0 = 0.54, n = 2, stoechiometrie = {1, 2},
+                        C = 0.05, forme = ox } },
   burette = { espece = { E0 = 0.08, n = 2, stoechiometrie = {1, 2}, C = 0.1 } },
   volume max = 20,
 }
 \begin{tikzpicture}
-\begin{axis}[width=9cm, height=6cm, xlabel={$V$ (mL)}, ylabel={$E$ (V/ECS)}, grid=both]
+\begin{axis}[width=9cm, height=6cm, xlabel={$V$ (mL)}, ylabel={$E$ (V/ECS)},
+             grid=both]
   \addplottitrage[thick]{vanadium}
   \addplottitragesauts[black, mark=*]{vanadium}
   \addplottitrage[thick]{iodometrie}
 \end{axis}
 \end{tikzpicture}
 
-Équivalences : \titrageequivalence{vanadium}{1}, \titrageequivalence{vanadium}{2},
-\titrageequivalence{vanadium}{3}~mL ; iodométrie : \titrageequivalence{iodometrie}{1}~mL,
+Équivalences : \num{\titrageequivalence{vanadium}{1}}, \num{\titrageequivalence{vanadium}{2}},
+\num{\titrageequivalence{vanadium}{3}}~mL ; iodométrie : \num{\titrageequivalence{iodometrie}{1}}~mL,
 à \qty{\titragesaut[E]{iodometrie}{1}}{V}.
 \end{exemple}
 
-\section{Les nombres}
+% =============================================================================
+\section{Les nombres}\label{sec:nombres}
 
-Sous le moteur lua, ces commandes sont \emph{développables} : elles s'emploient dans \cs{num}, dans une coordonnée, dans un \cs{pgfmathsetmacro}.
-Le nombre de décimales, 2 par défaut, se règle par la clé \cle{chiffres} de \cs{titragesreglages}.
+Ces commandes demandent le moteur \texttt{lua}. Elles sont \emph{développables} :
+elles s'emploient dans \cs[no-index]{num}, \cs[no-index]{qty}, une coordonnée, un
+\cs[no-index]{pgfmathsetmacro} ou un \cs[no-index]{edef}. Elles rendent un nombre décimal, point
+compris, arrondi au réglage \cle{chiffres} (2 par défaut). Leurs arguments
+numériques passent par \cs[no-index]{fp_eval:n}. Un volume, une équivalence ou un point qui
+n'existe pas rendent \texttt{nan} ; un saut qui n'existe pas est une erreur.
 
-{\small\begin{tabular}{@{}>{\raggedright\arraybackslash}p{7.2cm}>{\raggedright\arraybackslash}p{8.1cm}@{}}
-\toprule
-Commande & Rend \\
-\midrule
-\cs{titragepH\{<nom>\}\{<V>\}} & le pH après avoir versé $V$ \\
-\cs{titragepHinitial\{<nom>\}} & le pH du bécher \\
-\cs{titrageE\{<nom>\}\{<V>\}} & le potentiel après avoir versé $V$ (titrage rédox) \\
-\cs{titrageconductivite\{<nom>\}\{<V>\}} & la conductivité, dans l'unité du titrage \\
-\cs{titragevolume\{<nom>\}\{<pH>\}} & le volume qui amène à ce pH (ou ce potentiel) \\
-\cs{titrageequivalence\{<nom>\}\{<k>\}} & la $k$-ième équivalence stœchiométrique (titrant fort) \\
-\cs{titragesaut[<champ>]\{<nom>\}\{<k>\}} & le $k$-ième point d'inflexion : \cle{volume}, \cle{pH} (ou \cle{E}) ou \cle{pente} \\
-\cs{titragetangentes[<champ>]\{<nom>\}\{<V>\}} & le point de la méthode des tangentes depuis $V$ \\
-\bottomrule
-\end{tabular}}
+\begin{function}[EXP]{\titragepH}
+\begin{syntax}
+\cs{titragepH}\marg{nom}\marg{V}
+\end{syntax}
+Le pH après avoir versé le volume \meta{V}, exprimé dans l'unité de l'abscisse.
+\end{function}
+
+\begin{function}[EXP]{\titragepHinitial}
+\begin{syntax}
+\cs{titragepHinitial}\marg{nom}
+\end{syntax}
+Le pH du bécher, c'est-à-dire \cs{titragepH}\marg{nom}\marg{0}.
+\end{function}
+
+\begin{function}[EXP]{\titrageE}
+\begin{syntax}
+\cs{titrageE}\marg{nom}\marg{V}
+\end{syntax}
+Le potentiel d'un titrage rédox après avoir versé \meta{V}, en volts par rapport à
+la référence du titrage.
+\end{function}
+
+\begin{function}[EXP]{\titrageconductivite}
+\begin{syntax}
+\cs{titrageconductivite}\marg{nom}\marg{V}
+\end{syntax}
+La conductivité après avoir versé \meta{V}, dans l'unité du titrage, corrigée de la
+dilution si \cle{conductivite corrigee} est vraie.
+\end{function}
+
+\begin{function}[EXP]{\titragevolume}
+\begin{syntax}
+\cs{titragevolume}\marg{nom}\marg{pH ou E}
+\end{syntax}
+Le volume qui amène à ce pH, ou à ce potentiel (dans la référence du titrage).
+\end{function}
+
+\begin{function}[EXP]{\titrageequivalence}
+\begin{syntax}
+\cs{titrageequivalence}\marg{nom}\marg{k}
+\end{syntax}
+Le volume de la $k$-ième équivalence stœchiométrique. Définie pour un titrant fort
+en acide-base, et pour tout titrage rédox.
+\end{function}
+
+\begin{function}[EXP]{\titragesaut}
+\begin{syntax}
+\cs{titragesaut}\oarg{champ}\marg{nom}\marg{k}
+\end{syntax}
+Le $k$-ième point d'inflexion. \meta{champ} vaut \cle{volume} (défaut), \cle{pH}
+(ou \cle{E} en rédox) ou \cle{pente}, la pente en ce point par unité de l'abscisse.
+\end{function}
+
+\begin{function}[EXP]{\titragetangentes}
+\begin{syntax}
+\cs{titragetangentes}\oarg{champ}\marg{nom}\marg{V}
+\end{syntax}
+Le point équivalent donné par la méthode des tangentes depuis \meta{V}.
+\meta{champ} vaut \cle{volume} (défaut), \cle{pH} ou \cle{pente}, la pente commune
+des tangentes.
+\end{function}
 
 \begin{exemple}
-pH initial \titragepHinitial{ethanoique} ; demi-équivalence
-\titragepH{ethanoique}{5} ; équivalence \titragepH{ethanoique}{10}.
+pH initial \num{\titragepHinitial{ethanoique}} ; demi-équivalence
+\num{\titragepH{ethanoique}{5}} ; équivalence \num{\titragepH{ethanoique}{10}}.
 
-Tangentes depuis \qty{7}{mL} : \qty{\titragetangentes{ethanoique}{7}}{mL},
-pH \titragetangentes[pH]{ethanoique}{7}.
+Inflexion à \qty{\titragesaut{ethanoique}{1}}{mL}, pH \num{\titragesaut[pH]{ethanoique}{1}} ;
+tangentes depuis \qty{7}{mL} : \qty{\titragetangentes{ethanoique}{7}}{mL}.
+
+\titragesreglages{chiffres = 5}
+Plus finement : \num{\titragesaut[pH]{ethanoique}{1}} ; pH 9 atteint à
+\qty{\titragevolume{ethanoique}{9}}{mL}.
+\pgfmathsetmacro\ecart{\titragepH{ethanoique}{5} - 4.76}
+Écart au pKa à la demi-équivalence : \num{\ecart}.
+\titragesreglages{chiffres = 2}
 \end{exemple}
 
+% =============================================================================
 \section{Les réglages}
 
-\cs{titragesreglages\{<clés>\}} : \cle{chiffres} (2), \cle{pH min} (0) et \cle{pH max} (14), qui bornent le domaine des fractions et, pour le moteur pgf, celui des courbes acide-base ; \cle{E min} et \cle{E max}, celui des courbes rédox du moteur pgf.
+\begin{function}{\titragesreglages}
+\begin{syntax}
+\cs{titragesreglages}\marg{clés}
+\end{syntax}
+Modifie, globalement, les réglages suivants.
+\end{function}
 
-\section{Les deux moteurs}
+\begin{cles}
+\defcle{chiffres}{chiffres} & 2 & le nombre de décimales des nombres
+  (§\,\ref{sec:nombres}) \\
+\defcle{pH min}{pH min} & 0 & la borne inférieure des fractions ; avec le moteur
+  \texttt{pgf}, celle des courbes acide-base \\
+\defcle{pH max}{pH max} & 14 & la borne supérieure correspondante \\
+\defcle{E min}{E min} & $-0{,}5$ & avec le moteur \texttt{pgf}, la borne inférieure
+  des courbes rédox, en V/ENH \\
+\defcle{E max}{E max} & 2 & la borne supérieure correspondante \\
+\end{cles}
 
-Le moteur \textbf{lua} calcule en double précision, dans \texttt{titrages.lua}, et envoie à \textsf{pgfplots} des coordonnées toutes exactes, réparties à longueur d'arc constante : un pas régulier en volume manquerait le saut, un pas régulier en pH laisserait les zones tampons presque vides.
-Il résout le pH à un volume donné par dichotomie — la fonction est monotone, la racine unique — et trouve les sauts comme les maxima de la pente.
+% =============================================================================
+\section{Les deux moteurs}\label{sec:moteurs}
 
-Le moteur \textbf{pgf} construit, à la définition du titrage, l'expression de $V(\mathrm{pH})$, et la confie à \textsf{pgfplots} en courbe paramétrée, restreinte à $0 \le V \le V_\text{max}$.
-Il n'a besoin que de \textsf{pgfplots} et fonctionne sous pdf\LaTeX, mais ne résout aucune équation : pas de nombres, de sauts ni de tangentes, et pas de couple rédox dimérique.
-La conductivité s'y trace comme $\bigl(V(\mathrm{pH}), \sigma(\mathrm{pH})\bigr)$, le potentiel comme $\bigl(V(E), E\bigr)$.
-Ses points sont réguliers en pH ; \cle{points} les multiplie au besoin.
+Le moteur \textbf{lua} calcule en double précision, dans \texttt{titrages.lua}, et
+envoie à \paquet{pgfplots} des coordonnées toutes exactes. Le moteur \textbf{pgf}
+construit, à la définition du titrage, l'expression de $V(\mathrm{pH})$ ou $V(E)$,
+et la confie à \paquet{pgfplots} en courbe paramétrée, restreinte à
+$0 \le V \le V_\text{max}$ ; il n'a besoin que de \paquet{pgfplots}, mais ne résout
+aucune équation. Ses points sont réguliers en pH : \cle{points} les multiplie au
+besoin.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}X>{\centering\arraybackslash}p{.24\linewidth}>{\centering\arraybackslash}p{.24\linewidth}@{}}
+\toprule
+& \texttt{lua} & \texttt{pgf} \\
+\midrule
+moteur \TeX{} & Lua\TeX{} & tous \\
+courbes pH, $\sigma$, $E$ & oui & oui \\
+couples rédox dimériques & oui & non \\
+fractions & oui & oui \\
+dérivée, points d'inflexion, tangentes & oui & non \\
+nombres (§\,\ref{sec:nombres}) & oui & non \\
+\cle{abscisse = n} & oui & non (\cle{echelle} = $V_\text{éq}$) \\
+précision & double précision & celle de \paquet{pgfmath} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Une commande réservée au moteur \texttt{lua} produit sous \texttt{pgf} une erreur
+qui le dit, et non une erreur Lua.
+
+% =============================================================================
+\section{L'interface Lua}
+
+Le moteur est un module, rangé dans la variable globale \lua{titrages} par le
+chargement du paquet. On peut s'en servir dans un \cs[no-index]{directlua}, pour un calcul que
+les commandes n'offrent pas. Un titrage défini par \cs{titragedefinir} s'y trouve
+sous \lua{titrages.titrages["nom"]}. Les volumes y sont dans l'unité des clés, sans
+l'\cle{echelle}.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}>{\ttfamily\raggedright\arraybackslash}p{.42\linewidth}X@{}}
+\toprule
+\normalfont Fonction & Rend \\
+\midrule
+pH(t, V) & le pH après $V$ \\
+volume(t, pH) & le volume qui amène à ce pH, ou \lua{nil} \\
+pente(t, pH) & $\mathrm d\,\mathrm{pH}/\mathrm dV$ à ce pH \\
+courbe(t, Vmax, n) & $n$ points $\{V, \mathrm{pH}\}$ \\
+sauts(t, Vmax) & les points d'inflexion, $\{V, \mathrm{pH}, \text{pente}\}$ \\
+equivalences(t) & les volumes équivalents \\
+tangentes(t, V1, Vmax) & la table \lua{\{V, pH, pente, V1, pH1, V2, pH2\}} \\
+conductivite(t, V) & $\sigma$ en \unit{S/m} \\
+E\_enh(t, V) & le potentiel, en V/ENH (rédox) \\
+courbe\_redox, sauts\_redox, equivalences\_redox & les analogues rédox \\
+fractions(pKa, pH) & les fractions de chaque forme \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{exemple}
+pH à 9,9 mL :
+\directlua{
+  local t = titrages.titrages["ethanoique"]
+  tex.sprint(math.floor(titrages.pH(t, 9.9) * 1e4 + 0.5) / 1e4)
+}, points d'inflexion :
+\directlua{
+  local t = titrages.titrages["ethanoique"]
+  local k = 0
+  for _ in ipairs(titrages.sauts(t, t.Vmax)) do k = k + 1 end
+  tex.sprint(k)
+}.
+\end{exemple}
+
+Cette interface suit le paquet Python \paquet{titrages} et peut encore changer avant
+la version 1.0 ; les commandes \LaTeX{} ne changeront pas sans avertissement.
+
+% =============================================================================
+\section{Les messages}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{.44\linewidth}X@{}}
+\toprule
+Message & Remède \\
+\midrule
+\multicolumn{2}{@{}l}{\emph{Messages du paquet (\LaTeX)}} \\
+Le moteur lua demande LuaLaTeX ; moteur pgf retenu. & avertissement : compiler
+  par \texttt{lualatex} \\
+\meta{commande} demande le moteur lua (LuaLaTeX). & idem \\
+Aucun titrage « \meta{nom} » & le définir avant de s'en servir ; vérifier
+  l'orthographe \\
+abscisse = n demande le moteur lua & sous \texttt{pgf}, écrire
+  \cle{echelle = }$V_\text{éq}$ \\
+Un couple dimérique (…) demande le moteur lua & compiler par \texttt{lualatex} \\
+Conductivité de « \meta{nom} » : il manque un lambda & déclarer \cle{lambda}
+  pour chaque forme chargée, ou \cle{contre ion} \\
+« \meta{nom} » est un titrage rédox : pas de conductimétrie & — \\
+\multicolumn{2}{@{}l}{\emph{Erreurs du moteur (Lua), préfixées « titrages : »}} \\
+forme \meta{q} hors de 0..\meta{N} & \cle{forme} dépasse le nombre de pKa \\
+le volume du bécher est positif & \cle{volume} \\
+lambda inconnu pour la forme \meta{j} de l'espèce \meta{i} & \cle{lambda} \\
+lambda du contre-ion de l'espèce \meta{i} inconnu & \cle{contre ion} \\
+équivalences … pour un titrant fort seulement & pas de
+  \cs{titrageequivalence} ni d'\cle{abscisse = n} avec un titrant faible \\
+la burette ne contient ni acide ni base & compléter \cle{burette} \\
+aucun saut après \meta{V} avant \meta{Vmax} & choisir $V$ avant un saut, ou
+  augmenter \cle{volume max} \\
+pas de point de même pente après le saut & augmenter \cle{volume max} \\
+pas de saut n° \meta{k} & la courbe a moins de $k$ points d'inflexion \\
+champ inconnu & \meta{champ} : \cle{volume}, \cle{pH}, \cle{E} ou \cle{pente} \\
+un couple dimérique n'a qu'une étape & une seule valeur dans \cle{E0} \\
+la burette n'apporte aucun électron & \cle{forme} de l'espèce titrante \\
+référence inconnue & \cle{reference} \\
+un titrage rédox se lit par \cs{titrageE} & et réciproquement \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+% =============================================================================
+\section{Limites}
+
+Les solutions sont idéales : l'activité est la concentration, et les conductivités
+molaires sont les valeurs limites, qui surestiment $\sigma$ dès quelques
+\unit{mmol/L}. La température n'intervient que par \cle{pKe} et
+\cle{pente nernst} ; les pKa, $E^\circ$ et $\lambda^\circ$ sont ceux qu'on donne.
+Les couples rédox qui échangent des protons sont pris à pH fixé ; un métal ou un
+gaz (\ce{Ag}, \ce{H2}) n'est pas un couple de solution. Ni précipitation ni
+complexation.
 
 \section{Avec Python}
 
-Le paquet Python \textsf{titrages} (\url{https://pypi.org/project/titrages}) calcule la même chose — le même algorithme, confronté à celui-ci par ses tests — et y ajoute une base de couples et d'indicateurs : \texttt{solution(\{"NH3": 0.1\})}, \texttt{Titrage(...)}, \texttt{tracer\_titrage(...)}.
-Sa fonction \texttt{vers\_pgfplots} écrit une courbe en coordonnées \textsf{pgfplots}.
+Le paquet Python \paquet{titrages} fait le même calcul — le même algorithme,
+confronté à celui-ci par ses tests — et y ajoute une base de couples et
+d'indicateurs (\texttt{solution}, \texttt{Titrage}, \texttt{tracer\_titrage}). Sa fonction \texttt{vers\_pgfplots} écrit une courbe
+en coordonnées \paquet{pgfplots}, pour un document compilé par pdf\LaTeX.
 
-\section{Limites}
+\section{Historique}
 
-Les solutions sont idéales : l'activité est la concentration, et les conductivités molaires sont les valeurs limites, qui surestiment $\sigma$ dès quelques \unit{mmol/L}.
-La température n'intervient que par \cle{pKe} et \cle{pente nernst} ; les pKa, $E^\circ$ et $\lambda^\circ$ sont ceux qu'on donne.
-Les couples rédox qui échangent des protons sont pris à pH fixé ; un métal ou un gaz (\ce{Ag}, \ce{H2}) n'est pas un couple de solution.
-Un acide fort est traité exactement, comme une dissociation totale, et non comme un couple de pKa très négatif.
+\begin{description}
+\item[0.1.0 (non publiée)] Première version : titrages pH-métriques,
+  conductimétriques et potentiométriques, moteurs \texttt{lua} et \texttt{pgf}.
+  Points d'inflexion calculés à la précision de la machine.
+\end{description}
 
 \section{Licence}
 
-MIT. Copyright \textcopyright{} 2026 antnardo.
+Copyright \textcopyright{} 2026 antnardo. Le paquet est distribué sous licence MIT ;
+le texte est dans le fichier \texttt{LICENSE}. Les remarques et les signalements
+sont bienvenus sur \url{https://github.com/antnardo/titrages/issues}.
 
+\PrintIndex
 \end{document}

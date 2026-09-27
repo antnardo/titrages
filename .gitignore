@@ -21,6 +21,12 @@ latex/*.toc
 latex/*.synctex.gz
 latex/*.fls
 latex/*.fdb_latexmk
+latex/*.idx
+latex/*.ind
+latex/*.ilg
+latex/*.glo
+latex/*.hd
+latex/*.listing
 latex/tests/*.pdf
 latex/tests/*.aux
 latex/tests/*.log
