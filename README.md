@@ -231,7 +231,7 @@ acceptent un titrage rédox comme un titrage acide-base :
 | `titrages.equilibre` | les fractions, les moments, le résidu de l'électroneutralité, les dichotomies |
 | `titrages.modeles` | les objets du domaine : `Couple`, `Espece`, `Courbe`, `Saut`, `Tangentes`, leurs analogues rédox |
 | `titrages.trace` | les tracés matplotlib |
-| `titrages.export` | `vers_pgfplots`, `vers_csv` |
+| `titrages.export` | `vers_pgfplots` |
 | `titrages.__main__` | la commande `titrages` |
 
 Tout ce qui sert couramment s'importe de `titrages` directement.

@@ -18,7 +18,8 @@ def test_contre_ions_des_sels():
 
 def test_couverture_de_la_base():
     """Toute forme chargée de la base a son λ°, sauf les quatre de l'EDTA (complexométrie)."""
-    from titrages import charge, couples
+    from titrages import couples
+    from titrages.modeles import charge
 
     manquants = [
         f

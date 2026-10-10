@@ -6,11 +6,11 @@ from titrages import (
     SolutionRedox,
     TitrageRedox,
     couple_redox,
-    electrons_cedes,
     espece_redox,
     fractions_redox,
     solution_redox,
 )
+from titrages.redox import electrons_cedes
 
 FER = CoupleRedox("fer", (0.77,), (1,), ("Fe2+", "Fe3+"))
 CERIUM = CoupleRedox("cérium", (1.72,), (1,), ("Ce3+", "Ce4+"))

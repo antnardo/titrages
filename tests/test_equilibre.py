@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from titrages import Couple, concentration_pour_pH, delta, fractions, log_k, moments
-from titrages.equilibre import racine_croissante
+from titrages import Couple, concentration_pour_pH, fractions, moments
+from titrages.equilibre import delta, log_k, racine_croissante
 
 
 def test_log_k_cumule_les_pKa():

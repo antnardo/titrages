@@ -25,7 +25,8 @@ def test_volume_hors_domaine_est_nan(acetique):
 
 def test_formule_de_la_fiche():
     # n = (Y1 + δ/CT) / (1 - δ/CB), ici pour un diacide
-    from titrages import delta, moments
+    from titrages import moments
+    from titrages.equilibre import delta
 
     CT, CB, V0 = 0.01, 0.1, 10
     t = Titrage(solution({"H2CO3": CT}), solution({"NaOH": CB}), V0)
@@ -37,7 +38,8 @@ def test_formule_de_la_fiche():
 
 
 def test_sans_dilution_formule_de_la_fiche():
-    from titrages import delta, moments
+    from titrages import moments
+    from titrages.equilibre import delta
 
     CT, CB, V0 = 0.01, 0.1, 10
     t = Titrage(solution({"H2CO3": CT}), solution({"NaOH": CB}), V0, dilution=False)

@@ -18,7 +18,7 @@ from titrages import Couple, Espece, Tangentes
     ],
 )
 def test_charge_zwitterions_et_parentheses(formule, attendu):
-    from titrages import charge
+    from titrages.modeles import charge
 
     assert charge(formule) == attendu
 

@@ -4,7 +4,25 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) et le
 [versionnage sémantique](https://semver.org/lang/fr/). Le paquet Python et le paquet
 LaTeX partagent un numéro de version.
 
-## [Unreleased]
+## [0.1.1] — 2026-10-10
+
+### Modifié
+
+- La tête du paquet n'exporte plus que ce qui sert couramment (34 noms) :
+  `LN10`, `PKE`, `delta`, `log_k`, `LAMBDA_H3O`, `LAMBDA_HO`, `NERNST`,
+  `REFERENCES`, `Composant`, `ComposantRedox`, `Fort`, `charge`,
+  `conductivite_molaire`, `electrons_cedes` et `normaliser` restent importables
+  de `titrages.equilibre`, `titrages.solution`, `titrages.redox`,
+  `titrages.modeles` et `titrages.base`.
+
+### Supprimé
+
+- `vers_csv` : `numpy.savetxt` sur les colonnes d'une courbe fait la même chose ;
+  `vers_pgfplots` et la commande `titrages` restent.
+
+## [0.1.0] — 2026-10-10
+
+Première version publiée (GitHub `antnardo/titrages`).
 
 ### Ajouté
 
@@ -70,7 +88,7 @@ LaTeX partagent un numéro de version.
 - La fraction oxydée d'un couple dimérique pouvait dépasser 1 d'un ulp, ce qui
   rendait défini le potentiel d'un bécher de diiode pur.
 
-## [0.1.0] — non publiée
+## [0.1.0-dev] — 23 au 27 septembre 2026, non publiée
 
 Première version. Le calcul reprend un module privé de 2024
 (`pyphysique/chimie/titrage.py`), réécrit.

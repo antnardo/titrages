@@ -233,8 +233,9 @@ l'`Axes` donné, ou l'axe courant, et le rend.
 
 ## L'export
 
-`vers_pgfplots(courbe)` et `vers_csv(courbe, chemin)`, pour les trois sortes de
-courbes (pH, σ, E).
+`vers_pgfplots(courbe)`, pour les trois sortes de courbes (pH, σ, E) : la liste
+`(V,y)` d'un `\addplot coordinates`. Pour un fichier, `numpy.savetxt` sur les
+colonnes de la courbe suffit.
 
 ## Le paquet LaTeX
 

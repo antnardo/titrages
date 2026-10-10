@@ -1,7 +1,7 @@
 import pytest
 
-from titrages import chercher, couple, couples, espece, indicateur, indicateurs, normaliser, solution
-from titrages.base import _index
+from titrages import chercher, couple, couples, espece, indicateur, indicateurs, solution
+from titrages.base import _index, normaliser
 
 
 def test_base_sans_ambiguite():

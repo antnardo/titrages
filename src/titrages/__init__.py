@@ -13,9 +13,7 @@ et le volume versé est une fonction directe de la grandeur mesurée.
 """
 
 from titrages.base import (
-    Fort,
     chercher,
-    conductivite_molaire,
     couple,
     couple_redox,
     couples,
@@ -24,20 +22,15 @@ from titrages.base import (
     espece_redox,
     indicateur,
     indicateurs,
-    normaliser,
     solution,
     solution_redox,
 )
 from titrages.equilibre import (
-    LN10,
-    PKE,
     concentration_pour_pH,
-    delta,
     fractions,
-    log_k,
     moments,
 )
-from titrages.export import vers_csv, vers_pgfplots
+from titrages.export import vers_pgfplots
 from titrages.modeles import (
     Couple,
     CoupleRedox,
@@ -52,31 +45,18 @@ from titrages.modeles import (
     Spectateur,
     Tangentes,
     TangentesRedox,
-    charge,
 )
 from titrages.redox import (
-    NERNST,
-    REFERENCES,
-    ComposantRedox,
     SolutionRedox,
     TitrageRedox,
-    electrons_cedes,
     fractions_redox,
 )
-from titrages.solution import LAMBDA_H3O, LAMBDA_HO, Composant, Solution
+from titrages.solution import Solution
 from titrages.titrage import Titrage
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
-    "LAMBDA_H3O",
-    "LAMBDA_HO",
-    "LN10",
-    "NERNST",
-    "PKE",
-    "REFERENCES",
-    "Composant",
-    "ComposantRedox",
     "Couple",
     "CoupleRedox",
     "Courbe",
@@ -84,7 +64,6 @@ __all__ = [
     "CourbeRedox",
     "Espece",
     "EspeceRedox",
-    "Fort",
     "Indicateur",
     "Saut",
     "SautRedox",
@@ -96,27 +75,20 @@ __all__ = [
     "Titrage",
     "TitrageRedox",
     "__version__",
-    "charge",
     "chercher",
     "concentration_pour_pH",
-    "conductivite_molaire",
     "couple",
     "couple_redox",
     "couples",
     "couples_redox",
-    "delta",
-    "electrons_cedes",
     "espece",
     "espece_redox",
     "fractions",
     "fractions_redox",
     "indicateur",
     "indicateurs",
-    "log_k",
     "moments",
-    "normaliser",
     "solution",
     "solution_redox",
-    "vers_csv",
     "vers_pgfplots",
 ]
