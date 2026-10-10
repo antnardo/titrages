@@ -89,7 +89,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_pH = sous.add_parser("pH", help="le pH d'une solution")
     p_pH.add_argument("composition", nargs="+", metavar="espèce=C")
 
-    p_sigma = sous.add_parser("sigma", help="la conductivité d'une solution (mS/cm)")
+    p_sigma = sous.add_parser("sigma", help="la conductivité d'une solution (S/m)")
     p_sigma.add_argument("composition", nargs="+", metavar="espèce=C")
 
     p_E = sous.add_parser("E", help="le potentiel d'une solution rédox (V/ENH)")
@@ -125,7 +125,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.commande == "pH":
             print(f"{solution(_composition(args.composition)).pH():.2f}")
         elif args.commande == "sigma":
-            print(f"{10 * float(solution(_composition(args.composition)).conductivite()):.4g}")
+            print(f"{solution(_composition(args.composition)).conductivite():.4g}")
         elif args.commande == "E":
             print(f"{solution_redox(_composition(args.composition), pH=args.pH).E():.3f}")
         elif args.commande == "redox-couples":

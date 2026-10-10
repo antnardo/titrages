@@ -40,6 +40,7 @@ from titrages.equilibre import (
     fractions,
     racine_croissante,
     somme_h_w,
+    sortie,
     variance,
 )
 from titrages.modeles import Couple, Espece, Spectateur, charge
@@ -52,6 +53,7 @@ LAMBDA_HO = 19.86
 """λ° de HO-, en mS·m²·mol⁻¹ (25 °C)."""
 
 Tableau = npt.NDArray[np.float64]
+Valeur = float | Tableau
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,7 +147,7 @@ class Solution:
         """:math:`b = [\\text{base forte}] - [\\text{acide fort}]`."""
         return self.base_forte - self.acide_fort
 
-    def charge(self, pH: npt.ArrayLike) -> Tableau:
+    def charge(self, pH: npt.ArrayLike) -> Valeur:
         """:math:`\\sum_i C_i (Y_{1,i} - q_i) - b` : le résidu sans la part de l'eau.
 
         C'est la quantité de protons que les espèces ont cédés au-delà de ce qu'on a
@@ -155,27 +157,27 @@ class Solution:
         total = np.full(p.shape, -self.exces_base, dtype=np.float64)
         for c in self.composants:
             total = total + c.concentration * ecart_moyen(c.espece.couple, p, c.espece.q)
-        return total
+        return sortie(total)
 
-    def derivee_charge(self, pH: npt.ArrayLike) -> Tableau:
+    def derivee_charge(self, pH: npt.ArrayLike) -> Valeur:
         """:math:`\\mathrm{d}/\\mathrm{d\\,pH}` de :meth:`charge`, sans la part de l'eau."""
         p = np.asarray(pH, dtype=np.float64)
         total = np.zeros(p.shape, dtype=np.float64)
         for c in self.composants:
             total = total + c.concentration * variance(c.espece.couple, p)
-        return LN10 * total
+        return sortie(LN10 * total)
 
-    def residu(self, pH: npt.ArrayLike) -> Tableau:
+    def residu(self, pH: npt.ArrayLike) -> Valeur:
         """Le résidu de l'électroneutralité, nul au pH de la solution et croissant."""
-        return self.charge(pH) + delta(pH, self.pKe)
+        return sortie(np.asarray(self.charge(pH)) + delta(pH, self.pKe))
 
-    def pouvoir_tampon(self, pH: npt.ArrayLike | None = None) -> Tableau:
+    def pouvoir_tampon(self, pH: npt.ArrayLike | None = None) -> Valeur:
         """:math:`\\beta = \\mathrm{d}C_\\text{base forte}/\\mathrm{d\\,pH}` (mol/L).
 
         Sans argument, au pH de la solution.
         """
         p = self.pH() if pH is None else pH
-        return self.derivee_charge(p) + LN10 * somme_h_w(p, self.pKe)
+        return sortie(np.asarray(self.derivee_charge(p)) + LN10 * np.asarray(somme_h_w(p, self.pKe)))
 
     def pH(self) -> float:
         """Le pH de la solution, par dichotomie sur le résidu."""
@@ -200,7 +202,7 @@ class Solution:
 
     # --- conductivité -------------------------------------------------------------
 
-    def conductivite_ions(self, pH: npt.ArrayLike) -> Tableau:
+    def conductivite_ions(self, pH: npt.ArrayLike) -> Valeur:
         """:math:`\\sum \\lambda_i c_i` des espèces et des spectateurs, sans H3O+ ni HO- (S/m).
 
         C'est la part linéaire en concentrations : celle du bécher et celle de la burette
@@ -231,18 +233,19 @@ class Solution:
                 + ", ".join(dict.fromkeys(manquants))
                 + " : la donner par Couple(conductivites=...) ou Spectateur(conductivite=...)"
             )
-        return np.asarray(total, dtype=np.float64)
+        return sortie(total)
 
-    def conductivite(self, pH: npt.ArrayLike | None = None) -> Tableau:
+    def conductivite(self, pH: npt.ArrayLike | None = None) -> Valeur:
         """La conductivité :math:`\\sigma` (S/m), au pH de la solution par défaut.
 
-        λ° en mS·m²·mol⁻¹ et :math:`c` en mol/L donnent directement des S/m.
+        λ° en mS·m²·mol⁻¹ et :math:`c` en mol/L donnent directement des S/m, l'unité
+        de tout le paquet ; un conductimètre affiche des mS/cm, dix fois moins.
 
         >>> from titrages import solution
-        >>> round(float(solution({"HCl": 0.01}).conductivite()), 4)
+        >>> round(solution({"HCl": 0.01}).conductivite(), 4)
         0.4261
         """
         p = self.pH() if pH is None else pH
         h = np.power(10.0, -np.asarray(p, dtype=np.float64))
         w = np.power(10.0, np.asarray(p, dtype=np.float64) - self.pKe)
-        return np.asarray(self.conductivite_ions(p) + LAMBDA_H3O * h + LAMBDA_HO * w, dtype=np.float64)
+        return sortie(np.asarray(self.conductivite_ions(p)) + LAMBDA_H3O * h + LAMBDA_HO * w)

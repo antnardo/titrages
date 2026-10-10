@@ -49,6 +49,14 @@ def test_moments_derivee_de_Y1_est_la_variance():
     assert (Yb - Ya) / (2 * h) == pytest.approx(np.log(10) * (Y2 - Y1**2), rel=1e-6)
 
 
+def test_scalaire_rend_float_tableau_rend_tableau():
+    assert isinstance(delta(7.0), float) and isinstance(delta([7.0, 8.0]), np.ndarray)
+    (Y1,) = moments([4.76], 4.76, 1)
+    assert isinstance(Y1, float)
+    assert isinstance(concentration_pour_pH(Couple("acide", (4.0,)).acide, 3.0), float)
+    assert fractions([4.76], 4.76).shape == (2,)  # les fractions : un tableau, une valeur par forme
+
+
 def test_delta_nul_a_la_neutralite():
     assert delta(7.0) == pytest.approx(0, abs=1e-20)
     assert delta(6.5, pKe=13.0) == pytest.approx(0, abs=1e-20)

@@ -49,7 +49,7 @@ from dataclasses import dataclass, replace
 import numpy as np
 import numpy.typing as npt
 
-from titrages.equilibre import minimum_lisse
+from titrages.equilibre import minimum_lisse, sortie
 from titrages.modeles import CoupleRedox, CourbeRedox, EspeceRedox, SautRedox
 
 __all__ = [
@@ -63,6 +63,7 @@ __all__ = [
 ]
 
 Tableau = npt.NDArray[np.float64]
+Valeur = float | Tableau
 
 NERNST = 0.05916
 """RT ln 10 / F à 25 °C, en volts."""
@@ -126,12 +127,12 @@ def electrons_cedes(
     T: npt.ArrayLike = 1.0,
     pH: float = 0.0,
     s: float = NERNST,
-) -> Tableau:
+) -> Valeur:
     """:math:`Y` : le nombre moyen d'électrons cédés par unité, à ce potentiel.
 
     ``T`` (en unités de l'élément) n'intervient que pour un couple dimérique.
     """
-    return _electrons_et_derivees(couple, E, T, pH, s)[0]
+    return sortie(_electrons_et_derivees(couple, E, T, pH, s)[0])
 
 
 def _electrons_et_derivees(
@@ -173,12 +174,12 @@ def _electrons_et_derivees(
     return np.asarray(Y, np.float64), np.asarray(dE, np.float64), np.asarray(dT, np.float64)
 
 
-def _dichotomie(f: Callable[[Tableau], Tableau], forme: tuple[int, ...]) -> Tableau:
+def _dichotomie(f: Callable[[Tableau], Valeur], forme: tuple[int, ...]) -> Tableau:
     a = np.full(forme, E_MIN)
     b = np.full(forme, E_MAX)
     for _ in range(64):
         m = (a + b) / 2
-        positif = f(m) > 0
+        positif = np.asarray(f(m)) > 0
         b = np.where(positif, m, b)
         a = np.where(positif, a, m)
     return np.asarray((a + b) / 2, dtype=np.float64)
@@ -235,13 +236,13 @@ class SolutionRedox:
     def avec(self, espece: EspeceRedox, concentration: float) -> "SolutionRedox":
         return replace(self, composants=(*self.composants, ComposantRedox(espece, concentration)))
 
-    def residu(self, E: npt.ArrayLike) -> Tableau:
+    def residu(self, E: npt.ArrayLike) -> Valeur:
         """:math:`\\sum_i T_i (Y_i - e_{q_i})`, croissant, nul au potentiel de la solution."""
         E_ = np.asarray(E, dtype=np.float64)
         total = np.zeros(E_.shape)
         for couple, (T, intro) in _bilan(self.composants).items():
-            total = total + T * electrons_cedes(couple, E_, T, self.pH, self.pente_nernst) - intro
-        return total
+            total = total + T * np.asarray(electrons_cedes(couple, E_, T, self.pH, self.pente_nernst)) - intro
+        return sortie(total)
 
     def E(self) -> float:
         """Le potentiel de la solution (V/ENH)."""
@@ -311,7 +312,7 @@ class TitrageRedox:
             Tb, Ib = b.get(couple, (0.0, 0.0))
             Tu, Iu = bu.get(couple, (0.0, 0.0))
             T = (V0 * Tb + V * Tu) / (V0 + V)
-            Y = electrons_cedes(couple, E, T, self.becher.pH, self.becher.pente_nernst)
+            Y = np.asarray(electrons_cedes(couple, E, T, self.becher.pH, self.becher.pente_nernst))
             total = total + (V0 * Tb + V * Tu) * Y - (V0 * Ib + V * Iu)
         return total
 
@@ -321,9 +322,9 @@ class TitrageRedox:
             raise ValueError("un volume versé est positif")
         return _dichotomie(lambda E: self._residu(E, V), V.shape)
 
-    def E(self, volume: npt.ArrayLike) -> Tableau:
+    def E(self, volume: npt.ArrayLike) -> Valeur:
         """Le potentiel mesuré après avoir versé ``volume`` (V, par rapport à la référence)."""
-        return np.asarray(self._E_enh(volume) - self.E_reference, dtype=np.float64)
+        return sortie(self._E_enh(volume) - self.E_reference)
 
     def _derivees(self, E: Tableau, V: Tableau) -> tuple[Tableau, Tableau]:
         """:math:`\\partial g/\\partial E` et :math:`\\partial g/\\partial V`, exactement.
@@ -349,7 +350,7 @@ class TitrageRedox:
             gV = gV + Tu * Y_ref + S * dY_T * (Tu - T) / (V0 + V)
         return gE, gV
 
-    def pente(self, volume: npt.ArrayLike) -> Tableau:
+    def pente(self, volume: npt.ArrayLike) -> Valeur:
         """:math:`\\mathrm{d}E/\\mathrm{d}V = -g_V/g_E`, par dérivation implicite exacte.
 
         :math:`g(E, V) = 0` est le bilan d'électrons du mélange ; ses deux dérivées
@@ -358,15 +359,15 @@ class TitrageRedox:
         V = np.asarray(volume, dtype=np.float64)
         gE, gV = self._derivees(self._E_enh(V), V)
         with np.errstate(divide="ignore", invalid="ignore"):
-            return np.asarray(-gV / gE, dtype=np.float64)
+            return sortie(-gV / gE)
 
-    def derivee_volume(self, E: npt.ArrayLike) -> Tableau:
+    def derivee_volume(self, E: npt.ArrayLike) -> Valeur:
         """:math:`\\mathrm{d}V/\\mathrm{d}E` au potentiel mesuré ``E`` (mL/V) ; ``nan`` hors courbe.
 
         C'est la dérivée de la courbe directe :math:`V(E)` : fonction lisse du potentiel,
         même là où :math:`E(V)` saute sur :math:`10^{-9}` mL.
         """
-        return self._derivee_volume_enh(np.asarray(E, dtype=np.float64) + self.E_reference)
+        return sortie(self._derivee_volume_enh(np.asarray(E, dtype=np.float64) + self.E_reference))
 
     def _derivee_volume_enh(self, E: Tableau) -> Tableau:
         V = self._volume_enh(E)
@@ -376,7 +377,7 @@ class TitrageRedox:
 
     # --- le sens direct : V(E) --------------------------------------------------
 
-    def volume(self, E: npt.ArrayLike) -> Tableau:
+    def volume(self, E: npt.ArrayLike) -> Valeur:
         """Le volume versé qui amène au potentiel mesuré ``E`` ; ``nan`` si aucun.
 
         Trois cas, selon les couples dimériques présents :
@@ -391,7 +392,7 @@ class TitrageRedox:
         - **plusieurs** : l'équation est de degré plus élevé ; on la résout en :math:`V`
           par dichotomie, :math:`E(V)` étant monotone.
         """
-        return self._volume_enh(np.asarray(E, dtype=np.float64) + self.E_reference)
+        return sortie(self._volume_enh(np.asarray(E, dtype=np.float64) + self.E_reference))
 
     def _volume_enh(self, E_: Tableau) -> Tableau:
         V0, pH, s = self.volume_becher, self.becher.pH, self.becher.pente_nernst
@@ -405,7 +406,7 @@ class TitrageRedox:
         for c in couples:
             if c in dimeres:
                 continue
-            Y = electrons_cedes(c, E_, 1.0, pH, s)
+            Y = np.asarray(electrons_cedes(c, E_, 1.0, pH, s))
             Tb, Ib = b.get(c, (0.0, 0.0))
             Tu, Iu = bu.get(c, (0.0, 0.0))
             A = A + V0 * (Tb * Y - Ib)
@@ -456,7 +457,7 @@ class TitrageRedox:
         s = np.concatenate(([0.0], np.cumsum(pas)))
         V = np.interp(np.linspace(0.0, s[-1], points), s, grille)
         V[0], V[-1] = debut, volume_max
-        return CourbeRedox(V, self.E(V), self.pente(V))
+        return CourbeRedox(V, np.asarray(self.E(V)), np.asarray(self.pente(V)))
 
     def sauts(self, volume_max: float, points: int = 4000) -> tuple[SautRedox, ...]:
         """Les points d'inflexion de la courbe entre 0 et ``volume_max``.

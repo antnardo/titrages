@@ -366,7 +366,8 @@ end
 --
 -- Loi de Kohlrausch, solution idéale : sigma = sum lambda_i c_i. À pH imposé, toutes
 -- les concentrations sont explicites. Les lambda sont en mS m2 mol-1 et les
--- concentrations en mol/L : la somme est en S/m. Une espèce porte lam (lambda de
+-- concentrations en mol/L : la somme est en S/m, l'unité du paquet (la clé unite
+-- ne change que l'affichage). Une espèce porte lam (lambda de
 -- chaque forme, indices 1..N+1), z0 (charge de sa forme la plus acide) et lamci
 -- (lambda de son contre-ion, supposé monovalent) ; une solution, lamA et lamB, ceux
 -- des contre-ions de l'acide et de la base forts.
@@ -722,7 +723,7 @@ function M.definir(nom, spec)
   local t = M.titrage(sol(spec.becher or {}), sol(spec.burette or {}), spec.V0 or 10, spec.dilution)
   t.points = spec.points or 300
   t.corrigee = spec.corrigee
-  t.unite = spec.unite or "mS/cm"
+  t.unite = spec.unite or "S/m"
   t.abscisse = spec.abscisse or "volume"
   t.echelle = spec.echelle or 1
   if spec.Vmax and spec.Vmax > 0 then
@@ -810,7 +811,7 @@ local FACTEURS = { ["S/m"] = 1, ["mS/cm"] = 10, ["mS/m"] = 1000 }
 function M.tex_conductivite(nom, options)
   local t = trouver(nom)
   if t.redox then error("titrages : la conductimétrie d'un titrage rédox n'est pas prise en charge") end
-  local e, liste, f = echelle(t), {}, FACTEURS[t.unite] or 10
+  local e, liste, f = echelle(t), {}, FACTEURS[t.unite] or 1
   local n = math.max(t.points // 2, 50)
   for i = 1, n do
     local V = t.Vmax * (i - 1) / (n - 1)
@@ -928,7 +929,7 @@ function M.tex_nombre(nom, quoi, arg, champ)
     x = ({ volume = r.V / e, pH = r.pH, pente = r.pente * e })[champ]
   elseif quoi == "conductivite" then
     local V = arg * e
-    x = M.conductivite(t, V) * (FACTEURS[t.unite] or 10)
+    x = M.conductivite(t, V) * (FACTEURS[t.unite] or 1)
     if t.corrigee then x = x * (t.V0 + V) / t.V0 end
   end
   if x == nil then error("titrages : champ inconnu « " .. tostring(champ) .. " »") end

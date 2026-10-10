@@ -43,6 +43,7 @@ __all__ = [
 ]
 
 Tableau = npt.NDArray[np.float64]
+Valeur = float | Tableau
 
 _CHARGE_EXPOSANT = re.compile(r"\^\{?(\d*)([+-])\}?$")
 _CHARGE_ELEMENT = re.compile(r"([A-Z][a-z]?)(\d*)([+-])")
@@ -242,8 +243,11 @@ class Tangentes:
     volume: float
     pH: float
 
-    def droite(self, volume: npt.ArrayLike, laquelle: str = "milieu") -> Tableau:
-        """L'ordonnée d'une des trois droites : ``avant``, ``apres`` ou ``milieu``."""
+    def droite(self, volume: npt.ArrayLike, laquelle: str = "milieu") -> Valeur:
+        """L'ordonnée d'une des trois droites : ``avant``, ``apres`` ou ``milieu``.
+
+        Un ``float`` pour un volume scalaire, un tableau pour un tableau.
+        """
         V = np.asarray(volume, dtype=np.float64)
         points = {
             "avant": (self.volume_avant, self.pH_avant),
@@ -254,7 +258,8 @@ class Tangentes:
             ),
         }
         V0, pH0 = points[laquelle]
-        return np.asarray(pH0 + self.pente * (V - V0), dtype=np.float64)
+        t = np.asarray(pH0 + self.pente * (V - V0), dtype=np.float64)
+        return float(t) if t.ndim == 0 else t
 
 
 @dataclass(frozen=True, slots=True)

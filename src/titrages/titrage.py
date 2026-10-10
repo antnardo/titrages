@@ -28,13 +28,14 @@ from dataclasses import dataclass
 import numpy as np
 import numpy.typing as npt
 
-from titrages.equilibre import MARGE_PH, minimum_lisse, racine_croissante
+from titrages.equilibre import MARGE_PH, minimum_lisse, racine_croissante, sortie
 from titrages.modeles import Courbe, CourbeConductimetrique, Saut, Tangentes
 from titrages.solution import LAMBDA_H3O, LAMBDA_HO, Solution
 
 __all__ = ["Titrage"]
 
 Tableau = npt.NDArray[np.float64]
+Valeur = float | Tableau
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,8 +48,11 @@ class Titrage:
     >>> from titrages import Couple
     >>> becher = Solution().avec(Couple("acide éthanoïque", (4.76,)), 0.1)
     >>> t = Titrage(becher, Solution().avec_base_forte(0.1), volume_becher=10)
-    >>> round(float(t.pH(5)), 2), round(float(t.pH(10)), 2)
+    >>> round(t.pH(5), 2), round(t.pH(10), 2)
     (4.76, 8.73)
+
+    Chaque grandeur rend un ``float`` pour un argument scalaire, un tableau pour un
+    tableau : ``t.pH([5, 10])`` est un tableau de deux pH.
     """
 
     becher: Solution
@@ -66,23 +70,23 @@ class Titrage:
 
     def _denominateur(self, pH: npt.ArrayLike) -> Tableau:
         if self.dilution:
-            return self.burette.residu(pH)
-        return self.burette.charge(pH)
+            return np.asarray(self.burette.residu(pH))
+        return np.asarray(self.burette.charge(pH))
 
     def _derivee_denominateur(self, pH: npt.ArrayLike) -> Tableau:
         if self.dilution:
-            return self.burette.pouvoir_tampon(pH)
-        return self.burette.derivee_charge(pH)
+            return np.asarray(self.burette.pouvoir_tampon(pH))
+        return np.asarray(self.burette.derivee_charge(pH))
 
-    def volume(self, pH: npt.ArrayLike) -> Tableau:
+    def volume(self, pH: npt.ArrayLike) -> Valeur:
         """Le volume versé qui amène à ce pH ; ``nan`` si aucun n'y amène."""
-        N = self.becher.residu(pH)
+        N = np.asarray(self.becher.residu(pH))
         D = self._denominateur(pH)
         with np.errstate(divide="ignore", invalid="ignore"):
             V = -self.volume_becher * N / D
-        return np.asarray(np.where(np.isfinite(V) & (V >= 0), V, np.nan), dtype=np.float64)
+        return sortie(np.where(np.isfinite(V) & (V >= 0), V, np.nan))
 
-    def derivee_volume(self, pH: npt.ArrayLike) -> Tableau:
+    def derivee_volume(self, pH: npt.ArrayLike) -> Valeur:
         """:math:`\\mathrm{d}V/\\mathrm{d\\,pH}`, analytiquement.
 
         En dérivant :math:`V_0 N + V D = 0` :
@@ -94,20 +98,20 @@ class Titrage:
         """
         D = self._denominateur(pH)
         with np.errstate(divide="ignore", invalid="ignore"):
-            V = -self.volume_becher * self.becher.residu(pH) / D
-        dN = self.becher.pouvoir_tampon(pH)
+            V = -self.volume_becher * np.asarray(self.becher.residu(pH)) / D
+        dN = np.asarray(self.becher.pouvoir_tampon(pH))
         dD = self._derivee_denominateur(pH)
         with np.errstate(divide="ignore", invalid="ignore"):
-            return np.asarray(-(self.volume_becher * dN + V * dD) / D, dtype=np.float64)
+            return sortie(-(self.volume_becher * dN + V * dD) / D)
 
-    def pente(self, pH: npt.ArrayLike) -> Tableau:
+    def pente(self, pH: npt.ArrayLike) -> Valeur:
         """:math:`\\mathrm{d\\,pH}/\\mathrm{d}V` au point de la courbe de ce pH."""
         with np.errstate(divide="ignore"):
-            return np.asarray(1 / self.derivee_volume(pH), dtype=np.float64)
+            return sortie(1 / np.asarray(self.derivee_volume(pH)))
 
     # --- le sens inverse : pH(V) -----------------------------------------------
 
-    def pH(self, volume: npt.ArrayLike) -> Tableau:
+    def pH(self, volume: npt.ArrayLike) -> Valeur:
         """Le pH après avoir versé ``volume``, par dichotomie.
 
         :math:`V_0 N + V D` est croissant en pH pour tout :math:`V \\ge 0` : la racine
@@ -118,7 +122,7 @@ class Titrage:
             raise ValueError("un volume versé est positif")
 
         def g(p: Tableau) -> Tableau:
-            return self.volume_becher * self.becher.residu(p) + V * self._denominateur(p)
+            return self.volume_becher * np.asarray(self.becher.residu(p)) + V * self._denominateur(p)
 
         pKe = self.becher.pKe
         return racine_croissante(g, np.full(V.shape, -MARGE_PH), np.full(V.shape, pKe + MARGE_PH))
@@ -148,15 +152,15 @@ class Titrage:
         pH0 = self.pH_initial
         pH1 = float(self.pH(volume_max))
         grille = np.linspace(pH0, pH1, 40 * points)
-        V = np.nan_to_num(self.volume(grille), nan=0.0)
+        V = np.nan_to_num(np.asarray(self.volume(grille)), nan=0.0)
         V[0] = 0.0
         V[-1] = volume_max
         pas = np.hypot(np.diff(V) / volume_max, np.diff(grille) / max(abs(pH1 - pH0), 1e-12))
         s = np.concatenate(([0.0], np.cumsum(pas)))
         pH_ = np.interp(np.linspace(0.0, s[-1], points), s, grille)
-        volumes = np.nan_to_num(self.volume(pH_), nan=0.0)
+        volumes = np.nan_to_num(np.asarray(self.volume(pH_)), nan=0.0)
         volumes[0], volumes[-1] = 0.0, volume_max
-        return Courbe(volumes, np.asarray(pH_, dtype=np.float64), self.pente(pH_))
+        return Courbe(volumes, np.asarray(pH_, dtype=np.float64), np.asarray(self.pente(pH_)))
 
     # --- les équivalences ------------------------------------------------------
 
@@ -173,7 +177,7 @@ class Titrage:
         pH0 = self.pH_initial
         pH1 = float(self.pH(volume_max))
         grille = np.linspace(pH0, pH1, points)
-        d = np.abs(self.derivee_volume(grille))
+        d = np.abs(np.asarray(self.derivee_volume(grille)))
         interieurs = np.flatnonzero((d[1:-1] < d[:-2]) & (d[1:-1] <= d[2:])) + 1
         resultat = []
         for i in interieurs:
@@ -228,19 +232,27 @@ class Titrage:
 
     # --- la conductimétrie -------------------------------------------------------
 
-    def conductivite(self, volume: npt.ArrayLike) -> Tableau:
+    def conductivite(self, volume: npt.ArrayLike) -> Valeur:
         """La conductivité du mélange (S/m) après avoir versé ``volume``.
 
         La part des ions est linéaire en concentrations : celle du bécher et celle de
         la burette, calculées au pH du mélange, se pondèrent par les volumes. S'y
         ajoutent H3O+ et HO-, fixés par ce pH.
+
+        >>> from titrages import solution
+        >>> t = Titrage(solution({"HCl": 0.01}), solution({"NaOH": 0.1}), 100)
+        >>> round(t.conductivite(10), 4)
+        0.1149
         """
         V = np.asarray(volume, dtype=np.float64)
-        pH = self.pH(V)
+        pH = np.asarray(self.pH(V))
         V0 = self.volume_becher
-        ions = (V0 * self.becher.conductivite_ions(pH) + V * self.burette.conductivite_ions(pH)) / (V0 + V)
+        ions = (
+            V0 * np.asarray(self.becher.conductivite_ions(pH))
+            + V * np.asarray(self.burette.conductivite_ions(pH))
+        ) / (V0 + V)
         eau = LAMBDA_H3O * np.power(10.0, -pH) + LAMBDA_HO * np.power(10.0, pH - self.becher.pKe)
-        return np.asarray(ions + eau, dtype=np.float64)
+        return sortie(ions + eau)
 
     def courbe_conductimetrique(
         self, volume_max: float, points: int = 200, corrigee: bool = False
@@ -251,10 +263,10 @@ class Titrage:
         qui rend les segments rectilignes, celle qu'on applique en TP.
         """
         V = np.linspace(0.0, volume_max, points)
-        sigma = self.conductivite(V)
+        sigma = np.asarray(self.conductivite(V))
         if corrigee:
             sigma = sigma * (self.volume_becher + V) / self.volume_becher
-        return CourbeConductimetrique(V, sigma, self.pH(V))
+        return CourbeConductimetrique(V, sigma, np.asarray(self.pH(V)))
 
     def tangentes(self, volume_avant: float, volume_max: float) -> Tangentes:
         """La méthode des tangentes parallèles, à partir d'un point avant le saut.

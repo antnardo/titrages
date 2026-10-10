@@ -161,11 +161,14 @@ def tracer_conductimetrie(
     *,
     points: int = 200,
     corrigee: bool = False,
-    unite: str = "mS/cm",
+    unite: str = "S/m",
     etiquettes: bool = True,
     **style: Any,
 ) -> "Axes":
-    """La courbe :math:`\\sigma = f(V)`, en mS/cm (défaut, l'unité des conductimètres) ou S/m."""
+    """La courbe :math:`\\sigma = f(V)`, en S/m, l'unité du paquet.
+
+    ``unite="mS/cm"`` affiche ce que lit un conductimètre (dix fois moins).
+    """
     ax = _axe(ax)
     c = titrage.courbe_conductimetrique(volume_max, points, corrigee)
     facteur = {"S/m": 1.0, "mS/cm": 10.0, "mS/m": 1000.0}[unite]

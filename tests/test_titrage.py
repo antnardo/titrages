@@ -182,6 +182,16 @@ class TestTangentes:
             acetique.tangentes(15, 20)
 
 
+@pytest.mark.parametrize("methode", ["pH", "volume", "derivee_volume", "pente", "conductivite"])
+def test_scalaire_rend_float_tableau_rend_tableau(acetique, methode):
+    """La règle de sortie : float pour un scalaire, tableau pour un tableau."""
+    f = getattr(acetique, methode)
+    assert isinstance(f(5), float)
+    assert isinstance(f(5.0), float)
+    tableau = f([5.0, 6.0])
+    assert isinstance(tableau, np.ndarray) and tableau.shape == (2,)
+
+
 def test_pKe_different_refuse():
     from titrages import Solution
 

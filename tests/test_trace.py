@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import pytest
 
 from titrages import Titrage, TitrageRedox, couple, indicateur, solution, solution_redox
 from titrages.trace import (
@@ -46,5 +47,9 @@ def test_conductimetrie_et_redox():
     )
     t = TitrageRedox(solution_redox({"Fe2+": 0.1}), solution_redox({"Ce4+": 0.1}), 10, "ECS")
     tracer_titrage_redox(t, 20, b, sauts=True)
-    assert "ECS" in b.get_ylabel() and "mS/cm" in a.get_ylabel()
+    assert "ECS" in b.get_ylabel() and "S/m" in a.get_ylabel()
+    tracer_conductimetrie(
+        Titrage(solution({"HCl": 0.01}), solution({"NaOH": 0.1}), 100), 20, a, unite="mS/cm"
+    )
+    assert a.lines[-1].get_ydata()[0] == pytest.approx(10 * a.lines[0].get_ydata()[0] / (1 + 0))
     plt.close(fig)

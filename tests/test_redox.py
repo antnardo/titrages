@@ -140,6 +140,14 @@ class TestTitrage:
             TitrageRedox(SolutionRedox(pH=0), SolutionRedox(pH=1), 10)
 
 
+@pytest.mark.parametrize("methode", ["E", "volume", "pente", "derivee_volume"])
+def test_scalaire_rend_float_tableau_rend_tableau(fer_cerium, methode):
+    f = getattr(fer_cerium, methode)
+    x = 5.0 if methode in ("E", "pente") else 1.0
+    assert isinstance(f(x), float)
+    assert isinstance(f([x, x + 0.1]), np.ndarray)
+
+
 def test_base_redox():
     assert espece_redox("permanganate de potassium").q == 1
     assert espece_redox("ion vanadyle").formule == "VO^2+"

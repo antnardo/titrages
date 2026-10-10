@@ -15,6 +15,11 @@ exposant avant d'élever à la puissance, comme dans un *log-sum-exp*, et aucune
 fraction n'est jamais calculée comme le quotient de deux nombres démesurés.
 
 Notations de la fiche : :math:`\\delta = w - h`, :math:`Y_k = \\sum_j j^k x_j`.
+
+**La règle de sortie.** Toute grandeur calculée à un pH (ou un volume, un potentiel)
+scalaire est rendue en ``float`` ; à un tableau, en tableau numpy de même forme
+(:func:`sortie`). Les fractions font exception : à un pH scalaire elles sont déjà un
+tableau, une valeur par forme.
 """
 
 import math
@@ -28,6 +33,7 @@ from titrages.modeles import Couple, Espece
 __all__ = [
     "LN10",
     "PKE",
+    "Valeur",
     "concentration_pour_pH",
     "delta",
     "ecart_moyen",
@@ -37,6 +43,7 @@ __all__ = [
     "moments",
     "racine_croissante",
     "somme_h_w",
+    "sortie",
     "variance",
 ]
 
@@ -44,11 +51,23 @@ LN10 = math.log(10)
 PKE = 14.0
 
 Tableau = npt.NDArray[np.float64]
+Valeur = float | Tableau
+"""Ce que rend une grandeur : un ``float`` pour un argument scalaire, un tableau sinon."""
 Constantes = Couple | Sequence[float]
 
 # Bornes de la dichotomie. Hors de [-6, pKe + 6], l'eau seule (|δ| > 10⁶ mol/L)
 # l'emporte sur toute concentration réaliste : le résidu y a son signe certain.
 MARGE_PH = 6.0
+
+
+def sortie(x: npt.ArrayLike) -> Valeur:
+    """``float`` si ``x`` est un scalaire, tableau ``float64`` sinon : la règle de sortie du paquet.
+
+    >>> sortie(np.float64(2.0)), sortie([1.0, 2.0])
+    (2.0, array([1., 2.]))
+    """
+    t = np.asarray(x, dtype=np.float64)
+    return float(t) if t.ndim == 0 else t
 
 
 def _pKa(constantes: Constantes) -> tuple[float, ...]:
@@ -84,7 +103,7 @@ def fractions(constantes: Constantes, pH: npt.ArrayLike) -> Tableau:
     return np.asarray(e / e.sum(axis=0), dtype=np.float64)
 
 
-def moments(constantes: Constantes, pH: npt.ArrayLike, ordre: int = 2) -> tuple[Tableau, ...]:
+def moments(constantes: Constantes, pH: npt.ArrayLike, ordre: int = 2) -> tuple[Valeur, ...]:
     """Les moments :math:`Y_1, \\dots, Y_{\\text{ordre}}` de la distribution des formes.
 
     :math:`Y_1` est le nombre moyen de protons cédés,
@@ -93,10 +112,10 @@ def moments(constantes: Constantes, pH: npt.ArrayLike, ordre: int = 2) -> tuple[
     x = fractions(constantes, pH)
     forme = (-1,) + (1,) * (x.ndim - 1)
     j = np.arange(x.shape[0], dtype=np.float64).reshape(forme)
-    return tuple(np.asarray((j**k * x).sum(axis=0), dtype=np.float64) for k in range(1, ordre + 1))
+    return tuple(sortie((j**k * x).sum(axis=0)) for k in range(1, ordre + 1))
 
 
-def variance(constantes: Constantes, pH: npt.ArrayLike) -> Tableau:
+def variance(constantes: Constantes, pH: npt.ArrayLike) -> Valeur:
     """:math:`Y_2 - Y_1^2`, écrite :math:`\\sum_{j<k} x_jx_k(k-j)^2` pour ne rien perdre.
 
     Quand une forme domine à :math:`1 - 10^{-10}`, :math:`Y_2` et :math:`Y_1^2` coïncident
@@ -108,28 +127,28 @@ def variance(constantes: Constantes, pH: npt.ArrayLike) -> Tableau:
     for j in range(x.shape[0]):
         for k in range(j + 1, x.shape[0]):
             total = total + x[j] * x[k] * (k - j) ** 2
-    return total
+    return sortie(total)
 
 
-def ecart_moyen(constantes: Constantes, pH: npt.ArrayLike, q: float) -> Tableau:
+def ecart_moyen(constantes: Constantes, pH: npt.ArrayLike, q: float) -> Valeur:
     """:math:`Y_1 - q = \\sum_j x_j (j - q)`, sans soustraire deux nombres voisins."""
     x = fractions(constantes, pH)
-    return np.asarray(sum(x[j] * (j - q) for j in range(x.shape[0])), dtype=np.float64)
+    return sortie(sum(x[j] * (j - q) for j in range(x.shape[0])))
 
 
-def delta(pH: npt.ArrayLike, pKe: float = PKE) -> Tableau:
+def delta(pH: npt.ArrayLike, pKe: float = PKE) -> Valeur:
     """:math:`\\delta = w - h`, l'écart à la neutralité de l'eau."""
     p = np.asarray(pH, dtype=np.float64)
-    return np.asarray(np.power(10.0, p - pKe) - np.power(10.0, -p), dtype=np.float64)
+    return sortie(np.power(10.0, p - pKe) - np.power(10.0, -p))
 
 
-def somme_h_w(pH: npt.ArrayLike, pKe: float = PKE) -> Tableau:
+def somme_h_w(pH: npt.ArrayLike, pKe: float = PKE) -> Valeur:
     """:math:`w + h`, soit :math:`\\mathrm{d}\\delta/\\mathrm{d\\,pH}` divisé par ln 10."""
     p = np.asarray(pH, dtype=np.float64)
-    return np.asarray(np.power(10.0, p - pKe) + np.power(10.0, -p), dtype=np.float64)
+    return sortie(np.power(10.0, p - pKe) + np.power(10.0, -p))
 
 
-def concentration_pour_pH(espece: Espece, pH: npt.ArrayLike, pKe: float = PKE) -> Tableau:
+def concentration_pour_pH(espece: Espece, pH: npt.ArrayLike, pKe: float = PKE) -> Valeur:
     """La concentration de ``espece`` seule dans l'eau qui donne ce pH — le sens direct.
 
     L'électroneutralité :math:`C(Y_1 - q) + \\delta = 0` donne
@@ -138,16 +157,16 @@ def concentration_pour_pH(espece: Espece, pH: npt.ArrayLike, pKe: float = PKE) -
     """
     (Y1,) = moments(espece.couple, pH, ordre=1)
     with np.errstate(divide="ignore", invalid="ignore"):
-        C = -delta(pH, pKe) / (Y1 - espece.q)
-    return np.asarray(np.where(C > 0, C, np.nan), dtype=np.float64)
+        C = -np.asarray(delta(pH, pKe)) / (np.asarray(Y1) - espece.q)
+    return sortie(np.where(C > 0, C, np.nan))
 
 
 def racine_croissante(
-    f: Callable[[Tableau], Tableau],
+    f: Callable[[Tableau], Valeur],
     bas: npt.ArrayLike,
     haut: npt.ArrayLike,
     iterations: int = 64,
-) -> Tableau:
+) -> Valeur:
     """La racine d'une fonction croissante sur ``[bas, haut]``, par dichotomie vectorisée.
 
     Une dichotomie plutôt qu'un Newton : les fonctions en jeu sont monotones mais
@@ -161,10 +180,10 @@ def racine_croissante(
     a, b = a.copy(), b.copy()
     for _ in range(iterations):
         m = (a + b) / 2
-        positif = f(m) > 0
+        positif = np.asarray(f(m)) > 0
         b = np.where(positif, m, b)
         a = np.where(positif, a, m)
-    return np.asarray((a + b) / 2, dtype=np.float64)
+    return sortie((a + b) / 2)
 
 
 def minimum_lisse(f: Callable[[float], float], a: float, b: float, pas: float, iterations: int = 64) -> float:

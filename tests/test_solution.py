@@ -24,6 +24,14 @@ def test_pH_de_reference(composition, attendu):
     assert solution(composition).pH() == pytest.approx(attendu, abs=0.01)
 
 
+def test_scalaire_rend_float_tableau_rend_tableau():
+    s = solution({"CH3COOH": 0.1, "CH3COO-": 0.05})
+    for f in (s.charge, s.residu, s.pouvoir_tampon, s.derivee_charge, s.conductivite, s.conductivite_ions):
+        assert isinstance(f(4.5), float)
+        assert isinstance(f([4.5, 5.0]), np.ndarray)
+    assert isinstance(s.pouvoir_tampon(), float) and isinstance(s.conductivite(), float)
+
+
 def test_pKe_autre_temperature():
     assert Solution(pKe=13.0).pH() == pytest.approx(6.5)
 

@@ -28,7 +28,7 @@ def test_inconnu(capsys):
 
 def test_sigma(capsys):
     assert main(["sigma", "HCl=0.01"]) == 0
-    assert capsys.readouterr().out.strip() == "4.261"
+    assert capsys.readouterr().out.strip() == "0.4261"
 
 
 def test_potentiel(capsys):

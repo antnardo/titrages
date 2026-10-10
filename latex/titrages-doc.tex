@@ -517,7 +517,9 @@ Dans le titrage :
 \begin{cles}
 \defcle{conductivite corrigee}{conductivite corrigee} & \cle{false} & multiplier
   par $(V_0+V)/V_0$, la correction de dilution des TP \\
-\defcle{unite}{unite} & \cle{mS/cm} & \cle{mS/cm}, \cle{S/m} ou \cle{mS/m} \\
+\defcle{unite}{unite} & \cle{S/m} & \cle{S/m}, l'unité du paquet (celle de
+  $\lambda^\circ c$), \cle{mS/cm}, celle qu'affiche un conductimètre, ou
+  \cle{mS/m} \\
 \end{cles}
 
 \begin{exemple}
@@ -528,6 +530,7 @@ Dans le titrage :
   burette = { base forte = 0.1 },
   volume max = 30,
   conductivite corrigee = true,
+  unite = mS/cm,
 }
 \begin{tikzpicture}
 \begin{axis}[width=9cm, height=5.5cm, xlabel={$V$ (mL)},

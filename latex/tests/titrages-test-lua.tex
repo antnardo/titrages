@@ -27,6 +27,14 @@
   volume max = 20,
   conductivite corrigee = true,
 }
+\titragedefinir{fortmS}{
+  volume = 100,
+  becher = { acide fort = 0.01 },
+  burette = { base forte = 0.1 },
+  volume max = 20,
+  conductivite corrigee = true,
+  unite = mS/cm,
+}
 \titragedefinir{melange}{
   volume = 20,
   becher = { acide fort = 0.05, espece = { pKa = 4.76, C = 0.05 } },
@@ -58,8 +66,8 @@
 pH initial \titragepHinitial{acetique}, demi-équivalence \titragepH{acetique}{5},
 équivalence \titragepH{acetique}{10}, volume à pH 7 : \num{\titragevolume{acetique}{7}}.
 
-Conductivité : \titrageconductivite{acetique}{2} et \titrageconductivite{acetique}{15} mS/cm ;
-fort, corrigée : \titrageconductivite{fort}{10}.
+Conductivité : \titrageconductivite{acetique}{2} et \titrageconductivite{acetique}{15} S/m ;
+fort, corrigée : \titrageconductivite{fort}{10} S/m, soit \titrageconductivite{fortmS}{10} mS/cm.
 
 Rédox : E(5) = \titrageE{cerium}{5}, E(10) = \titrageE{cerium}{10} V/ECS ;
 dichromate E(10) = \titrageE{dichromate}{10} ; vanadium : équivalences
@@ -83,7 +91,7 @@ saut 2 à \titragesaut{vanadium}{2}, E \titragesaut[E]{vanadium}{2} ; volume à 
 \end{tikzpicture}
 
 \begin{tikzpicture}
-\begin{axis}[xlabel={$V$ (mL)}, ylabel={$\sigma$ (mS/cm)}, width=7cm]
+\begin{axis}[xlabel={$V$ (mL)}, ylabel={$\sigma$ (S/m)}, width=7cm]
   \addplottitrageconductivite[thick]{acetique}
   \addplottitrageconductivite[thick]{fort}
   \addplottitrageconductivite[thick]{ammoniac}
