@@ -110,6 +110,7 @@ testpaths = ["tests"]
 addopts = "-q --strict-markers"
 markers = [
     "lua: confronte le moteur Lua du paquet LaTeX au moteur Python (demande texlua ou lua)",
+    "latex: compile le paquet LaTeX et confronte ses deux moteurs au moteur Python (demande lualatex et pdflatex)",
 ]
 
 [tool.mypy]

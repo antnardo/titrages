@@ -1,8 +1,9 @@
 # À chaque push et pull request : la suite de tests sous les Python pris en
-# charge, ruff et mypy, le moteur Lua confronté au moteur Python (texlua,
-# fourni par texlive-luatex ; si le paquet manque, le test est sauté avec un
-# avertissement, pas une erreur), et le paquet LaTeX compilé sous lualatex et
-# pdflatex, documentation comprise.
+# charge — dont la confrontation des moteurs Lua et pgf du paquet LaTeX au
+# paquet Python quand TeX Live est là —, ruff et mypy, le moteur Lua hors de
+# TeX par texlua (si le paquet manque, le test est sauté avec un avertissement,
+# pas une erreur), et le paquet LaTeX compilé sous lualatex et pdflatex,
+# documentation comprise.
 name: CI
 
 on:
@@ -23,9 +24,14 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
-      - name: texlua, pour confronter le moteur Lua au moteur Python (optionnel)
+      # texlua confronte le moteur Lua au moteur Python (tests/test_lua.py) ;
+      # lualatex et pdflatex avec pgfplots confrontent les deux moteurs du paquet
+      # LaTeX au paquet Python (tests/test_latex.py). Sans eux, ces tests sont sautés.
+      - name: TeX Live (optionnel)
         continue-on-error: true
-        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends texlive-luatex
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends texlive-luatex texlive-latex-recommended texlive-pictures
       - name: Tests sous Python ${{ matrix.python }}
         run: uv run --python ${{ matrix.python }} pytest
       - name: Tests du moteur Lua hors de TeX
@@ -65,6 +71,8 @@ jobs:
             cd tests
             TEXINPUTS=..: lualatex -interaction=nonstopmode -halt-on-error titrages-test-lua.tex
             TEXINPUTS=..: pdflatex -interaction=nonstopmode -halt-on-error titrages-test-pgf.tex
+            TEXINPUTS=..: lualatex -interaction=nonstopmode -halt-on-error titrages-test-nombres.tex
+            TEXINPUTS=..: pdflatex -interaction=nonstopmode -halt-on-error titrages-test-nombres.tex
       - uses: actions/upload-artifact@v4
         with:
           name: titrages-doc

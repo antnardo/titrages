@@ -8,8 +8,12 @@
 %     le pH ou le potentiel à volume donné, repère les sauts, construit la méthode des
 %     tangentes, traite les couples rédox dimériques (I2/I-, Cr2O7^2-/Cr3+) ;
 %   - pgf (défaut ailleurs) : les courbes sont des courbes paramétrées par le pH (ou
-%     le potentiel), V = V(pH), l'expression étant construite ici. Courbes pH, σ et E
-%     (couples monomères) et fractions ; pas de nombres : pgfmath ne résout rien.
+%     le potentiel), V = V(pH), l'expression étant construite ici et confiée à
+%     pgfplots. Courbes pH, σ et E (couples monomères) et fractions. La même
+%     expression, évaluée par l3fp (16 chiffres), donne aussi les nombres qui ne
+%     demandent qu'une évaluation ou une dichotomie : V(pH), pH(V), σ(V), E(V) ;
+%     ni équivalences, ni sauts, ni tangentes, qui demanderaient un troisième
+%     moteur complet.
 %
 % Le principe est celui du paquet Python titrages : à pH (ou potentiel) imposé tout
 % est explicite, et V = -V0 R_becher / R_burette, R étant le résidu de
@@ -63,6 +67,8 @@
   { Conductivité~de~«~#1~»~:~il~manque~un~lambda~(forme~chargée~ou~contre-ion). }
 \msg_new:nnn { titrages } { pas-redox }
   { «~#1~»~est~un~titrage~rédox~:~pas~de~conductimétrie. }
+\msg_new:nnn { titrages } { lecture }
+  { «~#1~»~se~lit~par~#2. }
 
 % --- variables ----------------------------------------------------------------
 
@@ -424,13 +430,51 @@
                 / \fp_use:N \l__titrages_V_fp
               }
           }
+        \__titrages_pgf_fonction:nv { __titrages_ #1 _sigma:n } { g__titrages_ #1 _sigma_tl }
       }
-      { \cs_undefine:c { g__titrages_ #1 _sigma_tl } }
+      {
+        \cs_undefine:c { g__titrages_ #1 _sigma_tl }
+        \cs_undefine:c { __titrages_ #1 _sigma:n }
+      }
     \__titrages_domaine_pgf:n { #1 }
+    % les mêmes expressions en fonctions l3fp de x, pour les nombres : R_b, R_bu, V
+    \__titrages_pgf_fonction:nx { __titrages_ #1 _Rb:n }
+      {
+        \l__titrages_becher_pgf_tl - ( \fp_use:N \l__titrages_becher_b_fp )
+        + 10^( x - \fp_use:N \l__titrages_pKe_fp ) - 10^( 0 - x )
+      }
+    \__titrages_pgf_fonction:nx { __titrages_ #1 _Rbu:n }
+      {
+        \l__titrages_burette_pgf_tl - ( \fp_use:N \l__titrages_burette_b_fp )
+        \bool_if:NT \l__titrages_dilution_bool
+          { + 10^( x - \fp_use:N \l__titrages_pKe_fp ) - 10^( 0 - x ) }
+      }
+    \__titrages_pgf_fonction:nv { __titrages_ #1 _V:n } { g__titrages_ #1 _V_tl }
+    \tl_gclear_new:c { g__titrages_ #1 _xmin_tl }
+    \tl_gset:cx { g__titrages_ #1 _xmin_tl } { -6 }
+    \tl_gclear_new:c { g__titrages_ #1 _xmax_tl }
+    \tl_gset:cx { g__titrages_ #1 _xmax_tl } { \fp_eval:n { \l__titrages_pKe_fp + 6 } }
   }
+
+% Une expression en x, rangée en fonction l3fp d'un argument : \__titrages_<nom>_V:n {7}
+% s'évalue dans \fp_eval:n, de façon développable. Le x devient le paramètre de la
+% fonction : la liste, qui ne contient que des nombres et des opérateurs, est
+% développée telle quelle dans la définition, où « #1 » est lu comme un paramètre.
+\tl_new:N \l__titrages_fonction_tl
+\cs_new_protected:Npn \__titrages_pgf_fonction:nn #1 #2
+  {
+    \tl_set:Nn \l__titrages_fonction_tl { #2 }
+    \tl_replace_all:Nnn \l__titrages_fonction_tl { x } { ( ##1 ) }
+    \cs_gset:cpx { #1 } ##1 { \l__titrages_fonction_tl }
+  }
+\cs_generate_variant:Nn \__titrages_pgf_fonction:nn { nv , nx }
 
 \cs_new_protected:Npn \__titrages_domaine_pgf:n #1
   {
+    \tl_gclear_new:c { g__titrages_ #1 _V0_tl }
+    \tl_gset:cx { g__titrages_ #1 _V0_tl } { \fp_use:N \l__titrages_V_fp }
+    \tl_gclear_new:c { g__titrages_ #1 _echelle_tl }
+    \tl_gset:cx { g__titrages_ #1 _echelle_tl } { \fp_use:N \l__titrages_echelle_fp }
     \tl_gclear_new:c { g__titrages_ #1 _vmax_tl }
     \tl_gset:cx { g__titrages_ #1 _vmax_tl }
       {
@@ -627,13 +671,22 @@
     \tl_set:Nx \l__titrages_ref_val_tl { \__titrages_reference:V \l__titrages_ref_nom_tl }
     \tl_gclear_new:c { g__titrages_ #1 _type_tl }
     \tl_gset:cn { g__titrages_ #1 _type_tl } { redox }
+    \tl_gclear_new:c { g__titrages_ #1 _V_tl }
+    \tl_gset:cx { g__titrages_ #1 _V_tl }
+      { -( \fp_use:N \l__titrages_V_fp ) * ( \l__titrages_becher_pgf_tl ) / ( \l__titrages_burette_pgf_tl ) }
     \tl_gclear_new:c { g__titrages_ #1 _expr_tl }
     \tl_gset:cx { g__titrages_ #1 _expr_tl }
-      {
-        -( \fp_use:N \l__titrages_V_fp ) / ( \fp_use:N \l__titrages_echelle_fp )
-        * ( \l__titrages_becher_pgf_tl ) / ( \l__titrages_burette_pgf_tl )
-      }
+      { \tl_use:c { g__titrages_ #1 _V_tl } / ( \fp_use:N \l__titrages_echelle_fp ) }
     \__titrages_domaine_pgf:n { #1 }
+    \__titrages_pgf_fonction:nx { __titrages_ #1 _Rb:n } { \l__titrages_becher_pgf_tl }
+    \__titrages_pgf_fonction:nx { __titrages_ #1 _Rbu:n } { \l__titrages_burette_pgf_tl }
+    \__titrages_pgf_fonction:nv { __titrages_ #1 _V:n } { g__titrages_ #1 _V_tl }
+    % la dichotomie en E mesuré : [-3, 4] V/ENH, moins la référence
+    \tl_gclear_new:c { g__titrages_ #1 _xmin_tl }
+    \tl_gset:cx { g__titrages_ #1 _xmin_tl } { \fp_eval:n { -3 - \l__titrages_ref_val_tl } }
+    \tl_gclear_new:c { g__titrages_ #1 _xmax_tl }
+    \tl_gset:cx { g__titrages_ #1 _xmax_tl } { \fp_eval:n { 4 - \l__titrages_ref_val_tl } }
+    \cs_undefine:c { __titrages_ #1 _sigma:n }
   }
 
 % --- réglages globaux -----------------------------------------------------------
@@ -817,14 +870,121 @@
       { titrages.tex_nombre("\lua_escape:e { #2 }", "tangentes", \fp_eval:n { #3 }, "#1") }
   }
 
-% Sous pgf, les nombres n'existent pas : on le dit au lieu d'une erreur Lua obscure.
+% --- les nombres, sous le moteur pgf -------------------------------------------------
+%
+% Les expressions construites pour pgfplots, évaluées par l3fp (16 chiffres) : V(pH) et
+% V(E) sont explicites ; pH(V), E(V) et σ(V) demandent une dichotomie sur
+% V0 R_b(x) + V R_bu(x), croissant en x — 54 coupes sur [xmin, xmax], soit 2e-15 pour le
+% pH. Tout est développable : \num{\titragepH{…}{…}} fonctionne aussi sous pgf. Les
+% équivalences, les sauts et les tangentes demanderaient un troisième moteur : ils
+% restent au moteur lua.
+
+% #1 : une fonction de x (un argument), #2 : son argument
+\cs_new:Npn \__titrages_pgf_residu:nnn #1 #2 #3
+  {
+    \tl_use:c { g__titrages_ #1 _V0_tl } * ( \use:c { __titrages_ #1 _Rb:n } { #3 } )
+    + ( #2 ) * ( \use:c { __titrages_ #1 _Rbu:n } { #3 } )
+  }
+% La racine d'une fonction croissante #1 (tokens attendant un argument) sur [#2, #3].
+\cs_new:Npn \__titrages_pgf_racine:nnn #1 #2 #3
+  { \__titrages_pgf_racine_aux:nnnn { #1 } { 54 } { #2 } { #3 } }
+\cs_new:Npn \__titrages_pgf_racine_aux:nnnn #1 #2 #3 #4
+  {
+    \int_compare:nNnTF { #2 } = { 0 }
+      { \fp_eval:n { ( #3 + #4 ) / 2 } }
+      {
+        \exp_args:Nf \__titrages_pgf_racine_milieu:nnnnn { \fp_eval:n { ( #3 + #4 ) / 2 } }
+          { #1 } { #2 } { #3 } { #4 }
+      }
+  }
+\cs_new:Npn \__titrages_pgf_racine_milieu:nnnnn #1 #2 #3 #4 #5
+  {
+    \fp_compare:nNnTF { #2 { #1 } } > { 0 }
+      { \exp_args:Nnf \__titrages_pgf_racine_aux:nnnn { #2 } { \int_eval:n { #3 - 1 } } { #4 } { #1 } }
+      { \exp_args:Nnf \__titrages_pgf_racine_aux:nnnn { #2 } { \int_eval:n { #3 - 1 } } { #1 } { #5 } }
+  }
+% L'arrondi des nombres ; nan pour un volume négatif ou infini, comme le moteur lua.
+\cs_new:Npn \__titrages_pgf_arrondi:n #1
+  { \fp_eval:n { round( #1 , \g__titrages_chiffres_int ) } }
+\cs_new:Npn \__titrages_pgf_volume_arrondi:n #1
+  {
+    \fp_compare:nNnTF { #1 } < { 0 }
+      { nan }
+      { \fp_compare:nNnTF { #1 } > { 1e300 } { nan } { \__titrages_pgf_arrondi:n { #1 } } }
+  }
+% Les vérifications, développables : le titrage existe, et il est du bon type.
+\cs_new:Npn \__titrages_pgf_existe:nn #1 #2
+  {
+    \cs_if_exist:cTF { __titrages_ #1 _V:n } { #2 }
+      { \msg_expandable_error:nnn { titrages } { inconnu } { #1 } }
+  }
+\cs_new:Npn \__titrages_pgf_type:nnnn #1 #2 #3 #4
+  {
+    \str_if_eq:eeTF { \tl_use:c { g__titrages_ #1 _type_tl } } { #2 } { #4 }
+      { \msg_expandable_error:nnnn { titrages } { lecture } { #1 } { #3 } }
+  }
+\cs_new:Npn \__titrages_pgf_nombre_volume:nn #1 #2
+  {
+    \__titrages_pgf_existe:nn { #1 }
+      {
+        \__titrages_pgf_volume_arrondi:n
+          { \use:c { __titrages_ #1 _V:n } { \fp_eval:n { #2 } } / \tl_use:c { g__titrages_ #1 _echelle_tl } }
+      }
+  }
+% #1 nom, #2 volume versé (unité de l'abscisse), #3 type attendu, #4 nom de l'autre commande
+\cs_new:Npn \__titrages_pgf_nombre_racine:nnnn #1 #2 #3 #4
+  {
+    \__titrages_pgf_existe:nn { #1 }
+      {
+        \__titrages_pgf_type:nnnn { #1 } { #3 } { #4 }
+          {
+            \__titrages_pgf_arrondi:n
+              {
+                \__titrages_pgf_racine:nnn
+                  { \__titrages_pgf_residu:nnn { #1 } { \fp_eval:n { ( #2 ) * \tl_use:c { g__titrages_ #1 _echelle_tl } } } }
+                  { \tl_use:c { g__titrages_ #1 _xmin_tl } } { \tl_use:c { g__titrages_ #1 _xmax_tl } }
+              }
+          }
+      }
+  }
+\cs_new:Npn \__titrages_pgf_nombre_conductivite:nn #1 #2
+  {
+    \__titrages_pgf_existe:nn { #1 }
+      {
+        \__titrages_pgf_type:nnnn { #1 } { ab } { \titrageE }
+          {
+            \cs_if_exist:cTF { __titrages_ #1 _sigma:n }
+              {
+                \__titrages_pgf_arrondi:n
+                  {
+                    \exp_args:Nf \use:c { __titrages_ #1 _sigma:n }
+                      {
+                        \__titrages_pgf_racine:nnn
+                          { \__titrages_pgf_residu:nnn { #1 } { \fp_eval:n { ( #2 ) * \tl_use:c { g__titrages_ #1 _echelle_tl } } } }
+                          { \tl_use:c { g__titrages_ #1 _xmin_tl } } { \tl_use:c { g__titrages_ #1 _xmax_tl } }
+                      }
+                  }
+              }
+              { \msg_expandable_error:nnn { titrages } { sigma-pgf } { #1 } }
+          }
+      }
+  }
+
 \str_if_eq:VnF \g__titrages_moteur_str { lua }
   {
-    \clist_map_inline:nn
-      { \titragepH , \titrageE , \titrageconductivite , \titragevolume , \titrageequivalence }
-      { \RenewDocumentCommand #1 { m m } { \msg_error:nnn { titrages } { lua-seulement } { #1 } } }
-    \RenewDocumentCommand \titragepHinitial { m }
-      { \msg_error:nnn { titrages } { lua-seulement } { \titragepHinitial } }
+    \RenewExpandableDocumentCommand \titragevolume { m m }
+      { \__titrages_pgf_nombre_volume:nn { #1 } { #2 } }
+    \RenewExpandableDocumentCommand \titragepH { m m }
+      { \__titrages_pgf_nombre_racine:nnnn { #1 } { #2 } { ab } { \titrageE } }
+    \RenewExpandableDocumentCommand \titragepHinitial { m }
+      { \__titrages_pgf_nombre_racine:nnnn { #1 } { 0 } { ab } { \titrageE } }
+    \RenewExpandableDocumentCommand \titrageE { m m }
+      { \__titrages_pgf_nombre_racine:nnnn { #1 } { #2 } { redox } { \titragepH } }
+    \RenewExpandableDocumentCommand \titrageconductivite { m m }
+      { \__titrages_pgf_nombre_conductivite:nn { #1 } { #2 } }
+    % Ceux-là demandent le moteur lua : on le dit, au lieu d'une erreur obscure.
+    \RenewDocumentCommand \titrageequivalence { m m }
+      { \msg_error:nnn { titrages } { lua-seulement } { \titrageequivalence } }
     \clist_map_inline:nn { \titragesaut , \titragetangentes }
       { \RenewDocumentCommand #1 { O{} m m } { \msg_error:nnn { titrages } { lua-seulement } { #1 } } }
   }

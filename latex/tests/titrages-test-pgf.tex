@@ -9,6 +9,11 @@
 \titrageredoxdefinir{cerium}{volume = 10, becher = { espece = { E0 = 0.77, C = 0.1 } }, burette = { espece = { E0 = 1.72, C = 0.1, forme = ox } }, reference = ECS, volume max = 20}
 \titrageredoxdefinir{vanadium}{volume = 10, becher = { espece = { E0 = {-0.26, 0.34, 1.00}, n = {1, 1, 1}, H = {0, 2, 2}, C = 0.1 } }, burette = { espece = { E0 = 1.51, n = 5, H = 8, C = 0.02, forme = ox } }, pH = 0, volume max = 40}
 \begin{document}
+Sous pgf aussi, les nombres explicites ou par dichotomie : pH initial \titragepHinitial{acetique},
+demi-équivalence \titragepH{acetique}{5}, équivalence \titragepH{acetique}{10}, volume à pH 7 :
+\titragevolume{acetique}{7} ; conductivité à 15 mL : \titrageconductivite{acetique}{15} S/m ;
+cérium : E(5) = \titrageE{cerium}{5} V/ECS, volume à 1 V/ECS : \titragevolume{cerium}{1}.
+
 \begin{tikzpicture}
 \begin{axis}[xlabel={$V$ (mL)}, ylabel=pH, ymin=0, ymax=14, grid=both, width=7cm]
   \addplottitrage[thick]{acetique}

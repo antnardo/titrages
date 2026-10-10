@@ -71,7 +71,9 @@ Sous Lua\LaTeX{}, un moteur écrit en Lua calcule en double précision : il donn
 plus le pH, la conductivité ou le potentiel à un volume donné, les équivalences, les
 points d'inflexion à la précision de la machine et la méthode des tangentes, sous
 forme de nombres développables. Sous pdf\LaTeX{}, un moteur de secours trace les
-seules courbes avec \paquet{pgfmath}.
+courbes avec \paquet{pgfmath} et donne, par \paquet{l3fp}, les nombres qui ne
+demandent qu'une évaluation ou une dichotomie — pH, potentiel, conductivité,
+volume —, plus lentement.
 \end{abstract}
 
 \tableofcontents
@@ -623,12 +625,16 @@ Le permanganate est
 % =============================================================================
 \section{Les nombres}\label{sec:nombres}
 
-Ces commandes demandent le moteur \texttt{lua}. Elles sont \emph{développables} :
-elles s'emploient dans \cs[no-index]{num}, \cs[no-index]{qty}, une coordonnée, un
-\cs[no-index]{pgfmathsetmacro} ou un \cs[no-index]{edef}. Elles rendent un nombre décimal, point
-compris, arrondi au réglage \cle{chiffres} (2 par défaut). Leurs arguments
-numériques passent par \cs[no-index]{fp_eval:n}. Un volume, une équivalence ou un point qui
-n'existe pas rendent \texttt{nan} ; un saut qui n'existe pas est une erreur.
+Ces commandes sont \emph{développables} : elles s'emploient dans
+\cs[no-index]{num}, \cs[no-index]{qty}, une coordonnée, un
+\cs[no-index]{pgfmathsetmacro} ou un \cs[no-index]{edef}. Elles rendent un nombre
+décimal, point compris, arrondi au réglage \cle{chiffres} (2 par défaut). Leurs
+arguments numériques passent par \cs[no-index]{fp_eval:n}. Un volume, une
+équivalence ou un point qui n'existe pas rendent \texttt{nan} ; un saut qui
+n'existe pas est une erreur. Sous le moteur \texttt{pgf}, \cs{titragepH},
+\cs{titragepHinitial}, \cs{titrageE}, \cs{titrageconductivite} et
+\cs{titragevolume} existent aussi (§\,\ref{sec:moteurs}) ; les trois autres
+demandent le moteur \texttt{lua}.
 
 \begin{function}[EXP]{\titragepH}
 \begin{syntax}
@@ -735,9 +741,28 @@ Le moteur \textbf{lua} calcule en double précision, dans \texttt{titrages.lua},
 envoie à \paquet{pgfplots} des coordonnées toutes exactes. Le moteur \textbf{pgf}
 construit, à la définition du titrage, l'expression de $V(\mathrm{pH})$ ou $V(E)$,
 et la confie à \paquet{pgfplots} en courbe paramétrée, restreinte à
-$0 \le V \le V_\text{max}$ ; il n'a besoin que de \paquet{pgfplots}, mais ne résout
-aucune équation. Ses points sont réguliers en pH : \cle{points} les multiplie au
-besoin.
+$0 \le V \le V_\text{max}$ ; il n'a besoin que de \paquet{pgfplots}. Ses points
+sont réguliers en pH : \cle{points} les multiplie au besoin. La même expression,
+évaluée par \paquet{l3fp} (16 chiffres), lui donne les nombres explicites,
+$V(\mathrm{pH})$ et $V(E)$, et ceux qu'une dichotomie sur
+$V_0R_\text{b} + VR_\text{bu}$, croissant, suffit à trouver : pH, potentiel et
+conductivité à un volume donné. Les équivalences, les points d'inflexion et les
+tangentes demanderaient de récrire tout le moteur une troisième fois : ils
+restent au moteur \texttt{lua}.
+
+\paragraph{Le coût.} Le moteur \texttt{pgf} est 250 lignes d'\paquet{expl3}
+dans \texttt{titrages.sty}, dupliquant en partie les 900 lignes de
+\texttt{titrages.lua} ; toute correction du calcul est à porter dans les deux.
+À la compilation, sur les documents de test du dépôt : les tracés
+(\texttt{titrages-test-*.tex}, une douzaine de courbes) prennent \qty{11}{s}
+sous Lua\LaTeX{} et \qty{25}{s} sous pdf\LaTeX{} ; les nombres
+(\texttt{titrages-test-nombres.tex}, une cinquantaine), \qty{0.8}{s} et
+\qty{30}{s} — environ une demi-seconde par dichotomie sous \texttt{pgf}, contre
+quelques millisecondes en Lua. En précision, les nombres sont les mêmes à
+$10^{-12}$ près dans les deux moteurs ; les courbes de \texttt{pgf}, calculées par
+l'arithmétique de \paquet{pgfplots} (\texttt{fpu}, quatre à cinq chiffres),
+s'écartent de celles de \texttt{lua} de $10^{-3}$ en valeur relative au plus,
+soit moins que l'épaisseur du trait. \texttt{tests/test\_latex.py} le vérifie.
 
 \begin{center}
 \begin{tabularx}{\linewidth}{@{}X>{\centering\arraybackslash}p{.24\linewidth}>{\centering\arraybackslash}p{.24\linewidth}@{}}
@@ -749,9 +774,12 @@ courbes pH, $\sigma$, $E$ & oui & oui \\
 couples rédox dimériques & oui & non \\
 fractions & oui & oui \\
 dérivée, points d'inflexion, tangentes & oui & non \\
-nombres (§\,\ref{sec:nombres}) & oui & non \\
+nombres : pH, $E$, $\sigma$, $V$ (§\,\ref{sec:nombres}) & oui & oui (\paquet{l3fp}) \\
+nombres : équivalences, sauts, tangentes & oui & non \\
 \cle{abscisse = n} & oui & non (\cle{echelle} = $V_\text{éq}$) \\
-précision & double précision & celle de \paquet{pgfmath} \\
+précision des courbes & double précision & \paquet{fpu}, 4 à 5 chiffres \\
+précision des nombres & double précision & \paquet{l3fp}, 16 chiffres \\
+durée d'une dichotomie (pH, $E$, $\sigma$) & quelques ms & $\approx$ \qty{0.5}{s} \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -827,6 +855,8 @@ Un couple dimérique (…) demande le moteur lua & compiler par \texttt{lualatex
 Conductivité de « \meta{nom} » : il manque un lambda & déclarer \cle{lambda}
   pour chaque forme chargée, ou \cle{contre ion} \\
 « \meta{nom} » est un titrage rédox : pas de conductimétrie & — \\
+« \meta{nom} » se lit par \meta{commande} & sous \texttt{pgf} : \cs{titragepH}
+  pour un titrage acide-base, \cs{titrageE} pour un titrage rédox \\
 \multicolumn{2}{@{}l}{\emph{Erreurs du moteur (Lua), préfixées « titrages : »}} \\
 forme \meta{q} hors de 0..\meta{N} & \cle{forme} dépasse le nombre de pKa \\
 le volume du bécher est positif & \cle{volume} \\
