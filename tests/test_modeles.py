@@ -4,6 +4,25 @@ import pytest
 from titrages import Couple, Espece, Tangentes
 
 
+@pytest.mark.parametrize(
+    ("formule", "attendu"),
+    [
+        ("H3N+CH2COOH", 1),  # ion glycinium : la charge est à l'intérieur
+        ("H3N+CH2COO-", 0),  # la glycine, zwitterion
+        ("H2NCH2COO-", -1),
+        ("(C2H5)3NH+", 1),
+        ("B(OH)4-", -1),
+        ("CH2(COO)2^2-", -2),
+        ("Fe(CN)6^3-", -3),
+        ("VO2^+", 1),
+    ],
+)
+def test_charge_zwitterions_et_parentheses(formule, attendu):
+    from titrages import charge
+
+    assert charge(formule) == attendu
+
+
 def test_couple_range_les_pKa():
     assert Couple("x", (10.33, 6.35)).pKa == (6.35, 10.33)
 

@@ -1,49 +1,86 @@
 # Conductivités molaires ioniques limites λ°, à 25 °C, en mS·m²·mol⁻¹.
 #
-# Valeurs des tables usuelles (CRC Handbook of Chemistry and Physics, « Equivalent
-# conductivity of electrolytes » / « Ionic conductivity »), données ici **par ion**
-# et non par équivalent : pour SO4^2-, λ°(SO4^2-) = 2 λ°(½ SO4^2-) = 16,0.
-# La clé est la formule telle que l'écrit couples.toml.
+# Source : CRC Handbook of Chemistry and Physics, 97e édition (W. M. Haynes, dir.,
+# CRC Press, 2016-2017), section 5, table « Ionic conductivity and diffusion at
+# infinite dilution », qui donne λ° en S·cm²·mol⁻¹ **par équivalent** (½ SO4^2-,
+# ⅓ PO4^3-). Les valeurs sont ici **par ion** et dans l'unité du paquet : la valeur de
+# la table, multipliée par la charge, divisée par 10. Le commentaire de chaque ligne
+# rappelle l'entrée de la table.
+#
+# Une ligne marquée « ≈ » n'est pas tabulée dans le CRC : la valeur est celle d'un ion
+# voisin, nommé ; elle sert à tracer une courbe conductimétrique à quelques pour cent
+# près, et se remplace par une mesure si l'on en dispose. Les quatre formes chargées
+# de l'EDTA n'ont pas de ligne : rien n'est tabulé et sa conductimétrie est
+# complexométrique, hors du périmètre du paquet.
 #
 # H3O+ (34,98) et HO- (19,86) sont dans le code : ils sont de toute solution.
+# La clé est la formule telle que l'écrit couples.toml.
 
 [lambda]
-# cations
-"Li+" = 3.87
-"Na+" = 5.01
-"K+" = 7.35
-"NH4+" = 7.35
-"Ag+" = 6.19
-"CH3NH3+" = 5.87
-"Mg2+" = 10.60
-"Ca2+" = 11.90
-"Ba2+" = 12.72
-"Cu2+" = 10.72
-"Zn2+" = 10.56
-"Fe2+" = 10.80
-"Fe3+" = 20.40
-# anions
-"F-" = 5.54
-"Cl-" = 7.63
-"Br-" = 7.81
-"I-" = 7.68
-"NO3-" = 7.14
-"NO2-" = 7.18
-"ClO4-" = 6.73
-"CN-" = 7.80
-"HS-" = 6.50
-"HCO3-" = 4.45
-"CO3^2-" = 13.86
-"HSO4-" = 5.20
-"SO4^2-" = 16.00
-"H2PO4-" = 3.60
-"HPO4^2-" = 11.40
-"PO4^3-" = 20.76
-"HCOO-" = 5.46
-"CH3COO-" = 4.09
-"C2H5COO-" = 3.58
-"ClCH2COO-" = 4.22
-"C6H5COO-" = 3.23
-"HC2O4-" = 4.02
-"C2O4^2-" = 14.82
-"Cit^3-" = 21.00
+# --- cations ----------------------------------------------------------------------
+"Li+" = 3.87          # Li+ : 38,66
+"Na+" = 5.01          # Na+ : 50,08
+"K+" = 7.35           # K+ : 73,48
+"NH4+" = 7.35         # NH4+ : 73,5
+"Ag+" = 6.19          # Ag+ : 61,9
+"Mg2+" = 10.60        # ½ Mg2+ : 53,0
+"Ca2+" = 11.90        # ½ Ca2+ : 59,47
+"Ba2+" = 12.72        # ½ Ba2+ : 63,6
+"Cu2+" = 10.72        # ½ Cu2+ : 53,6
+"Zn2+" = 10.56        # ½ Zn2+ : 52,8
+"Fe2+" = 10.80        # ½ Fe2+ : 54
+"Fe3+" = 20.40        # ⅓ Fe3+ : 68
+"N2H5+" = 5.90        # hydrazinium N2H5+ : 59
+"CH3NH3+" = 5.87      # méthylammonium : 58,7
+"(C2H5)3NH+" = 3.43   # triéthylammonium : 34,3
+"NH3OH+" = 5.9        # ≈ hydrazinium (59) ; l'hydroxylammonium n'est pas tabulé
+"HOC2H4NH3+" = 4.7    # ≈ éthylammonium (47,2) ; l'éthanolammonium n'est pas tabulé
+"C5H5NH+" = 3.7       # ≈ pipéridinium (37,2) ; le pyridinium n'est pas tabulé
+"C6H5NH3+" = 3.7      # ≈ pipéridinium (37,2) ; l'anilinium n'est pas tabulé
+"H3N+CH2COOH" = 4.7   # ≈ éthylammonium (47,2) ; l'ion glycinium n'est pas tabulé
+# --- anions minéraux ----------------------------------------------------------------
+"F-" = 5.54           # F- : 55,4
+"Cl-" = 7.63          # Cl- : 76,31
+"Br-" = 7.81          # Br- : 78,1
+"I-" = 7.68           # I- : 76,8
+"NO3-" = 7.14         # NO3- : 71,42
+"NO2-" = 7.18         # NO2- : 71,8
+"ClO4-" = 6.73        # ClO4- : 67,3
+"ClO-" = 5.2          # ≈ chlorite ClO2- (52) ; l'hypochlorite n'est pas tabulé
+"CN-" = 7.80          # CN- : 78
+"HS-" = 6.50          # HS- : 65
+"S^2-" = 14.4         # ≈ sulfite (½ SO3^2- : 72) ; non tabulé, et S^2- n'existe guère en solution
+"HCO3-" = 4.45        # HCO3- : 44,5
+"CO3^2-" = 13.86      # ½ CO3^2- : 69,3
+"HSO4-" = 5.20        # HSO4- : 52
+"SO4^2-" = 16.00      # ½ SO4^2- : 80,0
+"HSO3-" = 5.00        # HSO3- : 50
+"SO3^2-" = 14.40      # ½ SO3^2- : 72
+"H2PO4-" = 3.60       # H2PO4- : 36
+"HPO4^2-" = 11.40     # ½ HPO4^2- : 57
+"PO4^3-" = 20.76      # ⅓ PO4^3- : 69,0
+"B(OH)4-" = 3.6       # ≈ H2PO4- (36), anion tétraédrique monovalent ; le borate n'est pas tabulé
+# --- anions organiques --------------------------------------------------------------
+"HCOO-" = 5.46        # formiate : 54,6
+"CH3COO-" = 4.09      # acétate : 40,9
+"C2H5COO-" = 3.58     # propanoate : 35,8
+"C3H7COO-" = 3.26     # butanoate : 32,6
+"ClCH2COO-" = 4.22    # chloroacétate : 42,2
+"C6H5COO-" = 3.23     # benzoate : 32,3
+"CH3CHOHCOO-" = 3.88  # lactate : 38,8
+"C8H7O2COO-" = 3.6    # ≈ salicylate (36) ; l'acétylsalicylate n'est pas tabulé
+"HC2O4-" = 4.02       # hydrogénooxalate : 40,2
+"C2O4^2-" = 14.82     # ½ oxalate : 74,11
+"HOOCCH2COO-" = 3.6   # ≈ propanoate (35,8), monoanion à trois carbones ; non tabulé
+"CH2(COO)2^2-" = 12.70  # ½ malonate : 63,5
+"HSucc-" = 3.3        # ≈ butanoate (32,6), monoanion à quatre carbones ; non tabulé
+"Succ^2-" = 11.76     # ½ succinate : 58,8
+"HTart-" = 3.3        # ≈ butanoate (32,6), monoanion à quatre carbones ; non tabulé
+"Tart^2-" = 11.92     # ½ tartrate : 59,6
+"HAsc-" = 3.2         # ≈ benzoate (32,3), monoanion à six carbones ; l'ascorbate n'est pas tabulé
+"Asc^2-" = 11.8       # ≈ succinate (½ : 58,8) ; non tabulé
+"H2Cit-" = 3.00       # dihydrogénocitrate : 30
+"HCit^2-" = 10.8      # ≈ interpolé par équivalent entre H2Cit- (30) et Cit^3- (70) : 2 × 54 ; non tabulé
+"Cit^3-" = 21.00      # ⅓ citrate : 70,0
+"C6H5O-" = 3.2        # ≈ benzoate (32,3) ; le phénolate n'est pas tabulé
+"H2NCH2COO-" = 4.1    # ≈ acétate (40,9) ; le glycinate n'est pas tabulé

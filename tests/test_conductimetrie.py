@@ -16,6 +16,33 @@ def test_contre_ions_des_sels():
     assert ions == pytest.approx({"Na+": 0.3, "Cl-": 0.05})
 
 
+def test_couverture_de_la_base():
+    """Toute forme chargée de la base a son λ°, sauf les quatre de l'EDTA (complexométrie)."""
+    from titrages import charge, couples
+
+    manquants = [
+        f
+        for c in couples()
+        for f, lam in zip(c.formes, c.conductivites, strict=True)
+        if charge(f) and lam is None
+    ]
+    assert manquants == ["H3Y-", "H2Y^2-", "HY^3-", "Y^4-"]
+    assert all(
+        lam is None
+        for c in couples()
+        for f, lam in zip(c.formes, c.conductivites, strict=True)
+        if not charge(f)
+    )
+
+
+def test_glycine_zwitterion_neutre():
+    """La glycine n'apporte ni contre-ion ni λ° : elle est neutre ; ses deux autres formes conduisent."""
+    s = solution({"glycine": 0.1})
+    assert s.spectateurs == ()
+    assert s.conductivite() > 0
+    assert solution({"ion glycinium": 0.1}).spectateurs[0].formule == "Cl-"
+
+
 def test_conductivite_inconnue_signalee():
     s = Solution().avec(Couple.polyacide(4.0), 0.1)
     with pytest.raises(ValueError, match="A-"):

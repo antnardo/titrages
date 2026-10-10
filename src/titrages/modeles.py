@@ -47,20 +47,29 @@ Valeur = float | Tableau
 
 _CHARGE_EXPOSANT = re.compile(r"\^\{?(\d*)([+-])\}?$")
 _CHARGE_ELEMENT = re.compile(r"([A-Z][a-z]?)(\d*)([+-])")
+_CHARGE_INTERNE = re.compile(r"(?<=[A-Za-z0-9)])([+-])(?=[A-Za-z(])")
 
 
 def charge(formule: str) -> int:
-    """La charge qu'une formule écrit à sa fin.
+    """La charge qu'une formule écrit : à sa fin, et à l'intérieur pour un zwitterion.
 
     Une charge multiple s'écrit après ``^`` (``CO3^2-``) ; sans ``^``, un chiffre
     avant le signe n'est une charge qu'après un élément seul (``Fe3+``, ``Mg2+``) :
     dans ``NH4+`` ou ``HCO3-``, c'est un indice. ``CO32-`` est donc lu -1 : écrire
-    ``CO3^2-``.
+    ``CO3^2-``. Un signe seul entre deux atomes compte pour ±1 : la glycine
+    ``H3N+CH2COO-`` est neutre, l'ion glycinium ``H3N+CH2COOH`` vaut +1.
 
     >>> [charge(f) for f in ("H2CO3", "HCO3-", "CO3^2-", "NH4+", "Fe3+", "PO4^{3-}", "Hg2^2+")]
     [0, -1, -2, 1, 3, -3, 2]
+    >>> [charge(f) for f in ("H3N+CH2COOH", "H3N+CH2COO-", "H2NCH2COO-")]
+    [1, 0, -1]
     """
     f = formule.strip()
+    interne = sum(1 if m.group(1) == "+" else -1 for m in _CHARGE_INTERNE.finditer(f))
+    return interne + _charge_finale(f)
+
+
+def _charge_finale(f: str) -> int:
     m = _CHARGE_EXPOSANT.search(f)
     if m:
         valeur = int(m.group(1)) if m.group(1) else 1
