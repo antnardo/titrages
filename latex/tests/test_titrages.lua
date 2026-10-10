@@ -52,6 +52,19 @@ local amm = T.titrage(sol({ T.espece({ 9.25 }, 0.1, 1) }), sol({}, -0.1), 10)
 proche("éq. ammoniac", T.equivalences(amm)[1], 10, 1e-12)
 proche("saut ammoniac", T.sauts(amm, 20)[1][2], 5.27)
 
+-- le réactif fort du bécher excède les sites faibles : titrage en retour
+local retour = T.titrage(sol({ T.espece({ 4.76 }, 0.05, 0) }, 0.1), sol({}, -0.1), 10)
+proche("retour acide : 2 équivalences", #T.equivalences(retour), 2, 0)
+proche("retour acide : éq. 1", T.equivalences(retour)[1], 5, 1e-12)
+proche("retour acide : éq. 2", T.equivalences(retour)[2], 10, 1e-12)
+local retour_base = T.titrage(sol({ T.espece({ 9.25 }, 0.05, 1) }, -0.1), sol({}, 0.1), 10)
+proche("retour base : 2 équivalences", #T.equivalences(retour_base), 2, 0)
+proche("retour base : éq. 1", T.equivalences(retour_base)[1], 5, 1e-12)
+proche("retour base : éq. 2", T.equivalences(retour_base)[2], 10, 1e-12)
+local deja = T.titrage(sol({ T.espece({ 6.35, 10.33 }, 0.1, 0) }, 0.05), sol({}, 0.1), 10)
+proche("base déjà présente : éq. 1", T.equivalences(deja)[1], 5, 1e-12)
+proche("base déjà présente : éq. 2", T.equivalences(deja)[2], 15, 1e-12)
+
 local tg = T.tangentes(t, 7, 20)
 proche("tangentes", tg.V, 10, 0.01)
 

@@ -121,6 +121,37 @@ class TestEquivalences:
         t = Titrage(solution({"Na2CO3": 0.1}), solution({"HCl": 0.1}), 10)
         assert t.volumes_equivalents() == pytest.approx((10, 20))
 
+    @pytest.mark.parametrize(
+        ("becher", "burette", "attendu"),
+        [
+            # le réactif fort du bécher excède les sites faibles : titrage en retour
+            ({"CH3COOH": 0.05, "NaOH": 0.1}, {"HCl": 0.1}, (5, 10)),
+            ({"NH3": 0.05, "HCl": 0.1}, {"NaOH": 0.1}, (5, 10)),
+            # la même chimie, écrite par la forme conjuguée
+            ({"CH3COO-": 0.05, "NaOH": 0.05}, {"HCl": 0.1}, (5, 10)),
+            ({"NH4Cl": 0.05, "HCl": 0.05}, {"NaOH": 0.1}, (5, 10)),
+            # une base forte qui a déprotoné un polyacide, titrée en retour
+            ({"H3PO4": 0.05, "NaOH": 0.2}, {"HCl": 0.1}, (5, 10, 15, 20)),
+            ({"H2CO3": 0.1, "NaOH": 0.05}, {"HCl": 0.1}, (5,)),
+            ({"Na2CO3": 0.05, "NaOH": 0.1}, {"HCl": 0.1}, (10, 15, 20)),
+            # acide et base forts ensemble : seul l'excès compte
+            ({"HCl": 0.1, "NaOH": 0.03}, {"NaOH": 0.1}, (7,)),
+            # deux sites de même pKa ne font qu'une équivalence
+            ({"CH3COOH": 0.05, "CH3COO-": 0.05}, {"NaOH": 0.1}, (5,)),
+            # rien à titrer
+            ({"NaOH": 0.1}, {"NaOH": 0.1}, ()),
+        ],
+    )
+    def test_reactif_fort_deja_present(self, becher, burette, attendu):
+        """Les sauts confirment les volumes stœchiométriques quand ils sont visibles."""
+        t = Titrage(solution(becher), solution(burette), 10)
+        assert t.volumes_equivalents() == pytest.approx(attendu)
+
+    def test_titrage_en_retour_et_sauts(self):
+        t = Titrage(solution({"CH3COOH": 0.05, "NaOH": 0.1}), solution({"HCl": 0.1}), 10)
+        assert t.volumes_equivalents() == pytest.approx((5, 10))
+        assert [round(s.volume, 1) for s in t.sauts(20)] == [5.0, 10.0]
+
     def test_titrant_faible_sans_equivalence_stoechiometrique(self):
         t = Titrage(solution({"CH3COOH": 0.1}), solution({"NH3": 0.1}), 10)
         with pytest.raises(ValueError):

@@ -21,6 +21,7 @@ Négliger la dilution revient à retirer :math:`\\delta` du dénominateur : la b
 apporte ses espèces, pas son eau (``dilution=False``).
 """
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -187,12 +188,22 @@ class Titrage:
     def volumes_equivalents(self) -> tuple[float, ...]:
         """Les équivalences stœchiométriques, pour un titrant fort.
 
-        Chaque proton échangeable du bécher compte pour :math:`C V_0`, rangé par pKa
-        — croissant pour une base forte titrante, décroissant pour un acide fort —
-        après l'acide ou la base forte que le bécher contient déjà et qui passent en
-        premier. Le :math:`k`-ième volume est celui qui apporte autant de titrant que
-        les :math:`k` premiers protons. Avec un titrant faible, l'équivalence n'a plus
-        de définition aussi simple : :meth:`sauts` reste disponible.
+        L'acide ou la base forts que le bécher contient déjà réagissent d'abord, en
+        totalité, avec les espèces faibles : un excès de base forte enlève les protons
+        des sites acides du plus fort au plus faible, et chaque proton enlevé devient un
+        site basique au même pKa (la soude transforme l'acide éthanoïque en éthanoate,
+        qu'un acide fort titre ensuite) ; réciproquement pour un excès d'acide fort.
+        Ce qui reste du réactif fort passe en premier devant le titrant. Le :math:`k`-ième
+        volume est celui qui apporte autant de titrant que les :math:`k` premiers sites
+        rangés par pKa — croissant pour une base forte titrante, décroissant pour un
+        acide fort — ; deux sites de même pKa ne font qu'une équivalence. Avec un titrant
+        faible, l'équivalence n'a plus de définition aussi simple : :meth:`sauts` reste
+        disponible.
+
+        >>> from titrages import solution
+        >>> t = Titrage(solution({"CH3COOH": 0.05, "NaOH": 0.1}), solution({"HCl": 0.1}), 10)
+        >>> t.volumes_equivalents()
+        (5.0, 10.0)
         """
         if self.burette.composants:
             raise ValueError(
@@ -202,30 +213,17 @@ class Titrage:
         C = self.burette.exces_base
         if C == 0:
             raise ValueError("la burette ne contient ni acide ni base")
-        V0 = self.volume_becher
-        sites: list[tuple[float, float]] = []
-        if C > 0:
-            if self.becher.acide_fort:
-                sites.append((-np.inf, self.becher.acide_fort * V0))
-            for c in self.becher.composants:
-                for j in range(c.espece.q, c.espece.couple.N):
-                    sites.append((c.espece.couple.pKa[j], c.concentration * V0))
-            deja = self.becher.base_forte * V0
-            sites.sort(key=lambda s: s[0])
-        else:
-            if self.becher.base_forte:
-                sites.append((np.inf, self.becher.base_forte * V0))
-            for c in self.becher.composants:
-                for j in range(c.espece.q, 0, -1):
-                    sites.append((c.espece.couple.pKa[j - 1], c.concentration * V0))
-            deja = self.becher.acide_fort * V0
-            sites.sort(key=lambda s: -s[0])
-        volumes = []
-        cumul = -deja
-        for _, n in sites:
+        acides, bases = _sites(self.becher, self.volume_becher)
+        sites = sorted(acides) if C > 0 else sorted(bases, reverse=True)
+        volumes: list[float] = []
+        cumul, precedent = 0.0, math.nan
+        for pKa, n in sites:
             cumul += n
-            if cumul > 0:
+            if pKa == precedent:
+                volumes[-1] = cumul / abs(C)
+            else:
                 volumes.append(cumul / abs(C))
+            precedent = pKa
         return tuple(volumes)
 
     # --- la conductimétrie -------------------------------------------------------
@@ -292,6 +290,36 @@ class Titrage:
 
         pH = _changement_de_signe(mediane, pH1, pH2)
         return Tangentes(V1, pH1, V2, pH2, s, float(self.volume(pH)), pH)
+
+
+def _sites(becher: Solution, V0: float) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+    """Les protons que le bécher peut céder (sites acides) et accepter (sites basiques).
+
+    Chaque site est ``(pKa, quantité)``, la quantité en mol pour ``V0`` dans l'unité des
+    volumes. L'acide ou la base forts du bécher ont déjà réagi : un excès de base forte
+    consomme les sites acides par pKa croissant et les transforme en sites basiques de
+    même pKa, un excès d'acide fort consomme les sites basiques par pKa décroissant et
+    les transforme en sites acides ; ce qui en reste est un site à pKa infini.
+    """
+    acides: list[list[float]] = []
+    bases: list[list[float]] = []
+    for c in becher.composants:
+        pKa, q, N, n = c.espece.couple.pKa, c.espece.q, c.espece.couple.N, c.concentration * V0
+        acides.extend([pKa[j], n] for j in range(q, N))
+        bases.extend([pKa[j - 1], n] for j in range(q, 0, -1))
+    b = becher.exces_base * V0
+    source, cible, sens = (acides, bases, 1.0) if b > 0 else (bases, acides, -1.0)
+    reste = abs(b)
+    for site in sorted(source, key=lambda s: sens * s[0]):
+        if reste <= 0:
+            break
+        pris = min(reste, site[1])
+        site[1] -= pris
+        reste -= pris
+        cible.append([site[0], pris])
+    if reste > 0:
+        cible.append([sens * math.inf, reste])
+    return [(s[0], s[1]) for s in acides if s[1] > 0], [(s[0], s[1]) for s in bases if s[1] > 0]
 
 
 def _changement_de_signe(f: Callable[[float], float], a: float, b: float, iterations: int = 64) -> float:

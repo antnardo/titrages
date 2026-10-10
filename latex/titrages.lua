@@ -275,33 +275,61 @@ function M.sauts(t, Vmax, n)
   return resultat
 end
 
---- Les équivalences stœchiométriques, pour un titrant fort.
+--- Les sites acides et basiques du bécher, { {pKa, quantité}, ... } chacun, une fois
+--- que l'acide ou la base forts qu'il contient ont réagi : un excès de base forte
+--- consomme les sites acides par pKa croissant et en fait des sites basiques de même
+--- pKa, un excès d'acide fort fait l'inverse ; ce qui en reste est un site à pKa infini.
+local function sites_becher(becher, V0)
+  local acides, bases = {}, {}
+  for _, e in ipairs(becher.especes) do
+    local n = e.C * V0
+    for j = e.q + 1, e.N do acides[#acides + 1] = { e.pKa[j], n } end
+    for j = e.q, 1, -1 do bases[#bases + 1] = { e.pKa[j], n } end
+  end
+  local b = becher.b * V0
+  local source, cible, sens = acides, bases, 1
+  if b < 0 then source, cible, sens = bases, acides, -1 end
+  local tri = {}
+  for i, s in ipairs(source) do tri[i] = s end
+  table.sort(tri, function(x, y) return sens * x[1] < sens * y[1] end)
+  local reste = math.abs(b)
+  for _, s in ipairs(tri) do
+    if reste <= 0 then break end
+    local pris = math.min(reste, s[2])
+    s[2] = s[2] - pris
+    reste = reste - pris
+    cible[#cible + 1] = { s[1], pris }
+  end
+  if reste > 0 then cible[#cible + 1] = { sens * math.huge, reste } end
+  return acides, bases
+end
+
+--- Les équivalences stœchiométriques, pour un titrant fort : les sites du bécher
+--- rangés par pKa, croissant pour une base forte titrante, décroissant pour un acide
+--- fort ; deux sites de même pKa ne font qu'une équivalence.
 function M.equivalences(t)
   if #t.burette.especes > 0 then
     error("titrages : équivalences stœchiométriques définies pour un titrant fort seulement")
   end
-  local C, V0, sites, deja = t.burette.b, t.V0, {}, 0
+  local C = t.burette.b
   if C == 0 then error("titrages : la burette ne contient ni acide ni base") end
-  local becher = t.becher
-  if C > 0 then
-    if becher.b < 0 then sites[#sites + 1] = { -math.huge, -becher.b * V0 } end
-    for _, e in ipairs(becher.especes) do
-      for j = e.q + 1, e.N do sites[#sites + 1] = { e.pKa[j], e.C * V0 } end
-    end
-    if becher.b > 0 then deja = becher.b * V0 end
-    table.sort(sites, function(a, b) return a[1] < b[1] end)
-  else
-    if becher.b > 0 then sites[#sites + 1] = { math.huge, becher.b * V0 } end
-    for _, e in ipairs(becher.especes) do
-      for j = e.q, 1, -1 do sites[#sites + 1] = { e.pKa[j], e.C * V0 } end
-    end
-    if becher.b < 0 then deja = -becher.b * V0 end
-    table.sort(sites, function(a, b) return a[1] > b[1] end)
-  end
-  local volumes, cumul = {}, -deja
+  local acides, bases = sites_becher(t.becher, t.V0)
+  local sites = (C > 0) and acides or bases
+  table.sort(sites, function(x, y)
+    if C > 0 then return x[1] < y[1] end
+    return x[1] > y[1]
+  end)
+  local volumes, cumul, precedent = {}, 0, nil
   for _, s in ipairs(sites) do
-    cumul = cumul + s[2]
-    if cumul > 0 then volumes[#volumes + 1] = cumul / math.abs(C) end
+    if s[2] > 0 then
+      cumul = cumul + s[2]
+      if s[1] == precedent then
+        volumes[#volumes] = cumul / math.abs(C)
+      else
+        volumes[#volumes + 1] = cumul / math.abs(C)
+      end
+      precedent = s[1]
+    end
   end
   return volumes
 end

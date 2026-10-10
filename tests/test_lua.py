@@ -68,6 +68,46 @@ def test_memes_nombres(nom, tmp_path):
         assert pH == pytest.approx(s.pH, abs=1e-6)
 
 
+EQUIVALENCES = {
+    "phosphorique": ({"H3PO4": 0.1}, {"NaOH": 0.1}, "{T.espece({2.15,7.20,12.35},0.1,0)}", 0, 0.1),
+    "carbonate": ({"Na2CO3": 0.1}, {"HCl": 0.1}, "{T.espece({6.35,10.33},0.1,2)}", 0, -0.1),
+    "retour acide": ({"CH3COOH": 0.05, "NaOH": 0.1}, {"HCl": 0.1}, "{T.espece({4.76},0.05,0)}", 0.1, -0.1),
+    "retour base": ({"NH3": 0.05, "HCl": 0.1}, {"NaOH": 0.1}, "{T.espece({9.25},0.05,1)}", -0.1, 0.1),
+    "base déjà présente": (
+        {"H2CO3": 0.1, "NaOH": 0.05},
+        {"NaOH": 0.1},
+        "{T.espece({6.35,10.33},0.1,0)}",
+        0.05,
+        0.1,
+    ),
+    "polyacide en retour": (
+        {"H3PO4": 0.05, "NaOH": 0.2},
+        {"HCl": 0.1},
+        "{T.espece({2.15,7.20,12.35},0.05,0)}",
+        0.2,
+        -0.1,
+    ),
+}
+
+
+@pytest.mark.parametrize("nom", EQUIVALENCES)
+def test_memes_equivalences(nom, tmp_path):
+    becher, burette, lb, b0, b1 = EQUIVALENCES[nom]
+    t = Titrage(solution(becher), solution(burette), 10)
+    script = f"""
+package.path = "{LATEX.as_posix()}/?.lua;" .. package.path
+local T = require("titrages")
+local t = T.titrage(T.solution({lb}, {b0}), T.solution({{}}, {b1}), 10)
+local eq = {{}}
+for i, V in ipairs(T.equivalences(t)) do eq[i] = string.format("%.12g", V) end
+io.write("[" .. table.concat(eq, ",") .. "]")
+"""
+    fichier = tmp_path / "equivalences.lua"
+    fichier.write_text(script, encoding="utf-8")
+    sortie = subprocess.run([INTERPRETE, str(fichier)], capture_output=True, text=True, check=True)
+    assert json.loads(sortie.stdout) == pytest.approx(list(t.volumes_equivalents()), abs=1e-9)
+
+
 REDOX = {
     "fer/cérium": (
         {"Fe2+": 0.1},
