@@ -191,14 +191,10 @@ def test_couple_incoherent():
         CoupleRedox("x", (0.5, 1.0), (1, 1), ("A", "B", "C"), stoechiometrie=(1, 2))
 
 
-# Les points d'inflexion, confrontés à mpmath (60 chiffres) : le zéro de d²V/dE² ou
-# d²V/dpH² de la courbe directe, calculée sans le paquet (voir le script ci-dessous).
-#
-#   V(E) = -V0 R_bécher(E) / R_burette(E), Y = n / (1 + 10^(-n (E - E°)/s)),
-#   E = mp.findroot(lambda E: mp.diff(V, E, 2), E_approché)
-#
-# Le dichromate, dimérique, est résolu en V à chaque potentiel par mp.findroot sur le
-# bilan d'électrons du mélange.
+# Les points d'inflexion, confrontés à mpmath (60 chiffres) : le zéro de d²V/dE² de la
+# courbe directe V(E) = -V0 R_bécher(E) / R_burette(E), calculée sans le paquet par
+# ``uv run python tests/reference_mpmath.py`` ; le dichromate, dimérique, y est résolu
+# en V à chaque potentiel par mp.findroot sur le bilan d'électrons du mélange.
 INFLEXIONS = {
     "Fe2+ par Ce4+": ({"Ce4+": 0.1}, 1.24499999952),
     "Fe2+ par MnO4-": ({"KMnO4": 0.02}, 1.37288297818),

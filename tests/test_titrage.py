@@ -208,7 +208,11 @@ def test_pKe_different_refuse():
     ],
 )
 def test_inflexion_a_la_precision_de_la_machine(becher, burette, attendu):
-    """Face à mpmath : le zéro de d²V/dpH² de V(pH) = -V0 R_bécher/R_burette, 60 chiffres."""
+    """Face à mpmath : le zéro de d²V/dpH² de V(pH) = -V0 R_bécher/R_burette, 60 chiffres.
+
+    Les valeurs attendues sortent de ``uv run python tests/reference_mpmath.py``, qui
+    n'emprunte rien au paquet.
+    """
     t = Titrage(solution(becher), solution(burette), 10)
     (s,) = t.sauts(20)
     assert s.pH == pytest.approx(attendu, abs=1e-9)
