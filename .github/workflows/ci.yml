@@ -1,42 +1,49 @@
+# À chaque push et pull request : la suite de tests sous les Python pris en
+# charge, ruff et mypy, le moteur Lua confronté au moteur Python (texlua,
+# fourni par texlive-luatex ; si le paquet manque, le test est sauté avec un
+# avertissement, pas une erreur), et le paquet LaTeX compilé sous lualatex et
+# pdflatex, documentation comprise.
 name: CI
 
 on:
   push:
-    branches: [main]
   pull_request:
 
 jobs:
-  test:
-    name: Test ${{ matrix.os }} / ${{ matrix.python-version }}
-    runs-on: ${{ matrix.os }}
+  tests:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        python: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
-      # Un interpréteur Lua, pour confronter le moteur du paquet LaTeX au moteur Python.
-      - run: sudo apt-get install -y lua5.3
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v6
         with:
-          python-version: ${{ matrix.python-version }}
           enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
-      - run: uv sync --group dev
-      - run: uv run pytest -q
-      - run: cd latex/tests && lua5.3 test_titrages.lua
+          cache-dependency-glob: pyproject.toml
+      - name: texlua, pour confronter le moteur Lua au moteur Python (optionnel)
+        continue-on-error: true
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends texlive-luatex
+      - name: Tests sous Python ${{ matrix.python }}
+        run: uv run --python ${{ matrix.python }} pytest
+      - name: Tests du moteur Lua hors de TeX
+        run: |
+          if command -v texlua >/dev/null; then
+            (cd latex/tests && texlua test_titrages.lua)
+          else
+            echo "::warning::texlua absent : les tests Lua hors de TeX sont sautés"
+          fi
 
-  lint:
+  qualite:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.13"
           enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
-      - run: uv sync --group dev
+          cache-dependency-glob: pyproject.toml
       - run: uv run ruff check src tests examples scripts
       - run: uv run ruff format --check src tests examples scripts
       - run: uv run mypy
@@ -58,15 +65,18 @@ jobs:
             cd tests
             TEXINPUTS=..: lualatex -interaction=nonstopmode -halt-on-error titrages-test-lua.tex
             TEXINPUTS=..: pdflatex -interaction=nonstopmode -halt-on-error titrages-test-pgf.tex
+      - uses: actions/upload-artifact@v4
+        with:
+          name: titrages-doc
+          path: latex/titrages-doc.pdf
 
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.13"
           enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
+          cache-dependency-glob: pyproject.toml
       - run: uv build
       - run: uvx twine check dist/*

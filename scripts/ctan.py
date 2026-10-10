@@ -1,11 +1,14 @@
 """Construire l'archive CTAN du paquet LaTeX, sans rien envoyer.
 
     uv run python scripts/ctan.py
+    uv run python scripts/ctan.py --sans-compilation   # le PDF est déjà là
 
-Compile la documentation (lualatex, makeindex, puis deux passes), vérifie que les versions du .sty,
-du .lua et du paquet Python concordent, puis écrit ``dist/titrages-ctan.zip`` au
-format que CTAN attend : un dossier ``titrages/`` avec les sources, la
-documentation et son PDF, le README et la licence. L'envoi reste un geste manuel.
+Compile la documentation (lualatex, makeindex, puis deux passes) — sauf avec
+``--sans-compilation``, où ``latex/titrages-doc.pdf`` doit exister —, vérifie que
+les versions du .sty, du .lua et du paquet Python concordent, puis écrit
+``dist/titrages-ctan.zip`` au format que CTAN attend : un dossier ``titrages/``
+avec les sources, la documentation et son PDF, le README et la licence. L'envoi à
+CTAN reste un geste manuel ; la publication GitHub joint l'archive à la release.
 """
 
 import re
@@ -28,17 +31,26 @@ def versions() -> dict[str, str]:
     }
 
 
-def main() -> int:
-    v = versions()
-    if len(set(v.values())) != 1:
-        print(f"versions discordantes : {v}", file=sys.stderr)
-        return 1
+def compiler() -> None:
     lualatex = ["lualatex", "-interaction=nonstopmode", "-halt-on-error", "titrages-doc.tex"]
     index = ["makeindex", "-q", "-s", "gind.ist", "-o", "titrages-doc.ind", "titrages-doc.idx"]
     for commande in (lualatex, index, lualatex, lualatex):
         subprocess.run(commande, cwd=LATEX, check=True, stdout=subprocess.DEVNULL)
     for ext in ("aux", "log", "out", "toc", "listing", "idx", "ind", "ilg", "glo", "hd"):
         (LATEX / f"titrages-doc.{ext}").unlink(missing_ok=True)
+
+
+def main(argv: list[str] | None = None) -> int:
+    v = versions()
+    if len(set(v.values())) != 1:
+        print(f"versions discordantes : {v}", file=sys.stderr)
+        return 1
+    if "--sans-compilation" in (sys.argv[1:] if argv is None else argv):
+        if not (LATEX / "titrages-doc.pdf").exists():
+            print("latex/titrages-doc.pdf manque : compiler, ou retirer --sans-compilation", file=sys.stderr)
+            return 1
+    else:
+        compiler()
     dist = RACINE / "dist"
     dist.mkdir(exist_ok=True)
     archive = dist / "titrages-ctan.zip"

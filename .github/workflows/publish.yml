@@ -1,75 +1,63 @@
-name: Publish to PyPI
+# À la publication d'une release sur GitHub : construire la roue et le sdist
+# avec uv, la documentation PDF et l'archive CTAN du paquet LaTeX, et joindre
+# le tout à la release. Pas de PyPI ni d'envoi à CTAN : le paquet Python
+# s'installe depuis GitHub (pip install git+…) ou par la roue de la release,
+# le paquet LaTeX par copie des fichiers de l'archive.
+name: Publication
 
 on:
   release:
     types: [published]
-  workflow_dispatch:
-    inputs:
-      target:
-        description: "Target index"
-        required: true
-        default: testpypi
-        type: choice
-        options: [testpypi, pypi]
+
+permissions:
+  contents: write
 
 jobs:
-  build:
-    name: Build
+  documentation:
+    name: Documentation LaTeX
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: xu-cheng/texlive-action@v2
         with:
-          enable-cache: true
-          cache-dependency-glob: "**/pyproject.toml"
-      - run: uv build
-      - name: Check the tag matches the package version
-        if: github.event_name == 'release'
-        run: |
-          tag="${GITHUB_REF_NAME#v}"
-          # Read it off the artefact that is about to be published, which also
-          # checks the build produced what the tag claims.
-          pkg=$(ls dist/*.whl | sed -E 's|.*/[^-]+-([^-]+)-.*|\1|')
-          echo "tag=$tag package=$pkg"
-          test "$tag" = "$pkg"
-      - run: uvx twine check dist/*
+          scheme: full
+          run: |
+            cd latex
+            lualatex -interaction=nonstopmode -halt-on-error titrages-doc.tex
+            makeindex -s gind.ist -o titrages-doc.ind titrages-doc.idx
+            lualatex -interaction=nonstopmode -halt-on-error titrages-doc.tex
+            lualatex -interaction=nonstopmode -halt-on-error titrages-doc.tex
       - uses: actions/upload-artifact@v4
         with:
-          name: dist
-          path: dist/
+          name: titrages-doc
+          path: latex/titrages-doc.pdf
 
-  testpypi:
-    name: TestPyPI
-    needs: build
-    if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+  artefacts:
+    name: Roue, sdist, archive CTAN
+    needs: documentation
     runs-on: ubuntu-latest
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/p/titrages
-    permissions:
-      id-token: write  # trusted publishing: no token to store
     steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: pyproject.toml
+      - name: L'étiquette est la version du paquet
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version=$(uv run --no-project python -c "import re, pathlib; print(re.search(r'__version__ = \"([^\"]+)\"', pathlib.Path('src/titrages/__init__.py').read_text()).group(1))")
+          echo "étiquette $tag, paquet $version"
+          test "$tag" = "$version"
+      - name: Construire la roue et le sdist
+        run: uv build
       - uses: actions/download-artifact@v4
         with:
-          name: dist
-          path: dist
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-
-  pypi:
-    name: PyPI
-    needs: build
-    if: github.event_name == 'release' || inputs.target == 'pypi'
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/titrages
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist
-      - uses: pypa/gh-action-pypi-publish@release/v1
+          name: titrages-doc
+          path: latex
+      - name: Construire l'archive CTAN autour de la documentation compilée
+        run: uv run --no-project python scripts/ctan.py --sans-compilation
+      - run: uvx twine check dist/*.whl dist/*.tar.gz
+      - name: Joindre les artefacts à la release
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/*.whl dist/*.tar.gz dist/titrages-ctan.zip latex/titrages-doc.pdf --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

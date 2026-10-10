@@ -13,7 +13,9 @@ dist/
 .coverage
 htmlcov/
 
-# LaTeX : seules les sources et la documentation compilée sont suivies
+# LaTeX : seules les sources sont suivies ; la documentation compilée
+# (titrages-doc.pdf) est jointe à chaque release et à l'artefact de la CI
+latex/titrages-doc.pdf
 latex/*.aux
 latex/*.log
 latex/*.out
