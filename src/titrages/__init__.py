@@ -8,7 +8,7 @@ et le volume versé est une fonction directe de la grandeur mesurée.
 
 >>> from titrages import Titrage, solution
 >>> t = Titrage(solution({"CH3COOH": 0.1}), solution({"NaOH": 0.1}), volume_becher=10)
->>> [round(float(p), 2) for p in t.pH([0, 5, 10])]
+>>> t.pH([0, 5, 10]).round(2).tolist()
 [2.88, 4.76, 8.73]
 """
 

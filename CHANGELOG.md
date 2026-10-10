@@ -6,7 +6,37 @@ LaTeX partagent un numéro de version.
 
 ## [Unreleased]
 
+### Ajouté
+
+- `SolutionRedox.diluee` et `melangee`, `TitrageRedox.tangentes` et
+  `TangentesRedox` : chaque méthode acide-base a sa symétrique rédox ;
+  `tracer_sauts`, `tracer_tangentes` et `tracer_derivee` acceptent un titrage
+  rédox ; en LaTeX, `\addplottitragetangentes` et `\titragetangentes` s'appliquent
+  à un titrage rédox (moteur Lua, `tangentes_redox`).
+- Sous le moteur pgf (pdfLaTeX), les nombres `\titragevolume`, `\titragepH`,
+  `\titragepHinitial`, `\titrageE` et `\titrageconductivite`, par l3fp,
+  développables ; `latex/tests/titrages-test-nombres.tex` et `tests/test_latex.py`
+  confrontent les deux moteurs au paquet Python, courbes de pgfplots comprises.
+- `tests/reference_mpmath.py`, qui régénère à 60 chiffres les points d'inflexion
+  de référence sans rien emprunter au paquet (mpmath, dépendance de développement).
+- Vingt-sept conductivités molaires de plus (CRC Handbook, 97e éd. ; dix-sept
+  approchées par un ion voisin, marquées ≈) : la conductimétrie couvre 34 couples
+  sur 35 au lieu de 14.
+- L'intégration continue à chaque push, et la publication par release GitHub
+  (roue, sdist, documentation PDF, archive CTAN joints à la release).
+
 ### Modifié
+
+- **Règle de sortie** : toute grandeur rend un `float` pour un argument scalaire,
+  un tableau numpy pour un tableau (`Titrage.pH(5)` rendait un `ndarray` de
+  dimension zéro).
+- **Une seule unité pour la conductivité, le S/m** : la commande `sigma`,
+  `tracer_conductimetrie` et la clé LaTeX `unite` ne convertissent plus en mS/cm
+  par défaut ; `unite="mS/cm"` reste disponible.
+- `equilibre.changement_de_signe` remplace `titrage._changement_de_signe`.
+- Le README dit vrai : installation depuis GitHub ou par copie ; PyPI et CTAN à
+  venir ; `latex/titrages-doc.pdf` n'est plus suivi par git, la release et la CI le
+  fournissent.
 
 - La documentation du paquet LaTeX est réécrite en `l3doc` : une fiche de syntaxe
   par commande, toutes les clés avec leur défaut, les messages et leur remède,
@@ -25,6 +55,15 @@ LaTeX partagent un numéro de version.
 
 ### Corrigé
 
+- `volumes_equivalents` perdait l'équivalence intermédiaire d'un titrage en
+  retour, quand le réactif fort du bécher excède les sites faibles :
+  `solution({"CH3COOH": 0.05, "NaOH": 0.1})` par HCl 0,1 rendait `(10,)` au lieu
+  de `(5, 10)`. L'acide ou la base forts du bécher réagissent maintenant d'abord
+  avec les espèces faibles, chaque proton enlevé devenant un site basique au même
+  pKa, et réciproquement ; deux sites de même pKa ne font qu'une équivalence. Même
+  correction dans le moteur Lua.
+- `charge` lisait la glycine `H3N+CH2COO-` comme un anion : un signe entre deux
+  atomes compte pour ±1, le zwitterion est neutre et l'ion glycinium vaut +1.
 - Un saut sur une courbe décroissante (base titrée par un acide, titrant réducteur)
   se rabattait sur un point de la grille : l'ammoniac par l'acide chlorhydrique
   donnait pH 5,2734 au lieu de 5,27558.

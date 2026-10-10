@@ -1,4 +1,4 @@
-"""Le tracé avec matplotlib, dépendance facultative (``pip install titrages[trace]``).
+"""Le tracé avec matplotlib, dépendance facultative (``pip install matplotlib``, ou l'extra ``[trace]``).
 
 Chaque fonction dessine sur un ``Axes`` qu'on lui donne, ou sur l'axe courant, et le
 rend : elle ne crée ni ne montre de figure, pour se composer avec le reste d'un
@@ -36,7 +36,7 @@ def _axe(ax: "Axes | None") -> "Axes":
     try:
         import matplotlib.pyplot as plt
     except ImportError as erreur:  # pragma: no cover — dépend de l'environnement
-        raise ImportError("le tracé demande matplotlib : pip install titrages[trace]") from erreur
+        raise ImportError("le tracé demande matplotlib : pip install matplotlib") from erreur
     return plt.gca()
 
 

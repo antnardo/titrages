@@ -1,8 +1,9 @@
 -- titrages.lua — le moteur de calcul du paquet LaTeX titrages.
 --
--- Le même algorithme que le paquet Python titrages (https://pypi.org/project/titrages),
--- en Lua 5.3 pur : il tourne sous LuaTeX comme sous un lua ordinaire, ce qui permet de
--- le tester hors de TeX (tests/test_titrages.lua).
+-- Le même algorithme que le paquet Python titrages, du même dépôt
+-- (https://github.com/antnardo/titrages), en Lua 5.3 pur : il tourne sous LuaTeX
+-- comme sous un lua ordinaire, ce qui permet de le tester hors de TeX
+-- (tests/test_titrages.lua) et de le confronter au moteur Python (tests/test_lua.py).
 --
 -- À pH imposé, tout est explicite. Pour une solution,
 --

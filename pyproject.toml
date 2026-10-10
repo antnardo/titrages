@@ -83,7 +83,8 @@ include = [
     "/LICENSE",
     "/CHANGELOG.md",
 ]
-# Le paquet LaTeX vit dans le même dépôt mais part sur CTAN, pas sur PyPI.
+# Le paquet LaTeX vit dans le même dépôt mais se distribue à part (archive CTAN
+# jointe à la release), pas dans le sdist Python.
 exclude = ["/latex"]
 
 [tool.ruff]

@@ -60,7 +60,9 @@ Fe²⁺ par MnO₄⁻ tient en $10^{-9}$ mL — et affinés non par une section 
 compare des valeurs et plafonne à $\sqrt\varepsilon$, mais par le zéro de
 $(\ln|\mathrm{d}V/\mathrm{d\,pH}|)'$, trouvé par dichotomie
 (`titrages.equilibre.minimum_lisse`). Les tests les confrontent à `mpmath` à 60
-chiffres : $10^{-10}$ unité de pH, $10^{-11}$ V, couples dimériques compris.
+chiffres — `tests/reference_mpmath.py`, qui n'emprunte rien au paquet, régénère
+les valeurs de référence — : $10^{-10}$ unité de pH, $10^{-11}$ V, couples
+dimériques compris.
 
 **La dilution.** La séparation $V_0 R_\text{b} + V R_\text{bu} = 0$ est
 toute la correction de dilution. Tracer $n_0 = Y_1 + \delta/C_T$ comme une
@@ -71,6 +73,18 @@ l'équivalence. `tests/test_dilution.py` confronte la formule directe à un calc
 n'emprunte rien au paquet : concentrations diluées à la main, formes par les
 formules des manuels, électroneutralité résolue par dichotomie ; les deux
 s'accordent à 10⁻⁹ près sur dix configurations.
+
+## Deux règles
+
+**Un `float` pour un scalaire, un tableau pour un tableau.** Toute grandeur
+calculée à un pH, un volume ou un potentiel scalaire rend un `float` ; à un
+tableau (liste, tableau numpy), un tableau numpy de même forme
+(`titrages.equilibre.sortie`). Les fractions font exception : à un pH scalaire elles
+sont déjà un tableau, une valeur par forme.
+
+**La conductivité est en S/m**, partout : λ° en mS·m²·mol⁻¹ et $c$ en mol/L la
+donnent directement. `tracer_conductimetrie(…, unite="mS/cm")` et la clé LaTeX
+`unite` convertissent pour l'affichage seulement.
 
 ## Construire une solution
 
@@ -121,9 +135,13 @@ s'accordent à 10⁻⁹ près sur dix configurations.
 | `volumes_equivalents()` | les équivalences stœchiométriques, titrant fort |
 | `tangentes(volume_avant, volume_max)` | la construction des tangentes parallèles (`Tangentes`) |
 
-`volumes_equivalents` compte chaque proton échangeable du bécher, rangé par pKa,
-après l'acide ou la base forts que le bécher contient déjà. Pour un titrant faible,
-l'équivalence n'a pas de définition aussi simple : `sauts` reste disponible.
+`volumes_equivalents` fait d'abord réagir l'acide ou la base forts que le bécher
+contient déjà avec ses espèces faibles — un excès de soude transforme l'acide
+éthanoïque en éthanoate, qu'un acide fort titre ensuite — puis compte chaque site
+restant, rangé par pKa, ce qui reste du réactif fort passant en premier :
+`solution({"CH3COOH": 0.05, "NaOH": 0.1})` par HCl 0,1 donne `(5, 10)`. Deux sites
+de même pKa ne font qu'une équivalence. Pour un titrant faible, l'équivalence n'a pas
+de définition aussi simple : `sauts` reste disponible.
 
 ## La conductimétrie
 
@@ -132,7 +150,11 @@ mol/L, σ en S/m), sur toutes les formes chargées, H₃O⁺, HO⁻ et les **ion
 spectateurs**. `solution` les ajoute d'après ce qu'on nomme : le Cl⁻ de HCl, le Na⁺
 de la soude, deux Na⁺ par carbonate de sodium ; un ion désigné par sa formule reçoit
 Na⁺ (anion) ou Cl⁻ (cation), à changer par `contre_ions=`. Une forme chargée dont
-λ° est inconnue est une erreur, pas un zéro.
+λ° est inconnue est une erreur, pas un zéro. La base couvre 34 couples sur 35
+(`src/titrages/donnees/conductivites.toml`, une source par ligne : le CRC Handbook,
+ou l'ion voisin qui tient lieu de valeur approchée, marqué ≈ ; l'EDTA n'a pas de
+λ°). La charge d'une forme se lit dans sa formule (`charge`) : `CO3^2-`, `Fe3+`, et
+les zwitterions, `H3N+CH2COO-` étant neutre.
 
 ```pycon
 >>> from titrages import Titrage, solution
@@ -211,7 +233,8 @@ l'`Axes` donné, ou l'axe courant, et le rend.
 
 ## L'export
 
-`vers_pgfplots(courbe)` et `vers_csv(courbe, chemin)`.
+`vers_pgfplots(courbe)` et `vers_csv(courbe, chemin)`, pour les trois sortes de
+courbes (pH, σ, E).
 
 ## Le paquet LaTeX
 
