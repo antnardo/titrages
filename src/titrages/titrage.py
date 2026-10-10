@@ -22,13 +22,12 @@ apporte ses espèces, pas son eau (``dilution=False``).
 """
 
 import math
-from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
 
-from titrages.equilibre import MARGE_PH, minimum_lisse, racine_croissante, sortie
+from titrages.equilibre import MARGE_PH, changement_de_signe, minimum_lisse, racine_croissante, sortie
 from titrages.modeles import Courbe, CourbeConductimetrique, Saut, Tangentes
 from titrages.solution import LAMBDA_H3O, LAMBDA_HO, Solution
 
@@ -288,19 +287,19 @@ class Titrage:
             return abs(float(self.pente(p))) - abs(s)
 
         grille = np.linspace(saut.pH, pHmax, 2000)
-        valeurs = np.array([ecart_pente(p) for p in grille])
+        valeurs = np.abs(np.asarray(self.pente(grille))) - abs(s)  # ecart_pente, vectorisé
         negatifs = np.flatnonzero(valeurs <= 0)
         if not len(negatifs) or negatifs[0] == 0:
             raise ValueError("pas de point de même pente après le saut : augmenter volume_max")
         i = int(negatifs[0])
-        pH2 = _changement_de_signe(ecart_pente, float(grille[i - 1]), float(grille[i]))
+        pH2 = changement_de_signe(ecart_pente, float(grille[i - 1]), float(grille[i]))
         V1, V2 = volume_avant, float(self.volume(pH2))
         Vm, pHm = (V1 + V2) / 2, (pH1 + pH2) / 2
 
         def mediane(p: float) -> float:
             return (p - pHm) - s * (float(self.volume(p)) - Vm)
 
-        pH = _changement_de_signe(mediane, pH1, pH2)
+        pH = changement_de_signe(mediane, pH1, pH2)
         return Tangentes(V1, pH1, V2, pH2, s, float(self.volume(pH)), pH)
 
 
@@ -332,16 +331,3 @@ def _sites(becher: Solution, V0: float) -> tuple[list[tuple[float, float]], list
     if reste > 0:
         cible.append([sens * math.inf, reste])
     return [(s[0], s[1]) for s in acides if s[1] > 0], [(s[0], s[1]) for s in bases if s[1] > 0]
-
-
-def _changement_de_signe(f: Callable[[float], float], a: float, b: float, iterations: int = 64) -> float:
-    """Une racine de ``f`` entre ``a`` et ``b``, où ``f`` change de signe."""
-    fa = f(a)
-    for _ in range(iterations):
-        m = (a + b) / 2
-        fm = f(m)
-        if (fm > 0) == (fa > 0):
-            a, fa = m, fm
-        else:
-            b = m
-    return (a + b) / 2

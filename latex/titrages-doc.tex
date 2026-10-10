@@ -339,7 +339,7 @@ Place les points d'inflexion de la courbe (§\,\ref{sec:precision}). Donner
 Construit la méthode des tangentes parallèles à partir du volume \meta{V}, pris
 avant le premier saut qui le suit : la tangente en $V$, la tangente parallèle
 après le saut, la parallèle équidistante, et les trois points (les deux points de
-contact et l'intersection avec la courbe). Réservée aux titrages acide-base.
+contact et l'intersection avec la courbe), en pH ou en potentiel.
 Moteur \texttt{lua}.
 \end{function}
 
@@ -554,8 +554,9 @@ Enregistre le titrage potentiométrique \meta{nom}.
 
 {\raggedright Les commandes qui s'y appliquent sont \cs{addplottitrage},
 \cs{addplottitragederivee}, \cs{addplottitragesauts}, \cs{titrageE},
-\cs{titragevolume}, \cs{titrageequivalence} et \cs{titragesaut} ; la
-conductimétrie et la méthode des tangentes sont réservées à l'acide-base.\par}
+\cs{addplottitragetangentes}, \cs{titrageE}, \cs{titragevolume},
+\cs{titrageequivalence}, \cs{titragesaut} et \cs{titragetangentes} ; la
+conductimétrie seule est réservée à l'acide-base.\par}
 
 \subsection{Les clés du titrage}
 
@@ -687,8 +688,8 @@ Le $k$-ième point d'inflexion. \meta{champ} vaut \cle{volume} (défaut), \cle{p
 \cs{titragetangentes}\oarg{champ}\marg{nom}\marg{V}
 \end{syntax}
 Le point équivalent donné par la méthode des tangentes depuis \meta{V}.
-\meta{champ} vaut \cle{volume} (défaut), \cle{pH} ou \cle{pente}, la pente commune
-des tangentes.
+\meta{champ} vaut \cle{volume} (défaut), \cle{pH} (ou \cle{E} en rédox) ou
+\cle{pente}, la pente commune des tangentes.
 \end{function}
 
 \begin{exemple}
@@ -781,7 +782,9 @@ equivalences(t) & les volumes équivalents \\
 tangentes(t, V1, Vmax) & la table \lua{\{V, pH, pente, V1, pH1, V2, pH2\}} \\
 conductivite(t, V) & $\sigma$ en \unit{S/m} \\
 E\_enh(t, V) & le potentiel, en V/ENH (rédox) \\
-courbe\_redox, sauts\_redox, equivalences\_redox & les analogues rédox \\
+volume\_redox(t, E) & le volume qui amène à ce potentiel (V/ENH), ou \lua{nil} \\
+courbe\_redox, sauts\_redox, tangentes\_redox, equivalences\_redox & les
+  analogues rédox \\
 fractions(pKa, pH) & les fractions de chaque forme \\
 \bottomrule
 \end{tabularx}

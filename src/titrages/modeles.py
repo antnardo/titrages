@@ -39,6 +39,7 @@ __all__ = [
     "SautRedox",
     "Spectateur",
     "Tangentes",
+    "TangentesRedox",
     "charge",
 ]
 
@@ -257,7 +258,6 @@ class Tangentes:
 
         Un ``float`` pour un volume scalaire, un tableau pour un tableau.
         """
-        V = np.asarray(volume, dtype=np.float64)
         points = {
             "avant": (self.volume_avant, self.pH_avant),
             "apres": (self.volume_apres, self.pH_apres),
@@ -266,9 +266,13 @@ class Tangentes:
                 (self.pH_avant + self.pH_apres) / 2,
             ),
         }
-        V0, pH0 = points[laquelle]
-        t = np.asarray(pH0 + self.pente * (V - V0), dtype=np.float64)
-        return float(t) if t.ndim == 0 else t
+        return _droite(points[laquelle], self.pente, volume)
+
+
+def _droite(point: tuple[float, float], pente: float, volume: npt.ArrayLike) -> Valeur:
+    V0, y0 = point
+    t = np.asarray(y0 + pente * (np.asarray(volume, dtype=np.float64) - V0), dtype=np.float64)
+    return float(t) if t.ndim == 0 else t
 
 
 @dataclass(frozen=True, slots=True)
@@ -412,3 +416,25 @@ class SautRedox:
     volume: float
     E: float
     pente: float
+
+
+@dataclass(frozen=True, slots=True)
+class TangentesRedox:
+    """La construction des tangentes parallèles sur une courbe E = f(V) (voir :class:`Tangentes`)."""
+
+    volume_avant: float
+    E_avant: float
+    volume_apres: float
+    E_apres: float
+    pente: float
+    volume: float
+    E: float
+
+    def droite(self, volume: npt.ArrayLike, laquelle: str = "milieu") -> Valeur:
+        """L'ordonnée d'une des trois droites : ``avant``, ``apres`` ou ``milieu``."""
+        points = {
+            "avant": (self.volume_avant, self.E_avant),
+            "apres": (self.volume_apres, self.E_apres),
+            "milieu": ((self.volume_avant + self.volume_apres) / 2, (self.E_avant + self.E_apres) / 2),
+        }
+        return _droite(points[laquelle], self.pente, volume)

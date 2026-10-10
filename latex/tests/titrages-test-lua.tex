@@ -73,7 +73,8 @@ Rédox : E(5) = \titrageE{cerium}{5}, E(10) = \titrageE{cerium}{10} V/ECS ;
 dichromate E(10) = \titrageE{dichromate}{10} ; vanadium : équivalences
 \titrageequivalence{vanadium}{1}, \titrageequivalence{vanadium}{2}, \titrageequivalence{vanadium}{3} ;
 saut 2 à \titragesaut{vanadium}{2}, E \titragesaut[E]{vanadium}{2} ; volume à 1 V/ECS :
-\titragevolume{cerium}{1}.
+\titragevolume{cerium}{1} ; tangentes depuis 7 mL : \titragetangentes{cerium}{7} mL,
+\titragetangentes[E]{cerium}{7} V/ECS.
 
 \begin{tikzpicture}
 \begin{axis}[xlabel={$V$ (mL)}, ylabel=pH, ymin=0, ymax=14, grid=both, width=7cm]
@@ -103,6 +104,7 @@ saut 2 à \titragesaut{vanadium}{2}, E \titragesaut[E]{vanadium}{2} ; volume à 
   \addplottitrage[thick]{dichromate}
   \addplottitrage[thick]{vanadium}
   \addplottitragesauts[black, mark=*]{vanadium}
+  \addplottitragetangentes[orange, dashed]{cerium}{7}
 \end{axis}
 \end{tikzpicture}
 

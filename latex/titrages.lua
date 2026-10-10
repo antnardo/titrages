@@ -665,6 +665,34 @@ function M.sauts_redox(t, Vmax, n)
   return resultat
 end
 
+--- La méthode des tangentes parallèles sur E(V), depuis V1 avant le saut (E en V/ENH).
+function M.tangentes_redox(t, V1, Vmax)
+  local saut
+  for _, s in ipairs(M.sauts_redox(t, Vmax)) do
+    if s[1] > V1 then saut = s break end
+  end
+  if not saut then error(("titrages : aucun saut après %g avant %g"):format(V1, Vmax)) end
+  local E1 = M.E_enh(t, V1)
+  local p1 = M.pente_redox(t, V1)
+  local Emax = M.E_enh(t, Vmax)
+  local function ecart(E) return math.abs(1 / (M.derivee_volume_redox(t, E))) - math.abs(p1) end
+  local m, E2 = 2000
+  local prec = saut[2]
+  for i = 1, m do
+    local E = saut[2] + (Emax - saut[2]) * i / m
+    if ecart(E) <= 0 then
+      E2 = changement(ecart, prec, E)
+      break
+    end
+    prec = E
+  end
+  if not E2 then error("titrages : pas de point de même pente après le saut ; augmenter le volume maximal") end
+  local V2 = volume_brut(t, E2)
+  local Vm, Em = (V1 + V2) / 2, (E1 + E2) / 2
+  local E = changement(function(e) return (e - Em) - p1 * (volume_brut(t, e) - Vm) end, E1, E2)
+  return { V1 = V1, E1 = E1, V2 = V2, E2 = E2, pente = p1, V = volume_brut(t, E), E = E }
+end
+
 --- Les équivalences stœchiométriques : les électrons, rangés par potentiel apparent.
 function M.equivalences_redox(t)
   local oxydant = M.E_solution(t.burette) > M.E_solution(t.becher)
@@ -848,22 +876,28 @@ function M.tex_sauts(nom, options)
   addplot("only marks," .. options, liste)
 end
 
---- \addplottitragetangentes
+--- \addplottitragetangentes : en pH ou en E (par rapport à la référence).
 function M.tex_tangentes(nom, V1, options)
   local t = trouver(nom)
-  if t.redox then error("titrages : la méthode des tangentes est réservée aux titrages acide-base") end
   local e = echelle(t)
-  local r = M.tangentes(t, V1 * e, t.Vmax)
+  local r, y1, y2, y
+  if t.redox then
+    r = M.tangentes_redox(t, V1 * e, t.Vmax)
+    y1, y2, y = r.E1 - t.ref, r.E2 - t.ref, r.E - t.ref
+  else
+    r = M.tangentes(t, V1 * e, t.Vmax)
+    y1, y2, y = r.pH1, r.pH2, r.pH
+  end
   local marge = 0.15 * (r.V2 - r.V1)
   local a, b = r.V1 - marge, r.V2 + marge
-  local Vm, pHm = (r.V1 + r.V2) / 2, (r.pH1 + r.pH2) / 2
-  for _, P in ipairs({ { r.V1, r.pH1 }, { r.V2, r.pH2 }, { Vm, pHm } }) do
+  local Vm, ym = (r.V1 + r.V2) / 2, (y1 + y2) / 2
+  for _, P in ipairs({ { r.V1, y1 }, { r.V2, y2 }, { Vm, ym } }) do
     addplot(options, {
       { a / e, P[2] + r.pente * (a - P[1]) },
       { b / e, P[2] + r.pente * (b - P[1]) },
     })
   end
-  addplot("only marks," .. options, { { r.V1 / e, r.pH1 }, { r.V2 / e, r.pH2 }, { r.V / e, r.pH } })
+  addplot("only marks," .. options, { { r.V1 / e, y1 }, { r.V2 / e, y2 }, { r.V / e, y } })
 end
 
 --- \addplotfractions : une courbe par forme, pH en abscisse.
@@ -909,6 +943,9 @@ function M.tex_nombre(nom, quoi, arg, champ)
       local s = M.sauts_redox(t, t.Vmax)[math.floor(arg)]
       if not s then error(("titrages : pas de saut n° %d"):format(arg)) end
       x = ({ volume = s[1] / e, E = s[2] - t.ref, pente = s[3] * e })[champ]
+    elseif quoi == "tangentes" then
+      local r = M.tangentes_redox(t, arg * e, t.Vmax)
+      x = ({ volume = r.V / e, E = r.E - t.ref, pente = r.pente * e })[champ]
     else
       error("titrages : « " .. quoi .. " » n'a pas de sens pour un titrage rédox")
     end

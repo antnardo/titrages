@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from titrages.equilibre import fractions
-from titrages.modeles import Couple, Indicateur
+from titrages.modeles import Couple, Indicateur, Saut, Tangentes
 from titrages.redox import TitrageRedox
 from titrages.titrage import Titrage
 
@@ -65,9 +65,14 @@ def tracer_titrage(
 
 
 def tracer_derivee(
-    titrage: Titrage, volume_max: float, ax: "Axes | None" = None, *, points: int = 400, **style: Any
+    titrage: Titrage | TitrageRedox,
+    volume_max: float,
+    ax: "Axes | None" = None,
+    *,
+    points: int = 400,
+    **style: Any,
 ) -> "Axes":
-    """La pente :math:`\\mathrm{d\\,pH}/\\mathrm{d}V` en fonction de :math:`V`."""
+    """La pente de la courbe selon :math:`V` : d pH/dV, ou dE/dV pour un titrage rédox."""
     ax = _axe(ax)
     c = titrage.courbe(volume_max, points)
     ax.plot(c.volume, c.pente, **style)
@@ -75,18 +80,24 @@ def tracer_derivee(
 
 
 def tracer_sauts(
-    titrage: Titrage, volume_max: float, ax: "Axes | None" = None, *, texte: bool = True, **style: Any
+    titrage: Titrage | TitrageRedox,
+    volume_max: float,
+    ax: "Axes | None" = None,
+    *,
+    texte: bool = True,
+    **style: Any,
 ) -> "Axes":
-    """Les points d'inflexion, marqués et reportés sur les axes."""
+    """Les points d'inflexion, marqués et reportés sur les axes, en pH ou en E."""
     ax = _axe(ax)
     style = {"marker": "o", "ls": "", "color": "k", "ms": 4, **style}
     for s in titrage.sauts(volume_max):
-        ax.plot([s.volume], [s.pH], **style)
-        ax.plot([s.volume, s.volume, 0], [0, s.pH, s.pH], ls=":", lw=0.7, color=style["color"])
+        y = s.pH if isinstance(s, Saut) else s.E
+        ax.plot([s.volume], [y], **style)
+        ax.plot([s.volume, s.volume, 0], [0, y, y], ls=":", lw=0.7, color=style["color"])
         if texte:
             ax.annotate(
-                f"{s.volume:.3g} ; {s.pH:.2f}",
-                (s.volume, s.pH),
+                f"{s.volume:.3g} ; {y:.2f}",
+                (s.volume, y),
                 xytext=(4, -10),
                 textcoords="offset points",
                 fontsize="small",
@@ -95,7 +106,7 @@ def tracer_sauts(
 
 
 def tracer_tangentes(
-    titrage: Titrage,
+    titrage: Titrage | TitrageRedox,
     volume_avant: float,
     volume_max: float,
     ax: "Axes | None" = None,
@@ -103,21 +114,16 @@ def tracer_tangentes(
     marge: float = 0.1,
     **style: Any,
 ) -> "Axes":
-    """La construction des tangentes parallèles, et le point obtenu."""
+    """La construction des tangentes parallèles, et le point obtenu, sur pH(V) ou E(V)."""
     ax = _axe(ax)
     t = titrage.tangentes(volume_avant, volume_max)
+    ordonnees = (t.pH_avant, t.pH_apres, t.pH) if isinstance(t, Tangentes) else (t.E_avant, t.E_apres, t.E)
     style = {"lw": 0.6, "ls": "--", "color": "C3", **style}
     ecart = t.volume_apres - t.volume_avant
     V = np.array([t.volume_avant - marge * ecart, t.volume_apres + marge * ecart])
     for laquelle in ("avant", "apres", "milieu"):
         ax.plot(V, t.droite(V, laquelle), **style)
-    ax.plot(
-        [t.volume_avant, t.volume_apres, t.volume],
-        [t.pH_avant, t.pH_apres, t.pH],
-        marker="x",
-        ls="",
-        color=style["color"],
-    )
+    ax.plot([t.volume_avant, t.volume_apres, t.volume], ordonnees, marker="x", ls="", color=style["color"])
     return ax
 
 

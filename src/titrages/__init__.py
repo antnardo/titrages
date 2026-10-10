@@ -51,6 +51,7 @@ from titrages.modeles import (
     SautRedox,
     Spectateur,
     Tangentes,
+    TangentesRedox,
     charge,
 )
 from titrages.redox import (
@@ -91,6 +92,7 @@ __all__ = [
     "SolutionRedox",
     "Spectateur",
     "Tangentes",
+    "TangentesRedox",
     "Titrage",
     "TitrageRedox",
     "__version__",

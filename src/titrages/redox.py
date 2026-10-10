@@ -49,8 +49,8 @@ from dataclasses import dataclass, replace
 import numpy as np
 import numpy.typing as npt
 
-from titrages.equilibre import minimum_lisse, sortie
-from titrages.modeles import CoupleRedox, CourbeRedox, EspeceRedox, SautRedox
+from titrages.equilibre import changement_de_signe, minimum_lisse, sortie
+from titrages.modeles import CoupleRedox, CourbeRedox, EspeceRedox, SautRedox, TangentesRedox
 
 __all__ = [
     "NERNST",
@@ -235,6 +235,33 @@ class SolutionRedox:
 
     def avec(self, espece: EspeceRedox, concentration: float) -> "SolutionRedox":
         return replace(self, composants=(*self.composants, ComposantRedox(espece, concentration)))
+
+    def diluee(self, facteur: float) -> "SolutionRedox":
+        """Toutes les concentrations divisées par ``facteur``.
+
+        Le potentiel d'un couple monomère n'en change pas ; celui d'un couple dimérique, si.
+        """
+        if facteur <= 0:
+            raise ValueError("un facteur de dilution est positif")
+        return replace(
+            self,
+            composants=tuple(ComposantRedox(c.espece, c.concentration / facteur) for c in self.composants),
+        )
+
+    def melangee(self, autre: "SolutionRedox", volume: float, volume_autre: float) -> "SolutionRedox":
+        """Le mélange de ``volume`` de cette solution et de ``volume_autre`` de l'autre.
+
+        C'est un point du titrage : ``becher.melangee(burette, V0, V).E()`` est ``E(V)`` par rapport à l'ENH.
+        """
+        if (self.pH, self.pente_nernst) != (autre.pH, autre.pente_nernst):
+            raise ValueError("deux solutions de pH ou de température différents ne se mélangent pas ici")
+        total = volume + volume_autre
+        a, b = volume / total, volume_autre / total
+        return replace(
+            self,
+            composants=tuple(ComposantRedox(c.espece, a * c.concentration) for c in self.composants)
+            + tuple(ComposantRedox(c.espece, b * c.concentration) for c in autre.composants),
+        )
 
     def residu(self, E: npt.ArrayLike) -> Valeur:
         """:math:`\\sum_i T_i (Y_i - e_{q_i})`, croissant, nul au potentiel de la solution."""
@@ -489,6 +516,42 @@ class TitrageRedox:
                 pente = 1 / float(self._derivee_volume_enh(np.asarray(E)))
                 resultat.append(SautRedox(V, E - self.E_reference, pente))
         return tuple(resultat)
+
+    def tangentes(self, volume_avant: float, volume_max: float) -> TangentesRedox:
+        """La méthode des tangentes parallèles, comme :meth:`Titrage.tangentes`, sur :math:`E(V)`.
+
+        La tangente en ``volume_avant``, le point de même pente après le saut suivant,
+        et la parallèle équidistante, qui coupe la courbe au point cherché ; tout est
+        calculé exactement, la pente après le saut étant lue sur la courbe directe
+        (:meth:`derivee_volume`).
+        """
+        sauts = [s for s in self.sauts(volume_max) if s.volume > volume_avant]
+        if not sauts:
+            raise ValueError(f"aucun saut après {volume_avant} avant {volume_max}")
+        saut = sauts[0]
+        E1 = float(self.E(volume_avant))
+        s = float(self.pente(volume_avant))
+        Emax = float(self.E(volume_max))
+
+        def ecart_pente(e: float) -> float:
+            return abs(1 / float(self.derivee_volume(e))) - abs(s)
+
+        grille = np.linspace(saut.E, Emax, 2000)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            valeurs = np.abs(1 / np.asarray(self.derivee_volume(grille))) - abs(s)  # ecart_pente, vectorisé
+        negatifs = np.flatnonzero(valeurs <= 0)
+        if not len(negatifs) or negatifs[0] == 0:
+            raise ValueError("pas de point de même pente après le saut : augmenter volume_max")
+        i = int(negatifs[0])
+        E2 = changement_de_signe(ecart_pente, float(grille[i - 1]), float(grille[i]))
+        V1, V2 = volume_avant, float(self.volume(E2))
+        Vm, Em = (V1 + V2) / 2, (E1 + E2) / 2
+
+        def mediane(e: float) -> float:
+            return (e - Em) - s * (float(self.volume(e)) - Vm)
+
+        E = changement_de_signe(mediane, E1, E2)
+        return TangentesRedox(V1, E1, V2, E2, s, float(self.volume(E)), E)
 
     def volumes_equivalents(self) -> tuple[float, ...]:
         """Les équivalences stœchiométriques : les électrons échangés, rangés par potentiel.

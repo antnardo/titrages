@@ -58,6 +58,18 @@ def test_potentiel_nernst(composition, attendu):
     assert solution_redox(composition).E() == pytest.approx(attendu, abs=1e-6)
 
 
+def test_diluee_et_melangee():
+    fer = solution_redox({"Fe2+": 0.1, "Fe3+": 0.01})
+    assert fer.diluee(10).composants[0].concentration == pytest.approx(0.01)
+    assert fer.diluee(10).E() == pytest.approx(fer.E())  # un monomère : la dilution ne change rien
+    iode = solution_redox({"I2": 0.01, "I-": 0.1})
+    assert iode.diluee(10).E() != pytest.approx(iode.E())  # un dimère : si
+    t = TitrageRedox(fer, solution_redox({"Ce4+": 0.1}), 10)
+    assert fer.melangee(t.burette, 10, 7).E() == pytest.approx(float(t.E(7)), abs=1e-9)
+    with pytest.raises(ValueError):
+        fer.melangee(SolutionRedox(pH=2), 1, 1)
+
+
 def test_concentrations_dimere():
     c = solution_redox({"I2": 0.01, "I-": 0.1}).concentrations()
     assert c["I2"] == pytest.approx(0.01) and c["I-"] == pytest.approx(0.1)
@@ -138,6 +150,24 @@ class TestTitrage:
     def test_pH_different_refuse(self):
         with pytest.raises(ValueError):
             TitrageRedox(SolutionRedox(pH=0), SolutionRedox(pH=1), 10)
+
+    def test_tangentes(self, fer_cerium):
+        """Une courbe symétrique : les tangentes retrouvent l'équivalence exactement."""
+        t = fer_cerium.tangentes(7, 20)
+        assert t.volume == pytest.approx(10, abs=1e-6)
+        assert t.volume_avant < t.volume < t.volume_apres and t.E_avant < t.E < t.E_apres
+        assert abs(t.pente) == pytest.approx(abs(1 / float(fer_cerium.derivee_volume(t.E_apres))), rel=1e-6)
+        assert t.droite(t.volume_avant, "avant") == pytest.approx(t.E_avant)
+
+    def test_tangentes_courbe_dissymetrique(self):
+        """Fe2+ par MnO4- : la méthode des tangentes s'écarte un peu de l'équivalence, et on le mesure."""
+        t = TitrageRedox(solution_redox({"Fe2+": 0.1}), solution_redox({"KMnO4": 0.02}), 10)
+        tg = t.tangentes(7, 20)
+        assert tg.volume == pytest.approx(10, abs=0.05) and tg.volume != pytest.approx(10, abs=1e-6)
+
+    def test_tangentes_sans_saut(self, fer_cerium):
+        with pytest.raises(ValueError):
+            fer_cerium.tangentes(15, 20)
 
 
 @pytest.mark.parametrize("methode", ["E", "volume", "pente", "derivee_volume"])

@@ -34,6 +34,7 @@ __all__ = [
     "LN10",
     "PKE",
     "Valeur",
+    "changement_de_signe",
     "concentration_pour_pH",
     "delta",
     "ecart_moyen",
@@ -184,6 +185,19 @@ def racine_croissante(
         b = np.where(positif, m, b)
         a = np.where(positif, a, m)
     return sortie((a + b) / 2)
+
+
+def changement_de_signe(f: Callable[[float], float], a: float, b: float, iterations: int = 64) -> float:
+    """Une racine de ``f`` entre ``a`` et ``b``, où ``f`` change de signe, par dichotomie."""
+    fa = f(a)
+    for _ in range(iterations):
+        m = (a + b) / 2
+        fm = f(m)
+        if (fm > 0) == (fa > 0):
+            a, fa = m, fm
+        else:
+            b = m
+    return (a + b) / 2
 
 
 def minimum_lisse(f: Callable[[float], float], a: float, b: float, pas: float, iterations: int = 64) -> float:

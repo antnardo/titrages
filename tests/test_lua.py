@@ -144,13 +144,17 @@ local E = {{}}
 for i, V in ipairs({{{", ".join(map(str, VOLUMES[1:]))}}}) do E[i] = string.format("%.12g", T.E_enh(t, V)) end
 local S = {{}}
 for i, s in ipairs(T.sauts_redox(t, 20)) do S[i] = string.format("[%.15g,%.15g,%.12g]", s[1], s[2], s[3]) end
-io.write('{{"E":[' .. table.concat(E, ",") .. '],"sauts":[' .. table.concat(S, ",") .. ']}}')
+local tg = T.tangentes_redox(t, 7, 20)
+io.write('{{"E":[' .. table.concat(E, ",") .. '],"sauts":[' .. table.concat(S, ",") .. '],')
+io.write(string.format('"tangentes":[%.12g,%.12g]}}', tg.V, tg.E))
 """
     fichier = tmp_path / "redox.lua"
     fichier.write_text(script, encoding="utf-8")
     sortie = subprocess.run([INTERPRETE, str(fichier)], capture_output=True, text=True, check=True)
     lua = json.loads(sortie.stdout)
     assert lua["E"] == pytest.approx(t.E(VOLUMES[1:]).tolist(), abs=1e-9)
+    tangentes = t.tangentes(7, 20)
+    assert lua["tangentes"] == pytest.approx([tangentes.volume, tangentes.E], abs=1e-6)
     sauts = t.sauts(20)
     assert len(lua["sauts"]) == len(sauts)
     for (V, E, pente), s in zip(lua["sauts"], sauts, strict=True):

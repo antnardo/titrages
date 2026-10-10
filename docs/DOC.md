@@ -91,7 +91,7 @@ s'accordent à 10⁻⁹ près sur dix configurations.
 | `solution({nom: C, …}, pKe=14)` | par les noms de la base ; accepte aussi `Espece` et `Couple` |
 | `Solution().avec(espece, C)` | ajoute une espèce (un `Couple` seul : sa forme acide) |
 | `.avec_acide_fort(C)`, `.avec_base_forte(C)` | l'acide et la base forts |
-| `.diluee(facteur)`, `.melangee(autre, V, V_autre)` | nouvelles solutions |
+| `.diluee(facteur)`, `.melangee(autre, V, V_autre)` | nouvelles solutions ; `SolutionRedox` a les mêmes |
 | `.pH()` | par dichotomie |
 | `.concentrations(pH=None)` | chaque forme, H3O+ et HO- |
 | `.pouvoir_tampon(pH=None)` | $\beta$, en mol/L |
@@ -175,7 +175,7 @@ au-delà. La courbe se calcule par $E(V)$, par dichotomie sur le bilan du mélan
 | `volume(E)` | le volume qui y amène |
 | `pente(V)` | $\mathrm{d}E/\mathrm{d}V = -g_V/g_E$, dérivées partielles du bilan analytiques, dimères compris |
 | `derivee_volume(E)` | $\mathrm{d}V/\mathrm{d}E$, la dérivée de la courbe directe |
-| `courbe`, `sauts`, `volumes_equivalents` | comme en acide-base |
+| `courbe`, `sauts`, `volumes_equivalents`, `tangentes` | comme en acide-base ; `tangentes` rend une `TangentesRedox` (`E_avant`, `E_apres`, `E`) |
 | `volume_initial(volume_max)` | 0, ou $V_\text{max}/1000$ si le bécher ne contient qu'une forme par couple, dont le potentiel n'est pas défini |
 
 ## Fonctions d'équilibre
@@ -203,10 +203,11 @@ comptent pas ; une clé ambiguë dans la base est une erreur au chargement.
 
 ## Le tracé
 
-`titrages.trace` (matplotlib, `pip install titrages[trace]`) : `tracer_titrage`,
-`tracer_derivee`, `tracer_sauts`, `tracer_tangentes`, `tracer_fractions`,
-`tracer_zone_virage`. Chacune dessine sur l'`Axes` donné, ou l'axe courant, et le
-rend.
+`titrages.trace` (matplotlib, `pip install "titrages[trace]"`) : `tracer_titrage`
+et `tracer_titrage_redox` (les courbes), `tracer_conductimetrie`, `tracer_derivee`,
+`tracer_sauts` et `tracer_tangentes` (ces trois-là acceptent un `Titrage` comme un
+`TitrageRedox`), `tracer_fractions`, `tracer_zone_virage`. Chacune dessine sur
+l'`Axes` donné, ou l'axe courant, et le rend.
 
 ## L'export
 

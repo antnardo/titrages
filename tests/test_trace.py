@@ -47,6 +47,10 @@ def test_conductimetrie_et_redox():
     )
     t = TitrageRedox(solution_redox({"Fe2+": 0.1}), solution_redox({"Ce4+": 0.1}), 10, "ECS")
     tracer_titrage_redox(t, 20, b, sauts=True)
+    tracer_sauts(t, 20, b)
+    tracer_tangentes(t, 7, 20, b)
+    tracer_derivee(t, 20, b.twinx())
+    assert len(b.lines) >= 8
     assert "ECS" in b.get_ylabel() and "S/m" in a.get_ylabel()
     tracer_conductimetrie(
         Titrage(solution({"HCl": 0.01}), solution({"NaOH": 0.1}), 100), 20, a, unite="mS/cm"
