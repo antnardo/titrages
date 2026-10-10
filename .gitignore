@@ -32,6 +32,9 @@ latex/*.listing
 latex/tests/*.pdf
 latex/tests/*.aux
 latex/tests/*.log
+latex/tests/*.out
+latex/tests/*.synctex.gz
+latex/tests/*.dat
 latex/ctan/
 examples/*.pdf
 examples/*.png

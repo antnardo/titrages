@@ -756,10 +756,10 @@ restent au moteur \texttt{lua}.
 dans \texttt{titrages.sty}, dupliquant en partie les 900 lignes de
 \texttt{titrages.lua} ; toute correction du calcul est à porter dans les deux.
 À la compilation, sur les documents de test du dépôt : les tracés
-(\texttt{titrages-test-*.tex}, une douzaine de courbes) prennent \qty{11}{s}
-sous Lua\LaTeX{} et \qty{25}{s} sous pdf\LaTeX{} ; les nombres
-(\texttt{titrages-test-nombres.tex}, une cinquantaine), \qty{0.8}{s} et
-\qty{30}{s} — environ une demi-seconde par dichotomie sous \texttt{pgf}, contre
+(\texttt{titrages-test-*.tex}, une douzaine de courbes) prennent \qty{15}{s}
+sous Lua\LaTeX{} et \qty{34}{s} sous pdf\LaTeX{} ; les nombres
+(\texttt{titrages-test-nombres.tex}, une cinquantaine), \qty{1}{s} et
+\qty{28}{s} — environ une demi-seconde par dichotomie sous \texttt{pgf}, contre
 quelques millisecondes en Lua. En précision, les nombres sont les mêmes à
 $10^{-12}$ près dans les deux moteurs ; les courbes de \texttt{pgf}, calculées par
 l'arithmétique de \paquet{pgfplots} (\texttt{fpu}, quatre à cinq chiffres),
