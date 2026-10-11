@@ -4,7 +4,7 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) et le
 [versionnage sémantique](https://semver.org/lang/fr/). Le paquet Python et le paquet
 LaTeX partagent un numéro de version.
 
-## [Non publié]
+## [0.1.3] — 2026-10-11
 
 ### Ajouté
 
