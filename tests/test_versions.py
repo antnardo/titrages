@@ -15,11 +15,11 @@ def _version(chemin: str, motif: str) -> str:
     return trouve.group(1)
 
 
-def test_python_sty_et_lua_ont_la_meme_version() -> None:
+def test_python_sty_lua_et_doc_ont_la_meme_version() -> None:
     versions = {
         "python": _version("src/titrages/__init__.py", r'__version__ = "([^"]+)"'),
-        "sty": _version("latex/titrages.sty", r"\\{titrages\\}\\{[^}]*\\}\\{([^}]+)\\}"),
-        "lua": _version("latex/titrages.lua", r'M\\.version = "([^"]+)"'),
-        "doc": _version("latex/titrages-doc.tex", r"\\\\date\\{Version ([^ ]+) "),
+        "sty": _version("latex/titrages.sty", r"\{titrages\}\{[^}]*\}\{([^}]+)\}"),
+        "lua": _version("latex/titrages.lua", r'M\.version = "([^"]+)"'),
+        "doc": _version("latex/titrages-doc.tex", r"\\date\{Version ([^ ]+) "),
     }
     assert len(set(versions.values())) == 1, versions
