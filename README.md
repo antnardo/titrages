@@ -1,5 +1,6 @@
 # titrages
 
+[![PyPI](https://img.shields.io/pypi/v/titrages.svg)](https://pypi.org/project/titrages/)
 [![CI](https://github.com/antnardo/titrages/actions/workflows/ci.yml/badge.svg)](https://github.com/antnardo/titrages/actions/workflows/ci.yml)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](https://github.com/antnardo/titrages/blob/main/LICENSE)
 
