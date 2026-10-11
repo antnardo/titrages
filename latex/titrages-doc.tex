@@ -56,7 +56,7 @@
   \large Courbes de titrage sans approximation, pour Lua\LaTeX\\
   pH-métrie, conductimétrie, potentiométrie}
 \author{antnardo\thanks{\url{https://github.com/antnardo/titrages}}}
-\date{Version 0.1.0 — 10 octobre 2026}
+\date{Version 0.1.2 — 11 octobre 2026}
 
 \begin{document}
 \maketitle
@@ -906,12 +906,17 @@ moteur \texttt{pgf} ne saurait pas calculer. Il s'installe par
 \section{Historique}
 
 \begin{description}
-\item[0.1.0 (non publiée)] Première version : titrages pH-métriques,
+\item[0.1.0 (10 octobre 2026)] Première version : titrages pH-métriques,
   conductimétriques et potentiométriques, moteurs \texttt{lua} et \texttt{pgf}.
   Points d'inflexion calculés à la précision de la machine. Puis : les équivalences
   d'un titrage en retour corrigées ; la conductivité en \unit{S/m} par défaut ;
   la méthode des tangentes en rédox ; les nombres pH, $E$, $\sigma$ et $V$ sous
   le moteur \texttt{pgf}, par \paquet{l3fp}.
+\item[0.1.1 (10 octobre 2026)] Rien côté \LaTeX{} ; le paquet Python resserre sa
+  tête de paquet. Les trois numéros (Python, \texttt{.sty}, \texttt{.lua}) restent
+  égaux, \texttt{scripts/ctan.py} et la suite de tests y veillent.
+\item[0.1.2 (11 octobre 2026)] Rien côté \LaTeX{} ; le paquet Python est publié sur
+  PyPI (\texttt{pip install titrages}).
 \end{description}
 
 \section{Licence}
