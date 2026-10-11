@@ -21,7 +21,7 @@
 -- Copyright (c) 2026 antnardo — licence MIT (voir LICENSE).
 
 local M = {}
-M.version = "0.1.3"
+M.version = "0.1.4"
 M.titrages = {}
 
 local LN10 = math.log(10)

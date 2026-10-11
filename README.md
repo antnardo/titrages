@@ -390,4 +390,8 @@ nommé dans `src/titrages/donnees/conductivites.toml` ; ceux de l'EDTA manquent.
 
 ## Licence
 
-MIT.
+Le code — le paquet Python (`src/`), le paquet LaTeX (`latex/`), les tests et les
+scripts — est sous licence MIT (`LICENSE`). Les exemples (`examples/`), qui sont du
+contenu scientifique et pédagogique plutôt que des algorithmes, sont sous licence
+Creative Commons Attribution - Pas d'utilisation commerciale - Partage dans les mêmes
+conditions 4.0 International, CC BY-NC-SA 4.0 (`LICENSE-CC-BY-NC-SA-4.0`).

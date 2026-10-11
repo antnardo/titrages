@@ -9,7 +9,7 @@ description = "Courbes de titrage acido-basique sans approximation : pH, polyaci
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "LICENSE-CC-BY-NC-SA-4.0"]
 authors = [{ name = "Antonin Marchand" }]
 keywords = [
     "chimie",

@@ -184,3 +184,10 @@ sait aussi la calculer directement, sans passer par Python.
 ```text
 \addplot coordinates {(0,11.5) (0.18506,11.433) (0.37119,11.365) … (24.749,1.9741) (25,1.9542)};
 ```
+
+## Licence
+
+Ces exemples et leurs courbes sont sous licence Creative Commons Attribution - Pas
+d'utilisation commerciale - Partage dans les mêmes conditions 4.0 International,
+CC BY-NC-SA 4.0 (`LICENSE-CC-BY-NC-SA-4.0` à la racine du dépôt) ; le paquet est sous
+licence MIT.

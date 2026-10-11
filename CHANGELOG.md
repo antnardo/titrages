@@ -4,6 +4,22 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) et le
 [versionnage sémantique](https://semver.org/lang/fr/). Le paquet Python et le paquet
 LaTeX partagent un numéro de version.
 
+## [0.1.4] — 2026-10-11
+
+### Ajouté
+
+- `abscisse=` sur toutes les fonctions de tracé qui portent un volume en abscisse
+  (`tracer_sauts`, `tracer_tangentes`, `tracer_derivee`, `tracer_conductimetrie`,
+  `tracer_titrage_redox`), comme `tracer_titrage` : sauts et tangentes se superposent
+  à une courbe tracée en V/V_éq.
+- Les exemples (`examples/`) sont sous licence CC BY-NC-SA 4.0 (`LICENSE-CC-BY-NC-SA-4.0`),
+  le code reste sous MIT ; le README et les métadonnées du paquet le disent.
+
+### Corrigé
+
+- `09_titrage_acide_fort.py` dessinait ses tangentes en millilitres sur une courbe en
+  V/V_éq.
+
 ## [0.1.3] — 2026-10-11
 
 ### Ajouté

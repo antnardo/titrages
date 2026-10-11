@@ -46,7 +46,7 @@ ax2.semilogx(pentes, 100 * np.array(ecarts_V), "s-", label=r"$(V - V_\mathrm{éq
 ax2.set(xlabel="pente de la tangente (pH/mL)", ylabel="écart du point construit")
 ax2.legend()
 ax2.grid(True)
-tracer_tangentes(t, 0.8 * Veq, 2 * Veq, ax1)
+tracer_tangentes(t, 0.8 * Veq, 2 * Veq, ax1, abscisse=Veq)
 fig.tight_layout()
 fig.savefig(Path(__file__).with_suffix(".pdf"))
 plt.show()

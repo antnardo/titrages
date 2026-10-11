@@ -32,6 +32,18 @@ def test_abscisse_normalisee(acetique):
     plt.close(fig)
 
 
+def test_abscisse_normalisee_partout(acetique):
+    """Sauts, tangentes et dérivée se superposent à la courbe tracée en V/V_éq."""
+    fig, ax = plt.subplots()
+    tracer_titrage(acetique, 20, ax, abscisse=10)
+    tracer_sauts(acetique, 20, ax, abscisse=10)
+    tracer_tangentes(acetique, 7, 20, ax, abscisse=10)
+    tracer_derivee(acetique, 20, ax.twinx(), abscisse=10)
+    for ligne in ax.lines + ax.figure.axes[1].lines:
+        assert ligne.get_xdata().max() <= 2.01
+    plt.close(fig)
+
+
 def test_fractions():
     fig, ax = plt.subplots()
     tracer_fractions(couple("H3PO4"), ax)

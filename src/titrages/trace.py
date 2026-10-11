@@ -70,12 +70,14 @@ def tracer_derivee(
     ax: "Axes | None" = None,
     *,
     points: int = 400,
+    abscisse: float = 1.0,
     **style: Any,
 ) -> "Axes":
-    """La pente de la courbe selon :math:`V` : d pH/dV, ou dE/dV pour un titrage rédox."""
+    """La pente de la courbe selon :math:`V` : d pH/dV, ou dE/dV pour un titrage rédox.
+    ``abscisse`` divise les volumes, comme dans ``tracer_titrage``."""
     ax = _axe(ax)
     c = titrage.courbe(volume_max, points)
-    ax.plot(c.volume, c.pente, **style)
+    ax.plot(c.volume / abscisse, c.pente, **style)
     return ax
 
 
@@ -85,19 +87,22 @@ def tracer_sauts(
     ax: "Axes | None" = None,
     *,
     texte: bool = True,
+    abscisse: float = 1.0,
     **style: Any,
 ) -> "Axes":
-    """Les points d'inflexion, marqués et reportés sur les axes, en pH ou en E."""
+    """Les points d'inflexion, marqués et reportés sur les axes, en pH ou en E.
+    ``abscisse`` divise les volumes, comme dans ``tracer_titrage``."""
     ax = _axe(ax)
     style = {"marker": "o", "ls": "", "color": "k", "ms": 4, **style}
     for s in titrage.sauts(volume_max):
         y = s.pH if isinstance(s, Saut) else s.E
-        ax.plot([s.volume], [y], **style)
-        ax.plot([s.volume, s.volume, 0], [0, y, y], ls=":", lw=0.7, color=style["color"])
+        v = s.volume / abscisse
+        ax.plot([v], [y], **style)
+        ax.plot([v, v, 0], [0, y, y], ls=":", lw=0.7, color=style["color"])
         if texte:
             ax.annotate(
-                f"{s.volume:.3g} ; {y:.2f}",
-                (s.volume, y),
+                f"{v:.3g} ; {y:.2f}",
+                (v, y),
                 xytext=(4, -10),
                 textcoords="offset points",
                 fontsize="small",
@@ -112,9 +117,11 @@ def tracer_tangentes(
     ax: "Axes | None" = None,
     *,
     marge: float = 0.1,
+    abscisse: float = 1.0,
     **style: Any,
 ) -> "Axes":
-    """La construction des tangentes parallèles, et le point obtenu, sur pH(V) ou E(V)."""
+    """La construction des tangentes parallèles, et le point obtenu, sur pH(V) ou E(V).
+    ``abscisse`` divise les volumes, comme dans ``tracer_titrage``."""
     ax = _axe(ax)
     t = titrage.tangentes(volume_avant, volume_max)
     ordonnees = (t.pH_avant, t.pH_apres, t.pH) if isinstance(t, Tangentes) else (t.E_avant, t.E_apres, t.E)
@@ -122,8 +129,9 @@ def tracer_tangentes(
     ecart = t.volume_apres - t.volume_avant
     V = np.array([t.volume_avant - marge * ecart, t.volume_apres + marge * ecart])
     for laquelle in ("avant", "apres", "milieu"):
-        ax.plot(V, t.droite(V, laquelle), **style)
-    ax.plot([t.volume_avant, t.volume_apres, t.volume], ordonnees, marker="x", ls="", color=style["color"])
+        ax.plot(V / abscisse, t.droite(V, laquelle), **style)
+    volumes = np.array([t.volume_avant, t.volume_apres, t.volume]) / abscisse
+    ax.plot(volumes, ordonnees, marker="x", ls="", color=style["color"])
     return ax
 
 
@@ -168,19 +176,21 @@ def tracer_conductimetrie(
     points: int = 200,
     corrigee: bool = False,
     unite: str = "S/m",
+    abscisse: float = 1.0,
     etiquettes: bool = True,
     **style: Any,
 ) -> "Axes":
     """La courbe :math:`\\sigma = f(V)`, en S/m, l'unité du paquet.
 
-    ``unite="mS/cm"`` affiche ce que lit un conductimètre (dix fois moins).
+    ``unite="mS/cm"`` affiche ce que lit un conductimètre (dix fois moins) ;
+    ``abscisse`` divise les volumes, comme dans ``tracer_titrage``.
     """
     ax = _axe(ax)
     c = titrage.courbe_conductimetrique(volume_max, points, corrigee)
     facteur = {"S/m": 1.0, "mS/cm": 10.0, "mS/m": 1000.0}[unite]
-    ax.plot(c.volume, facteur * c.conductivite, **style)
+    ax.plot(c.volume / abscisse, facteur * c.conductivite, **style)
     if etiquettes:
-        ax.set_xlabel("$V$ versé")
+        ax.set_xlabel("$V$ versé" if abscisse == 1.0 else r"$V/V_\mathrm{éq}$")
         nom = r"$\sigma\,(V_0+V)/V_0$" if corrigee else r"$\sigma$"
         ax.set_ylabel(f"{nom} ({unite})")
     return ax
@@ -193,18 +203,20 @@ def tracer_titrage_redox(
     *,
     points: int = 400,
     sauts: bool = False,
+    abscisse: float = 1.0,
     etiquettes: bool = True,
     **style: Any,
 ) -> "Axes":
-    """La courbe :math:`E = f(V)`, par rapport à l'électrode de référence du titrage."""
+    """La courbe :math:`E = f(V)`, par rapport à l'électrode de référence du titrage.
+    ``abscisse`` divise les volumes, comme dans ``tracer_titrage``."""
     ax = _axe(ax)
     c = titrage.courbe(volume_max, points)
-    ax.plot(c.volume, c.E, **style)
+    ax.plot(c.volume / abscisse, c.E, **style)
     if sauts:
         for s in titrage.sauts(volume_max):
-            ax.plot([s.volume], [s.E], "ko", ms=3)
+            ax.plot([s.volume / abscisse], [s.E], "ko", ms=3)
     if etiquettes:
         ref = titrage.reference if isinstance(titrage.reference, str) else f"{titrage.reference:g} V"
-        ax.set_xlabel("$V$ versé")
+        ax.set_xlabel("$V$ versé" if abscisse == 1.0 else r"$V/V_\mathrm{éq}$")
         ax.set_ylabel(f"$E$ (V/{ref})")
     return ax
