@@ -4,6 +4,8 @@
 sans dilution, pour atteindre ce pH ; négatif, c'est un acide fort qu'on ajoute.
 """
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -31,4 +33,5 @@ fig.tight_layout()
 # Le pH à la demi-équivalence et à l'équivalence, sans dilution
 t = Titrage(Solution().avec(carbonate, 0.1), Solution().avec_base_forte(0.1), 10, dilution=False)
 print("pH à n = 1/2 et n = 1, sans dilution :", [round(float(p), 3) for p in t.pH([5, 10])])
+fig.savefig(Path(__file__).with_suffix(".pdf"))
 plt.show()

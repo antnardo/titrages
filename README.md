@@ -151,6 +151,11 @@ tracer_zone_virage(indicateur("phénolphtaléine"), ax)
 plt.show()
 ```
 
+Le même tracé pour l'acide éthanoïque, par
+[`examples/01_acide_faible.py`](https://github.com/antnardo/titrages/blob/main/examples/01_acide_faible.py) :
+
+![Courbe pH-métrique de l'acide éthanoïque par la soude : saut à 10 mL, méthode des tangentes et zone de virage de la phénolphtaléine](https://raw.githubusercontent.com/antnardo/titrages/main/examples/images/01_acide_faible.png)
+
 La méthode des tangentes, `t.tangentes(volume_avant, volume_max)`, part d'un point
 avant le saut et rend la construction complète (`Tangentes` : les deux points de
 contact, la pente commune, le point trouvé) :
@@ -220,8 +225,9 @@ acceptent un titrage rédox comme un titrage acide-base :
 ## La documentation
 
 - [docs/DOC.md](https://github.com/antnardo/titrages/blob/main/docs/DOC.md) : l'API complète, la méthode et ses formules.
-- [examples/](https://github.com/antnardo/titrages/tree/main/examples/) : six scripts à lancer, décrits dans
-  [examples/README.md](https://github.com/antnardo/titrages/blob/main/examples/README.md).
+- [examples/](https://github.com/antnardo/titrages/tree/main/examples/) : onze scripts à lancer. La galerie
+  [`examples/README.md`](https://github.com/antnardo/titrages/blob/main/examples/README.md)
+  décrit chaque exemple avec sa courbe.
 - Le paquet LaTeX : [latex/README.md](https://github.com/antnardo/titrages/blob/main/latex/README.md), et sa documentation
   `titrages-doc.pdf` (index, clés, messages), jointe à chaque
   [release](https://github.com/antnardo/titrages/releases) et à l'artefact de la

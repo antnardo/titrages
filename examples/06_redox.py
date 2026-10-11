@@ -1,5 +1,7 @@
 """Potentiométrie : le vanadium par le permanganate (trois sauts), et l'iodométrie."""
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 
 from titrages import TitrageRedox, solution_redox
@@ -15,4 +17,5 @@ tracer_titrage_redox(vanadium, 40, ax, sauts=True, label="V²⁺ par MnO₄⁻, 
 tracer_titrage_redox(iode, 40, ax, label="I₂ par S₂O₃²⁻")
 ax.legend()
 ax.grid(True)
+fig.savefig(Path(__file__).with_suffix(".pdf"))
 plt.show()

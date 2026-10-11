@@ -1,5 +1,7 @@
 """Conductimétrie : un acide fort, un acide faible, et leur mélange, par la soude."""
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 
 from titrages import Titrage, solution
@@ -15,4 +17,5 @@ for nom, becher in [
     tracer_conductimetrie(t, 30, ax, corrigee=True, label=nom)
 ax.legend()
 ax.grid(True)
+fig.savefig(Path(__file__).with_suffix(".pdf"))
 plt.show()

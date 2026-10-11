@@ -4,6 +4,8 @@ Une base faible n'est que la forme basique d'un couple : l'ammoniac est la forme
 NH4+/NH3, le carbonate la forme 2 de H2CO3.
 """
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 
 from titrages import Titrage, solution
@@ -24,4 +26,5 @@ for nom in ("NH3", "Na2CO3"):
     tracer_sauts(t, 25, ax, texte=False)
 ax.legend()
 ax.grid(True)
+fig.savefig(Path(__file__).with_suffix(".pdf"))
 plt.show()

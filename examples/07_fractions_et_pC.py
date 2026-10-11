@@ -4,6 +4,8 @@ Le sens direct donne C(pH) par ``concentration_pour_pH`` ; le sens inverse, pH(C
 ``Solution.pH`` ; les asymptotes sont celles des réactions prépondérantes du cours.
 """
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -32,4 +34,5 @@ ax2.set(xlim=(0, 8), ylim=(0, 8), xlabel="p$C$", ylabel="pH")
 ax2.legend()
 ax2.grid(True)
 fig.tight_layout()
+fig.savefig(Path(__file__).with_suffix(".pdf"))
 plt.show()

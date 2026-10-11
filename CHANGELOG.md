@@ -4,6 +4,14 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) et le
 [versionnage sémantique](https://semver.org/lang/fr/). Le paquet Python et le paquet
 LaTeX partagent un numéro de version.
 
+## [Non publié]
+
+### Ajouté
+
+- La galerie des exemples `examples/README.md`, la courbe de chaque exemple dans
+  `examples/images/` ; les exemples qui tracent enregistrent leur figure à côté
+  d'eux.
+
 ## [0.1.2] — 2026-10-11
 
 ### Modifié

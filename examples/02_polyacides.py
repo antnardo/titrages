@@ -1,5 +1,7 @@
 """Trois polyacides titrés par la soude : toutes les équivalences ne donnent pas un saut."""
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 
 from titrages import Titrage, solution
@@ -14,4 +16,5 @@ for nom in ("H2CO3", "H3PO4", "acide citrique"):
     tracer_titrage(t, 35, ax, label=nom)
 ax.legend()
 ax.grid(True)
+fig.savefig(Path(__file__).with_suffix(".pdf"))
 plt.show()

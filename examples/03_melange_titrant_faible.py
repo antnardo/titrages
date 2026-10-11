@@ -1,5 +1,7 @@
 """Un mélange d'acide chlorhydrique et d'acide éthanoïque, titré par l'ammoniac."""
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 
 from titrages import Titrage, solution
@@ -13,4 +15,5 @@ tracer_sauts(t, 30, haut)
 tracer_derivee(t, 30, bas)
 bas.set_yscale("log")
 bas.set_ylabel("dpH/dV")
+fig.savefig(Path(__file__).with_suffix(".pdf"))
 plt.show()

@@ -1,5 +1,7 @@
 """Le titrage de l'acide éthanoïque par la soude : courbe, saut, tangentes, indicateur."""
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 
 from titrages import Titrage, indicateur, solution
@@ -19,4 +21,5 @@ fig.tight_layout()
 
 tg = t.tangentes(7, 20)
 print(f"équivalence : {t.volumes_equivalents()[0]:.3f} mL, tangentes : {tg.volume:.3f} mL")
+fig.savefig(Path(__file__).with_suffix(".pdf"))
 plt.show()

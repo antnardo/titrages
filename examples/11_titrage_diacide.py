@@ -5,6 +5,8 @@ pH à chaque demi-équivalence, la méthode des tangentes autour des deux équiv
 quelques tangentes tracées à partir de la pente analytique ``Courbe.pente``.
 """
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -48,4 +50,5 @@ tracer_tangentes(t, 6, 15, ax2)
 ax2.set(xlim=(0, 30), ylim=(0, 14), xlabel="$V$ (mL)", ylabel="pH")
 ax2.grid(True)
 fig.tight_layout()
+fig.savefig(Path(__file__).with_suffix(".pdf"))
 plt.show()

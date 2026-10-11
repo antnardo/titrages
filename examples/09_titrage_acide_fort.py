@@ -6,6 +6,8 @@ des tangentes est ensuite construite pour plusieurs points de départ : son erre
 de la pente choisie.
 """
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -46,4 +48,5 @@ ax2.legend()
 ax2.grid(True)
 tracer_tangentes(t, 0.8 * Veq, 2 * Veq, ax1)
 fig.tight_layout()
+fig.savefig(Path(__file__).with_suffix(".pdf"))
 plt.show()
