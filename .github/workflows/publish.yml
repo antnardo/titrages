@@ -1,8 +1,9 @@
 # À la publication d'une release sur GitHub : construire la roue et le sdist
 # avec uv, la documentation PDF et l'archive CTAN du paquet LaTeX, et joindre
-# le tout à la release. Pas de PyPI ni d'envoi à CTAN : le paquet Python
-# s'installe depuis GitHub (pip install git+…) ou par la roue de la release,
-# le paquet LaTeX par copie des fichiers de l'archive.
+# le tout à la release, puis publier la roue et le sdist sur PyPI par « trusted
+# publishing » (OpenID Connect, sans jeton), depuis l'environnement GitHub « pypi »
+# déclaré comme éditeur de confiance sur pypi.org. Pas d'envoi à CTAN : le paquet
+# LaTeX s'installe par copie des fichiers de l'archive.
 name: Publication
 
 on:
@@ -57,7 +58,30 @@ jobs:
       - name: Construire l'archive CTAN autour de la documentation compilée
         run: uv run --no-project python scripts/ctan.py --sans-compilation
       - run: uvx twine check dist/*.whl dist/*.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
       - name: Joindre les artefacts à la release
         run: gh release upload "${{ github.event.release.tag_name }}" dist/*.whl dist/*.tar.gz dist/titrages-ctan.zip latex/titrages-doc.pdf --clobber
         env:
           GH_TOKEN: ${{ github.token }}
+
+  pypi:
+    name: PyPI
+    needs: artefacts
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/titrages
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Publier sur PyPI (trusted publishing, sans jeton)
+        uses: pypa/gh-action-pypi-publish@release/v1

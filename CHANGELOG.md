@@ -4,6 +4,13 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) et le
 [versionnage sémantique](https://semver.org/lang/fr/). Le paquet Python et le paquet
 LaTeX partagent un numéro de version.
 
+## [0.1.2] — 2026-10-11
+
+### Modifié
+
+- Publié sur PyPI : `pip install titrages`. Le workflow de release y envoie la roue et le sdist par « trusted publishing », sans jeton ; GitHub garde les artefacts joints à la release.
+- Les liens du README sont absolus, pour la page PyPI.
+
 ## [0.1.1] — 2026-10-10
 
 ### Modifié

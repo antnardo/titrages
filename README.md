@@ -1,7 +1,7 @@
 # titrages
 
 [![CI](https://github.com/antnardo/titrages/actions/workflows/ci.yml/badge.svg)](https://github.com/antnardo/titrages/actions/workflows/ci.yml)
-[![Licence MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+[![Licence MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](https://github.com/antnardo/titrages/blob/main/LICENSE)
 
 Le pH, la conductivité ou le potentiel d'une solution quelconque, et les courbes de
 titrage pH-métrique, conductimétrique et potentiométrique d'un bécher quelconque par
@@ -22,7 +22,7 @@ un paquet LaTeX qui calcule la même chose dans `pgfplots`.
 
 ```
 
-Le paquet s'installe depuis GitHub (ci-dessous). PyPI et CTAN : à venir.
+Le paquet s'installe depuis GitHub (ci-dessous). CTAN : à venir.
 
 ## Sommaire
 
@@ -86,7 +86,14 @@ Le paquet s'installe depuis GitHub (ci-dessous). PyPI et CTAN : à venir.
 
 Quatre façons, selon le poste.
 
-**Avec pip depuis GitHub**, quand le réseau et pip sont disponibles :
+**Avec pip depuis PyPI**, quand le réseau et pip sont disponibles :
+
+```bash
+pip install titrages
+pip install "titrages[trace]"   # avec matplotlib
+```
+
+(ou `uv add titrages`). **Depuis GitHub**, pour la version de développement :
 
 ```bash
 pip install git+https://github.com/antnardo/titrages
@@ -96,7 +103,7 @@ pip install "titrages[trace] @ git+https://github.com/antnardo/titrages"   # ave
 **Avec la roue d'une release**, pour un poste qui a pip mais pas git : chaque
 [release](https://github.com/antnardo/titrages/releases) porte
 `titrages-<version>-py3-none-any.whl` (et le sdist `.tar.gz`, avec `docs/`,
-`examples/` et `tests/`), qui s'installe par `pip install titrages-0.1.0-py3-none-any.whl`.
+`examples/` et `tests/`), qui s'installe par `pip install titrages-<version>-py3-none-any.whl`.
 
 **Copier le dossier**, sans pip ni réseau : le dossier `src/titrages/` se pose à
 côté des scripts, et `from titrages import Titrage, solution` fonctionne, à condition
@@ -109,7 +116,7 @@ git clone https://github.com/antnardo/titrages
 cd titrages && uv sync && uv run pytest
 ```
 
-PyPI et CTAN : à venir.
+CTAN : à venir.
 
 ## Prérequis
 
@@ -211,14 +218,14 @@ acceptent un titrage rédox comme un titrage acide-base :
 
 ## La documentation
 
-- [docs/DOC.md](docs/DOC.md) : l'API complète, la méthode et ses formules.
-- [examples/](examples/) : six scripts à lancer, décrits dans
-  [examples/README.md](examples/README.md).
-- Le paquet LaTeX : [latex/README.md](latex/README.md), et sa documentation
+- [docs/DOC.md](https://github.com/antnardo/titrages/blob/main/docs/DOC.md) : l'API complète, la méthode et ses formules.
+- [examples/](https://github.com/antnardo/titrages/tree/main/examples/) : six scripts à lancer, décrits dans
+  [examples/README.md](https://github.com/antnardo/titrages/blob/main/examples/README.md).
+- Le paquet LaTeX : [latex/README.md](https://github.com/antnardo/titrages/blob/main/latex/README.md), et sa documentation
   `titrages-doc.pdf` (index, clés, messages), jointe à chaque
   [release](https://github.com/antnardo/titrages/releases) et à l'artefact de la
-  CI ; pour la recompiler, voir [latex/README.md](latex/README.md).
-- [CHANGELOG.md](CHANGELOG.md).
+  CI ; pour la recompiler, voir [latex/README.md](https://github.com/antnardo/titrages/blob/main/latex/README.md).
+- [CHANGELOG.md](https://github.com/antnardo/titrages/blob/main/CHANGELOG.md).
 
 ## Les modules
 
@@ -250,7 +257,7 @@ titrages indicateurs
 
 ## Le paquet LaTeX
 
-Le dossier [`latex/`](latex/) contient `titrages.sty` et `titrages.lua`. Ils
+Le dossier [`latex/`](https://github.com/antnardo/titrages/tree/main/latex/) contient `titrages.sty` et `titrages.lua`. Ils
 s'installent par copie des deux fichiers dans un dossier que TeX trouve, par exemple
 `TEXMFHOME/tex/latex/titrages/`, ou à côté du document ; chaque release porte
 aussi `titrages-ctan.zip`, l'archive prête pour CTAN, avec la documentation compilée.
@@ -340,7 +347,7 @@ calcul, la conductimétrie avec spectateurs, le rédox dimérique, la base en fr
 
 Le paquet ne traite ni la complexation ni la précipitation : un titrage par le
 chlorure de baryum ou par l'EDTA se calcule à la main. L'étude
-[docs/PROJET-complexation-precipitation.md](docs/PROJET-complexation-precipitation.md)
+[docs/PROJET-complexation-precipitation.md](https://github.com/antnardo/titrages/blob/main/docs/PROJET-complexation-precipitation.md)
 dit ce que coûterait leur ajout, en deux niveaux. Le **niveau 1** garde la méthode
 explicite en paramétrant la courbe par la grandeur mesurée, pM ou pAg : la
 complexométrie en milieu tamponné (EDTA, constante conditionnelle), l'argentimétrie

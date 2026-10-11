@@ -54,7 +54,7 @@ from titrages.redox import (
 from titrages.solution import Solution
 from titrages.titrage import Titrage
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 __all__ = [
     "Couple",
