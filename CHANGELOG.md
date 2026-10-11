@@ -97,8 +97,7 @@ Première version publiée (GitHub `antnardo/titrages`).
 
 ## [0.1.0-dev] — 23 au 27 septembre 2026, non publiée
 
-Première version. Le calcul reprend un module privé de 2024
-(`pyphysique/chimie/titrage.py`), réécrit.
+Première version.
 
 ### Ajouté
 
