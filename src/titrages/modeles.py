@@ -16,6 +16,13 @@ Un **couple rédox** suit la même logique, les électrons remplaçant les proto
 formes vont de la plus réduite (forme 0) à la plus oxydée, et une espèce est la forme
 sous laquelle on l'introduit (:class:`CoupleRedox`, :class:`EspeceRedox`).
 
+Un **complexe** (:class:`Complexe`) est la suite des complexes successifs
+:math:`\\mathrm{ML}, \\mathrm{ML_2}, \\dots` d'un métal avec le ligand titrant, donnée par
+ses constantes de formation globales :math:`\\beta_j`. Un **précipité**
+(:class:`Precipite`) est un solide :math:`\\mathrm{P}_\\nu\\mathrm{X}_\\mu` formé par l'ion
+commun P — celui qu'on titre ou qu'on verse, :math:`\\mathrm{Ag^+}` en argentimétrie — et
+un partenaire X, donné par son :math:`\\mathrm{p}K_s`.
+
 Les objets de ce module sont des données : aucun calcul d'équilibre n'y vit, ils sont
 dans :mod:`titrages.equilibre` et :mod:`titrages.redox`.
 """
@@ -27,15 +34,23 @@ import numpy as np
 import numpy.typing as npt
 
 __all__ = [
+    "Complexe",
     "Couple",
     "CoupleRedox",
     "Courbe",
+    "CourbeComplexometrique",
     "CourbeConductimetrique",
+    "CourbePrecipitation",
     "CourbeRedox",
     "Espece",
     "EspeceRedox",
+    "Evenement",
     "Indicateur",
+    "Ligand",
+    "Precipite",
     "Saut",
+    "SautComplexometrique",
+    "SautPrecipitation",
     "SautRedox",
     "Spectateur",
     "Tangentes",
@@ -438,3 +453,141 @@ class TangentesRedox:
             "milieu": ((self.volume_avant + self.volume_apres) / 2, (self.E_avant + self.E_apres) / 2),
         }
         return _droite(points[laquelle], self.pente, volume)
+
+
+# --- complexation ------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Ligand:
+    """Le ligand titrant, et ses acidités : l'EDTA est :math:`\\mathrm{H_6Y^{2+}}` à :math:`\\mathrm{Y^{4-}}`.
+
+    Les ``pKa`` sont ceux de ses formes protonées ; c'est la forme la plus basique qui
+    complexe. À pH fixé, seule la fraction :math:`\\alpha` de cette forme compte : les
+    constantes de formation deviennent conditionnelles, :math:`\\beta'_j = \\beta_j\\alpha^j`.
+    Un ligand sans acidité (``pKa`` vide) complexe tel quel, à tout pH.
+    """
+
+    nom: str = "L"
+    pKa: tuple[float, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "pKa", tuple(sorted(float(p) for p in self.pKa)))
+
+
+@dataclass(frozen=True, slots=True)
+class Complexe:
+    """Les complexes successifs :math:`\\mathrm{ML}_j` d'un ``metal`` avec le ligand.
+
+    ``log_beta`` porte les constantes de formation **globales**,
+    :math:`\\log\\beta_j` pour :math:`\\mathrm{M} + j\\,\\mathrm{L} = \\mathrm{ML}_j`, de
+    :math:`j = 1` à :math:`n`. Le complexe calcium-EDTA est ``Complexe("Ca2+", (10.7,))``,
+    les complexes amminecuivre(II) ``Complexe("Cu2+", (4.1, 7.6, 10.5, 12.6))``.
+    """
+
+    metal: str
+    log_beta: tuple[float, ...]
+    nom: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "log_beta", tuple(float(b) for b in self.log_beta))
+        if not self.log_beta:
+            raise ValueError(f"{self.metal} : au moins une constante de formation")
+
+    @property
+    def n(self) -> int:
+        """Le nombre maximal de ligands fixés."""
+        return len(self.log_beta)
+
+
+@dataclass(frozen=True, slots=True)
+class CourbeComplexometrique:
+    """Une courbe de titrage complexométrique : :math:`\\mathrm{pM}` selon le volume.
+
+    ``pL`` est le paramètre de la courbe — le cologarithme du ligand libre, toutes formes
+    protonées comprises —, ``pente`` est :math:`\\mathrm{d\\,pM}/\\mathrm{d}V`.
+    """
+
+    volume: Tableau = field(repr=False)
+    pM: Tableau = field(repr=False)
+    pL: Tableau = field(repr=False)
+    pente: Tableau = field(repr=False)
+
+    def __len__(self) -> int:
+        return len(self.volume)
+
+
+@dataclass(frozen=True, slots=True)
+class SautComplexometrique:
+    """Un point d'inflexion d'une courbe :math:`\\mathrm{pM} = f(V)`."""
+
+    volume: float
+    pM: float
+    pente: float
+
+
+# --- précipitation -----------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Precipite:
+    """Le solide :math:`\\mathrm{P}_\\nu\\mathrm{X}_\\mu` d'un ``partenaire`` X avec l'ion commun P.
+
+    :math:`K_s = [\\mathrm{P}]^\\nu[\\mathrm{X}]^\\mu`. Le chlorure d'argent est
+    ``Precipite("Cl-", 9.75)``, le chromate d'argent ``Precipite("CrO4^2-", 11.95, nu=2)``.
+    Les ``pKa`` sont ceux des formes protonées du partenaire (l'ion chromate est une base
+    faible) : à pH fixé, seule sa forme la plus basique précipite, et le produit de
+    solubilité devient conditionnel.
+    """
+
+    partenaire: str
+    pKs: float
+    nu: int = 1
+    mu: int = 1
+    pKa: tuple[float, ...] = ()
+    nom: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "pKa", tuple(sorted(float(p) for p in self.pKa)))
+        if self.nu < 1 or self.mu < 1:
+            raise ValueError(f"{self.partenaire} : stœchiométrie positive")
+
+
+@dataclass(frozen=True, slots=True)
+class CourbePrecipitation:
+    """Une courbe de titrage par précipitation : le cologarithme de l'ion commun selon le volume.
+
+    ``solides`` dit, en chaque point, les partenaires dont le solide est présent ;
+    ``pente`` est :math:`\\mathrm{d\\,pP}/\\mathrm{d}V`, qui saute là où un solide apparaît
+    ou disparaît.
+    """
+
+    volume: Tableau = field(repr=False)
+    p: Tableau = field(repr=False)
+    pente: Tableau = field(repr=False)
+    solides: tuple[tuple[str, ...], ...] = field(repr=False)
+
+    def __len__(self) -> int:
+        return len(self.volume)
+
+
+@dataclass(frozen=True, slots=True)
+class SautPrecipitation:
+    """Un point d'inflexion d'une courbe :math:`\\mathrm{pP} = f(V)`, hors des points anguleux."""
+
+    volume: float
+    p: float
+    pente: float
+
+
+@dataclass(frozen=True, slots=True)
+class Evenement:
+    """L'apparition ou la disparition d'un solide : un point anguleux de la courbe.
+
+    C'est ce que repère la méthode de Mohr — l'apparition du chromate d'argent.
+    """
+
+    volume: float
+    p: float
+    partenaire: str
+    apparition: bool

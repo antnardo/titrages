@@ -1,4 +1,5 @@
-"""Courbes de titrage sans approximation : pH-métrie, conductimétrie, potentiométrie.
+"""Courbes de titrage sans approximation : pH-métrie, conductimétrie, potentiométrie,
+complexométrie, précipitation.
 
 Le pH, la conductivité ou le potentiel d'une solution quelconque, et la courbe de
 titrage d'un bécher quelconque par une burette quelconque — acides et bases forts ou
@@ -25,6 +26,11 @@ from titrages.base import (
     solution,
     solution_redox,
 )
+from titrages.complexation import (
+    SolutionComplexation,
+    TitrageComplexometrique,
+    fractions_complexes,
+)
 from titrages.equilibre import (
     concentration_pour_pH,
     fractions,
@@ -32,20 +38,29 @@ from titrages.equilibre import (
 )
 from titrages.export import vers_pgfplots
 from titrages.modeles import (
+    Complexe,
     Couple,
     CoupleRedox,
     Courbe,
+    CourbeComplexometrique,
     CourbeConductimetrique,
+    CourbePrecipitation,
     CourbeRedox,
     Espece,
     EspeceRedox,
+    Evenement,
     Indicateur,
+    Ligand,
+    Precipite,
     Saut,
+    SautComplexometrique,
+    SautPrecipitation,
     SautRedox,
     Spectateur,
     Tangentes,
     TangentesRedox,
 )
+from titrages.precipitation import SolutionPrecipitation, TitrageParPrecipitation
 from titrages.redox import (
     SolutionRedox,
     TitrageRedox,
@@ -57,22 +72,34 @@ from titrages.titrage import Titrage
 __version__ = "0.1.4"
 
 __all__ = [
+    "Complexe",
     "Couple",
     "CoupleRedox",
     "Courbe",
+    "CourbeComplexometrique",
     "CourbeConductimetrique",
+    "CourbePrecipitation",
     "CourbeRedox",
     "Espece",
     "EspeceRedox",
+    "Evenement",
     "Indicateur",
+    "Ligand",
+    "Precipite",
     "Saut",
+    "SautComplexometrique",
+    "SautPrecipitation",
     "SautRedox",
     "Solution",
+    "SolutionComplexation",
+    "SolutionPrecipitation",
     "SolutionRedox",
     "Spectateur",
     "Tangentes",
     "TangentesRedox",
     "Titrage",
+    "TitrageComplexometrique",
+    "TitrageParPrecipitation",
     "TitrageRedox",
     "__version__",
     "chercher",
@@ -84,6 +111,7 @@ __all__ = [
     "espece",
     "espece_redox",
     "fractions",
+    "fractions_complexes",
     "fractions_redox",
     "indicateur",
     "indicateurs",

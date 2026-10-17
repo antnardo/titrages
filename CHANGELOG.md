@@ -4,6 +4,21 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) et le
 [versionnage sémantique](https://semver.org/lang/fr/). Le paquet Python et le paquet
 LaTeX partagent un numéro de version.
 
+## [Non publié]
+
+### Ajouté
+
+- La complexométrie (`TitrageComplexometrique`, `SolutionComplexation`,
+  `Complexe`, `Ligand`, `fractions_complexes`) : pM à pH tamponné, complexes
+  successifs et métaux en compétition, paramétrés par pL, le volume restant
+  explicite ; pente analytique, sauts, volumes équivalents.
+- Les titrages par précipitation (`TitrageParPrecipitation`,
+  `SolutionPrecipitation`, `Precipite`) : pP de l'ion commun, plusieurs solides,
+  partenaire basique à pH tamponné ; apparitions et disparitions de solides
+  (`evenements`), sauts dans les morceaux lisses, volumes équivalents (Mohr,
+  Charpentier-Volhard, halogénures successifs).
+- Sections « La complexométrie » et « La précipitation » de `docs/DOC.md`.
+
 ## [0.1.4] — 2026-10-11
 
 ### Ajouté

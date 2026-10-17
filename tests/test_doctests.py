@@ -9,8 +9,10 @@ import pytest
 MODULES = [
     "titrages",
     "titrages.base",
+    "titrages.complexation",
     "titrages.equilibre",
     "titrages.modeles",
+    "titrages.precipitation",
     "titrages.redox",
     "titrages.solution",
     "titrages.titrage",

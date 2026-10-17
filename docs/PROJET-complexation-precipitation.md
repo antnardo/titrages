@@ -1,8 +1,9 @@
 # Projet : complexation et précipitation
 
-État au 3 octobre 2026 : étude préalable, rien n'est écrit. Ce document dit ce
-que coûterait l'ajout des équilibres de complexation et de précipitation, en
-deux niveaux, et ce qu'on recommande de faire d'abord.
+État au 18 octobre 2026 : le **niveau 1 est écrit côté Python** (voir
+*Avancement*, à la fin). Ce document disait, le 3 octobre, ce que coûterait
+l'ajout des équilibres de complexation et de précipitation, en deux niveaux, et
+ce qu'on recommandait de faire d'abord.
 
 ## Ce qui rend le paquet simple aujourd'hui
 
@@ -126,4 +127,31 @@ méthode explicite et la précision actuelle, et tient en une session de travail
 du même ordre que le rédox. Le niveau 2 ne vaut la peine que pour des systèmes
 couplés non tamponnés, qui sortent largement du programme.
 
-Reste à décider l'ordre : complexation ou précipitation d'abord.
+## Avancement
+
+### Fait le 18 octobre 2026 : le cœur Python du niveau 1
+
+- `complexation.py` : `TitrageComplexometrique`, paramétré par **pL**, le
+  ligand libre sous toutes ses formes protonées, et non par pM comme prévu
+  ci-dessus. Le bilan du ligand reste linéaire dans les totaux d'une solution
+  avec **plusieurs métaux** et des **complexes successifs** ML₁ … MLₙ : le
+  paramétrage par pL couvre donc, à pH tamponné, deux cas que l'étude rangeait
+  au niveau 2 (Cu–NH₃ tamponné, Ca et Zn en compétition).
+- `precipitation.py` : `TitrageParPrecipitation`, paramétré par pP, l'ion
+  commun. Les 2ⁿ ensembles de solides présents sont énumérés, chacun avec son
+  volume explicite ; on retient l'ensemble cohérent. Apparitions et
+  disparitions de solides (`evenements`) sont des points anguleux, distincts
+  des sauts, qui ne se cherchent que dans les morceaux lisses. Mohr (chromate
+  basique), Charpentier-Volhard, I⁻ puis Cl⁻.
+- Tests contre une référence indépendante en multiprécision (dilution à la
+  main, bilans résolus par dichotomie) : accord à 10⁻⁹ ou mieux.
+- Documentation : deux sections de `docs/DOC.md`.
+
+### Reste à faire
+
+1. le portage Lua (`latex/titrages.lua`), les clés et commandes de
+   `titrages.sty`, leur comparaison dans `test_lua`, la documentation LaTeX ;
+2. le tracé (`trace.py`) et l'export pgfplots des deux nouvelles courbes ;
+3. la base de constantes (β, Ks) avec leurs sources, prises dans une
+   référence ;
+4. le niveau 2 (pH non tamponné), qui reste hors du projet.

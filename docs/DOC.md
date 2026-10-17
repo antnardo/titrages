@@ -200,6 +200,82 @@ au-delà. La courbe se calcule par $E(V)$, par dichotomie sur le bilan du mélan
 | `courbe`, `sauts`, `volumes_equivalents`, `tangentes` | comme en acide-base ; `tangentes` rend une `TangentesRedox` (`E_avant`, `E_apres`, `E`) |
 | `volume_initial(volume_max)` | 0, ou $V_\text{max}/1000$ si le bécher ne contient qu'une forme par couple, dont le potentiel n'est pas défini |
 
+## La complexométrie
+
+Le paramètre est $\mathrm{pL} = -\log \ell'$, le ligand libre sous toutes ses formes
+protonées, à pH tamponné. Un `Complexe` donne les $\log\beta_j$ **cumulés** d'un métal
+(complexes successifs $\mathrm{ML}_j$) ; un `Ligand` ses pKa, d'où les constantes
+conditionnelles $\beta'_j = \beta_j\,\alpha^j$, $\alpha$ la fraction de la forme la plus
+basique. Le bilan du ligand $R(\mathrm{pL}) = \sum_i C_i\,Y_{1,i} + \ell - C_L$ est
+linéaire dans les totaux d'une solution : le volume est explicite,
+$V = -V_0\,R_\text{bécher}/R_\text{burette}$, plusieurs métaux en compétition compris.
+pM s'en déduit au volume obtenu.
+
+```pycon
+>>> from titrages import Complexe, Ligand, SolutionComplexation, TitrageComplexometrique
+>>> edta = Ligand("Y4-", (0.0, 1.5, 2.0, 2.66, 6.16, 10.24))
+>>> t = TitrageComplexometrique(
+...     SolutionComplexation({"Ca2+": 0.01}), SolutionComplexation(ligand=0.01), 20,
+...     [Complexe("Ca2+", (10.7,))], ligand=edta, pH=10,
+... )
+>>> round(t.pM(20), 2), [round(s.volume, 3) for s in t.sauts(40)], t.volumes_equivalents()
+(6.28, [20.0], (20.0,))
+
+```
+
+| Méthode | Rend |
+| --- | --- |
+| `pM(V, metal)` | pM du métal suivi (`metal`, par défaut celui du titrage, ou le seul) |
+| `pL(V)`, `volume(pL)` | les deux sens du paramétrage, par dichotomie dans le premier |
+| `pente(pL, metal)` | $\mathrm{d}\mathrm{pM}/\mathrm{d}V$, analytique |
+| `derivee_volume(pL)` | $\mathrm{d}V/\mathrm{d}\mathrm{pL}$ |
+| `courbe(volume_max, points, metal)` | une `CourbeComplexometrique` (`volume`, `pM`, `pL`, `pente`), à abscisse curviligne |
+| `sauts(volume_max, points, metal)` | des `SautComplexometrique`, maxima de la pente affinés |
+| `volumes_equivalents()` | ligand titrant : $n\,C_M V_0/C_L$ cumulés, métaux rangés par $\log\beta_n/n$ décroissant ; métal titrant : $V_0 C_L/(n\,C_M)$ |
+
+`fractions_complexes(log_beta, pL)` donne les fractions de $\mathrm{M}, \mathrm{ML},
+\dots, \mathrm{ML}_n$.
+
+## La précipitation
+
+Un `Precipite` $\mathrm{P}_\nu\mathrm{X}_\mu$ lie l'**ion commun** P (`ion_commun`,
+Ag⁺ par défaut) à un partenaire X, de pKs donné, X pouvant être basique (`pKa`, pH
+alors obligatoire). Le paramètre est pP. Pour un ensemble S de solides présents, le
+bilan $R_S = a + \sum_{i\in S} r_i\,(C_{X_i} - x_{\text{sat},i}) - C_P$, $r = \nu/\mu$,
+reste linéaire dans les totaux : chaque ensemble a son volume explicite, et l'on retient
+celui qui est cohérent — chaque solide présent a une quantité positive, chaque absent
+n'est pas sursaturé. La courbe a des **points anguleux** là où un solide apparaît ou
+disparaît : ce sont des `Evenement`, distincts des sauts, qui ne se cherchent que dans
+les morceaux lisses.
+
+```pycon
+>>> from titrages import Precipite, SolutionPrecipitation, TitrageParPrecipitation
+>>> t = TitrageParPrecipitation(
+...     SolutionPrecipitation(partenaires={"Cl-": 0.05, "CrO4^2-": 0.005}),
+...     SolutionPrecipitation(commun=0.05), 20,
+...     [Precipite("Cl-", 9.75), Precipite("CrO4^2-", 11.95, nu=2, pKa=(6.5,))], pH=7.5,
+... )
+>>> [(e.partenaire, round(e.volume, 3)) for e in t.evenements(30)]
+[('Cl-', 0.0), ('CrO4^2-', 20.011)]
+
+```
+
+La méthode de Mohr : le chromate d'argent apparaît 11 µL après l'équivalence.
+
+| Méthode | Rend |
+| --- | --- |
+| `p(V)`, `volume(pP)` | pP et son inverse, par dichotomie sur $\log a$ dans le premier |
+| `p_partenaire(V, partenaire)` | pX du partenaire |
+| `solides(pP)` | les partenaires dont le solide est présent |
+| `pente(pP)`, `derivee_volume(pP)` | $\mathrm{d}\mathrm{pP}/\mathrm{d}V$ et son inverse, sur l'ensemble de solides du point |
+| `courbe(volume_max, points)` | une `CourbePrecipitation` (`volume`, `p`, `pente`, `solides`) |
+| `evenements(volume_max, points)` | les apparitions et disparitions de solides, affinées |
+| `sauts(volume_max, points)` | des `SautPrecipitation`, dans les morceaux lisses |
+| `volumes_equivalents()` | ion commun titrant : les partenaires dans l'ordre où ils précipitent ; partenaire titrant : l'ion commun restant (Charpentier-Volhard) |
+
+Le pH n'est pas couplé : il est tamponné, et la protonation du ligand ou du partenaire
+n'entre que par $\alpha$. Un pH libre demanderait un solveur à plusieurs inconnues.
+
 ## Fonctions d'équilibre
 
 `fractions(couple_ou_pKa, pH)`, `moments(…, pH, ordre)`, `variance(…, pH)` et
