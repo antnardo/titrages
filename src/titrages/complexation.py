@@ -31,6 +31,7 @@ comprises**, :math:`l' = l/\\alpha`, avec les constantes conditionnelles
 basique en milieu non tamponné — sort de ce cadre : il faudrait un solveur.
 """
 
+import itertools
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -339,18 +340,20 @@ class TitrageComplexometrique:
                 )
         return tuple(resultat)
 
-    def volumes_equivalents(self, stoechiometrie: Mapping[str, int] | None = None) -> tuple[float, ...]:
-        """Les équivalences stœchiométriques.
+    def volumes_equivalents(self) -> tuple[float, ...]:
+        """Les équivalences stœchiométriques, une par étape de complexation.
 
-        Deux cas ont une définition simple. Le ligand titre les métaux du bécher : chacun
-        fixe :math:`n` ligands, du complexe le plus stable (par ligand, :math:`\\log\\beta_n/n`)
-        au moins stable, et le :math:`k`-ième volume apporte autant de ligand que les
-        :math:`k` premiers métaux en demandent. Un métal seul titre le ligand du bécher :
-        l'équivalence est celle où tout le ligand est fixé en :math:`\\mathrm{ML}_n`.
+        Comme pour un polyacide, chaque étape compte, qu'elle donne un saut ou non. Les
+        étapes sont celles des complexes qui prédominent tour à tour quand le ligand libre
+        augmente (:meth:`_etapes`) : chacune fixe un nombre de ligands, avec une force, la
+        pente :math:`\\Delta\\log\\beta/\\Delta j`.
 
-        :math:`n` est par défaut le dernier complexe déclaré ; ``stoechiometrie`` le fixe
-        par métal quand ce n'est pas lui qui marque l'équivalence — :math:`\\mathrm{Ag(CN)_2^-}`
-        dans le dosage de Liebig, où :math:`\\mathrm{Ag(CN)_3^{2-}}` est déclaré mais peu stable.
+        Le ligand titre les métaux du bécher : les étapes de tous les métaux sont rangées
+        de la plus forte à la plus faible, et le :math:`k`-ième volume apporte le ligand
+        que demandent les :math:`k` premières ; deux étapes de même force ne font qu'une
+        équivalence. Un métal seul titre le ligand du bécher : le ligand, d'abord en
+        excès, est fixé en :math:`\\mathrm{ML}_n` le plus riche, puis en complexes de moins
+        en moins riches ; une équivalence par complexe prédominant.
 
         >>> t = TitrageComplexometrique(
         ...     SolutionComplexation({"Ca2+": 0.01, "Zn2+": 0.005}),
@@ -361,21 +364,23 @@ class TitrageComplexometrique:
         >>> [round(v, 9) for v in t.volumes_equivalents()]
         [10.0, 30.0]
         """
-        choix = dict(stoechiometrie or {})
-        for m, n in choix.items():
-            if m not in self._log_beta or not 1 <= n <= self._n(m) or not np.isfinite(self._log_beta[m][n]):
-                raise ValueError(f"{m} : pas de complexe ML{n} déclaré")
-
-        def n_de(m: str) -> int:
-            return choix.get(m, self._n(m))
-
         V0 = self.volume_becher
         if self.burette.ligand > 0 and not self.burette.metaux and self.becher.ligand == 0:
-            ordre = sorted(self.becher.metaux, key=lambda m: -float(self._log_beta[m][n_de(m)]) / n_de(m))
-            volumes, cumul = [], 0.0
-            for m in ordre:
-                cumul += n_de(m) * self.becher.metaux[m] * V0
-                volumes.append(cumul / self.burette.ligand)
+            etapes = [
+                (force, nombre * C * V0)
+                for m, C in self.becher.metaux.items()
+                for force, nombre in self._etapes(m)
+            ]
+            etapes.sort(key=lambda e: -e[0])
+            volumes: list[float] = []
+            cumul, precedente = 0.0, None
+            for force, quantite in etapes:
+                cumul += quantite
+                if force == precedente:
+                    volumes[-1] = cumul / self.burette.ligand
+                else:
+                    volumes.append(cumul / self.burette.ligand)
+                precedente = force
             return tuple(volumes)
         if (
             len(self.burette.metaux) == 1
@@ -384,10 +389,32 @@ class TitrageComplexometrique:
             and not self.becher.metaux
         ):
             ((m, C),) = self.burette.metaux.items()
-            return (V0 * self.becher.ligand / (n_de(m) * C),)
+            sommets = self._sommets(m)[1:]
+            return tuple(V0 * self.becher.ligand / (n * C) for n in reversed(sommets))
         raise ValueError(
             "équivalences définies pour un ligand qui titre des métaux, ou un métal seul qui titre le ligand"
         )
 
-    def _n(self, metal: str) -> int:
-        return len(self._log_beta[metal]) - 1
+    def _sommets(self, metal: str) -> list[int]:
+        """Les indices des complexes qui prédominent tour à tour, 0 (le métal libre) compris.
+
+        Ce sont les sommets de l'enveloppe concave des points :math:`(j, \\log\\beta_j)` :
+        un complexe dont la constante successive dépasse la précédente (Zn–NH₃) ou que les
+        tables ne donnent pas (:math:`\\log\\beta = -\\infty`) ne prédomine jamais, et son
+        étape se fond dans la suivante. À pente égale, le sommet le plus lointain : deux
+        étapes de même force n'en font qu'une, comme deux sites de même pKa.
+        """
+        lb = self._log_beta[metal]
+        sommets, j = [0], 0
+        while j < len(lb) - 1:
+            pentes = [((lb[k] - lb[j]) / (k - j), k) for k in range(j + 1, len(lb)) if np.isfinite(lb[k])]
+            if not pentes:
+                break
+            j = max(pentes)[1]
+            sommets.append(j)
+        return sommets
+
+    def _etapes(self, metal: str) -> list[tuple[float, int]]:
+        """Les étapes de complexation du métal : (force, ligands fixés), de la plus forte."""
+        lb, s = self._log_beta[metal], self._sommets(metal)
+        return [(float(lb[b] - lb[a]) / (b - a), b - a) for a, b in itertools.pairwise(s)]

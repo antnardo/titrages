@@ -231,7 +231,20 @@ pM s'en déduit au volume obtenu.
 | `derivee_volume(pL)` | $\mathrm{d}V/\mathrm{d}\mathrm{pL}$ |
 | `courbe(volume_max, points, metal)` | une `CourbeComplexometrique` (`volume`, `pM`, `pL`, `pente`), à abscisse curviligne |
 | `sauts(volume_max, points, metal)` | des `SautComplexometrique`, maxima de la pente affinés |
-| `volumes_equivalents(stoechiometrie)` | ligand titrant : $n\,C_M V_0/C_L$ cumulés, métaux rangés par $\log\beta_n/n$ décroissant ; métal titrant : $V_0 C_L/(n\,C_M)$ ; $n$ est le dernier complexe, ou celui que `stoechiometrie` donne par métal (`{"Ag+": 2}` pour Liebig) |
+| `volumes_equivalents()` | une équivalence par étape, comme pour un polyacide (ci-dessous) |
+
+**Les équivalences** se comptent comme celles d'un polyacide : une par étape de
+complexation, qu'elle donne un saut ou non. Les étapes sont celles des complexes qui
+prédominent tour à tour quand le ligand libre augmente — les sommets de l'enveloppe
+concave des points $(j, \log\beta_j)$ —, chacune avec sa force
+$\Delta\log\beta/\Delta j$. Un complexe dont la constante successive dépasse la
+précédente (Zn–NH₃ : ZnL et ZnL₂ ne prédominent jamais) ou que les tables ne donnent
+pas ($\log\beta = -\infty$) n'a pas d'étape à lui : elle se fond dans la suivante. Le
+ligand titre les métaux : les étapes de tous les métaux, de la plus forte à la plus
+faible, deux étapes de même force ne faisant qu'une équivalence. Un métal titre le
+ligand : une équivalence par complexe prédominant, du plus riche en ligand au plus
+pauvre. Dans le dosage de Liebig, $\mathrm{Ag(CN)_3^{2-}}$ puis $\mathrm{Ag(CN)_2^-}$ ;
+seule la seconde a un saut, comme la troisième acidité de l'acide phosphorique.
 
 `fractions_complexes(log_beta, pL)` donne les fractions de $\mathrm{M}, \mathrm{ML},
 \dots, \mathrm{ML}_n$.

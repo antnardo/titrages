@@ -162,13 +162,18 @@ couplés non tamponnés, qui sortent largement du programme.
   (*Analytical Chemistry 2.1*, § 16.10 à 16.12, d'après Martell et Smith), recopiées
   telles qu'imprimées, avec leurs conditions. Une coquille de la source (Ksp de PbCl₂)
   est signalée dans la note.
-- Le complexe qui marque l'équivalence peut se choisir (`stoechiometrie`) : dans le
-  dosage de Liebig, c'est Ag(CN)₂⁻, pas le dernier complexe déclaré.
+- Les équivalences de complexométrie se comptent comme celles d'un polyacide, une par
+  étape : les complexes qui prédominent tour à tour, sommets de l'enveloppe concave
+  des log β. Dans le dosage de Liebig, Ag(CN)₃²⁻ puis Ag(CN)₂⁻.
+
+### Décisions
+
+- Pas de base côté LaTeX (18 octobre 2026) : les constantes s'y écrivent, comme les
+  pKa et les E° ; la base est celle du paquet Python.
 
 ### Reste à faire
 
 1. Le moteur pgf n'a pas les deux familles : leur courbe n'est pas une expression
    unique (pM se déduit de pL et du volume ; l'ensemble des solides change).
-2. La base n'est pas accessible depuis LaTeX, comme celle des couples.
-3. Le niveau 2 (pH non tamponné, complexation et précipitation couplées) reste hors
+2. Le niveau 2 (pH non tamponné, complexation et précipitation couplées) reste hors
    du projet.

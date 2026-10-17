@@ -746,9 +746,7 @@
   {
     metal    .code:n = { \tl_set:Nn \l__titrages_metal_tl { #1 } } ,
     log~beta .code:n = { \clist_set:Nx \l__titrages_logbeta_clist { #1 } } ,
-    stoechiometrie .code:n = { \tl_set:Nx \l__titrages_stoechio_tl { \int_eval:n { #1 } } } ,
   }
-\tl_new:N \l__titrages_stoechio_tl
 % Un complexe non tabulé a log beta = -inf, que Lua écrit -math.huge.
 \cs_new:Npn \__titrages_logbeta_lua:n #1
   { \fp_compare:nNnTF { #1 } = { -inf } { -math.huge } { \fp_eval:n { #1 } } , }
@@ -789,13 +787,11 @@
       {
         \tl_clear:N \l__titrages_metal_tl
         \clist_clear:N \l__titrages_logbeta_clist
-        \tl_set:Nn \l__titrages_stoechio_tl { nil }
         \keys_set:nn { titrages / cp / complexe } { #1 }
         \tl_put_right:Nx \l__titrages_complexes_tl
           {
             { \__titrages_chaine:V \l__titrages_metal_tl ,
-              { \clist_map_function:NN \l__titrages_logbeta_clist \__titrages_logbeta_lua:n } ,
-              \l__titrages_stoechio_tl } ,
+              { \clist_map_function:NN \l__titrages_logbeta_clist \__titrages_logbeta_lua:n } } ,
           }
       } ,
   }

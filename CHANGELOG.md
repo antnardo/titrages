@@ -17,8 +17,9 @@ LaTeX partagent un numéro de version.
   partenaire basique à pH tamponné ; apparitions et disparitions de solides
   (`evenements`), sauts dans les morceaux lisses, volumes équivalents (Mohr,
   Charpentier-Volhard, halogénures successifs).
-- `volumes_equivalents(stoechiometrie)` en complexométrie : le complexe qui marque
-  l'équivalence, quand ce n'est pas le dernier déclaré (Liebig, `Ag(CN)2-`).
+- `volumes_equivalents()` en complexométrie compte une équivalence par étape, comme
+  pour un polyacide : les étapes des complexes qui prédominent tour à tour (enveloppe
+  concave des log β), deux étapes de même force confondues.
 - Une base de ligands (13), de complexes (92) et de précipités (41), tirée des tables
   de D. Harvey, *Analytical Chemistry 2.1* (Martell et Smith) : `ligand`, `ligands`,
   `complexe`, `complexes`, `precipite`, `precipites`. Champs `note` sur `Ligand`,

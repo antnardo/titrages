@@ -42,17 +42,18 @@ class TestComplexes:
         c = complexe("Fe3+", "CN-")
         assert c.log_beta[:5] == (-math.inf,) * 5 and c.log_beta[5] == 43.6
 
-    def test_stoechiometrie_sans_complexe(self):
+    def test_constantes_successives_croissantes_une_seule_etape(self):
+        """Zn–NH3 : log K3 > log K2 > log K1, ZnL et ZnL2 ne prédominent jamais."""
         t = TitrageComplexometrique(
+            SolutionComplexation({"Zn2+": 0.01}),
             SolutionComplexation(ligand=0.1),
-            SolutionComplexation({"Ag+": 0.05}),
             20,
-            [complexe("Ag+", "cyanure")],
-            ligand("cyanure"),
-            pH=12,
+            [complexe("Zn2+", "NH3")],
+            ligand("NH3"),
+            pH=11,
         )
-        with pytest.raises(ValueError, match="ML1"):
-            t.volumes_equivalents({"Ag+": 1})
+        # trois ligands d'un coup (6 mL), puis le quatrième (8 mL)
+        assert t.volumes_equivalents() == pytest.approx((6.0, 8.0))
 
     def test_metal_sans_complexe(self):
         with pytest.raises(KeyError, match="Ba2"):
@@ -71,9 +72,9 @@ class TestComplexes:
             ligand("cyanure"),
             pH=12,
         )
-        # par défaut, Ag(CN)3^2-, le dernier complexe déclaré ; le saut est à Ag(CN)2-
-        assert t.volumes_equivalents() == pytest.approx((40 / 3,))
-        assert t.volumes_equivalents({"Ag+": 2}) == pytest.approx((20.0,))
+        # Ag(CN)3^2- puis Ag(CN)2- ; AgCN, que la source ne donne pas, ne se forme pas.
+        # Seule la seconde a un saut, comme la troisième acidité de H3PO4.
+        assert t.volumes_equivalents() == pytest.approx((40 / 3, 20.0))
         (saut,) = t.sauts(40)
         assert saut.volume == pytest.approx(20, abs=1e-3)
 

@@ -791,13 +791,13 @@ local function concentration(liste, nom)
   return 0
 end
 
---- Un titrage complexométrique. complexes = { {metal, {log beta_1, …}, n}, … } (cumulés ;
---- n, facultatif, le complexe ML_n qui marque l'équivalence, le dernier par défaut),
---- pKa ceux du ligand, pH celui du tampon, metal celui qu'on suit.
+--- Un titrage complexométrique. complexes = { {metal, {log beta_1, …}}, … } (cumulés ;
+--- -math.huge pour un complexe qui ne se forme pas), pKa ceux du ligand, pH celui du
+--- tampon, metal celui qu'on suit.
 function M.titrage_complexation(becher, burette, V0, complexes, pKa, pH, metal)
   if V0 <= 0 then error("titrages : le volume du bécher est positif") end
   local la = log_alpha(pKa, pH, "le ligand")
-  local lb, ordre, stoechiometrie = {}, {}, {}
+  local lb, ordre = {}, {}
   for _, c in ipairs(complexes) do
     if lb[c[1]] then error(("titrages : %s : deux jeux de complexes"):format(c[1])) end
     if #c[2] == 0 then error(("titrages : %s : aucune constante"):format(c[1])) end
@@ -805,10 +805,6 @@ function M.titrage_complexation(becher, burette, V0, complexes, pKa, pH, metal)
     for j, b in ipairs(c[2]) do t[j] = b + j * la end
     lb[c[1]] = t
     ordre[#ordre + 1] = c[1]
-    if c[3] then
-      if c[3] < 1 or c[3] > #t then error(("titrages : %s : pas de complexe ML%d déclaré"):format(c[1], c[3])) end
-      stoechiometrie[c[1]] = c[3]
-    end
   end
   for _, s in ipairs({ becher, burette }) do
     for _, m in ipairs(s.metaux) do
@@ -817,8 +813,7 @@ function M.titrage_complexation(becher, burette, V0, complexes, pKa, pH, metal)
   end
   metal = metal or ordre[1]
   if not lb[metal] then error(("titrages : %s : aucun complexe déclaré"):format(metal)) end
-  return { type = "complexation", becher = becher, burette = burette, V0 = V0, lb = lb, metal = metal,
-           stoechiometrie = stoechiometrie }
+  return { type = "complexation", becher = becher, burette = burette, V0 = V0, lb = lb, metal = metal }
 end
 
 local function residu_c(t, s, pL)
@@ -953,27 +948,59 @@ function M.sauts_complexation(t, Vmax, n, metal)
   return resultat
 end
 
-local function n_de(t, metal) return t.stoechiometrie[metal] or #t.lb[metal] end
+--- Les complexes qui prédominent tour à tour, 0 (le métal libre) compris : les sommets
+--- de l'enveloppe concave des points (j, log beta_j). À pente égale, le plus lointain :
+--- deux étapes de même force n'en font qu'une, comme deux sites de même pKa.
+local function sommets(lb)
+  local s, j = { 0 }, 0
+  while j < #lb do
+    local meilleure, suivant = -math.huge, nil
+    for k = j + 1, #lb do
+      if lb[k] > -math.huge then
+        local pente = (lb[k] - lb[j]) / (k - j)
+        if pente >= meilleure then meilleure, suivant = pente, k end
+      end
+    end
+    if not suivant then break end
+    s[#s + 1], j = suivant, suivant
+  end
+  return s
+end
 
---- Les équivalences : le ligand titre les métaux du bécher, rangés par log beta_n/n
---- décroissant, chacun fixant n ligands ; ou un métal seul titre le ligand du bécher.
+--- Les équivalences, une par étape de complexation, comme pour un polyacide. Le ligand
+--- titre les métaux du bécher : les étapes de tous les métaux, rangées de la plus forte
+--- (Delta log beta / Delta j) à la plus faible ; deux étapes de même force n'en font
+--- qu'une. Un métal seul titre le ligand du bécher : une équivalence par complexe
+--- prédominant, du plus riche en ligand au moins riche.
 function M.equivalences_complexation(t)
   local b, u = t.becher, t.burette
   if u.ligand > 0 and #u.metaux == 0 and b.ligand == 0 then
-    local ordre = {}
-    for i, m in ipairs(b.metaux) do ordre[i] = m end
-    local function stabilite(m) return t.lb[m[1]][n_de(t, m[1])] / n_de(t, m[1]) end
-    table.sort(ordre, function(x, y) return stabilite(x) > stabilite(y) end)
-    local volumes, cumul = {}, 0
-    for _, m in ipairs(ordre) do
-      cumul = cumul + n_de(t, m[1]) * m[2] * t.V0
-      volumes[#volumes + 1] = cumul / u.ligand
+    local etapes = {}
+    for _, m in ipairs(b.metaux) do
+      local lb, s = t.lb[m[1]], sommets(t.lb[m[1]])
+      for i = 2, #s do
+        local n = s[i] - s[i - 1]
+        etapes[#etapes + 1] = { (lb[s[i]] - lb[s[i - 1]]) / n, n * m[2] * t.V0 }
+      end
+    end
+    table.sort(etapes, function(x, y) return x[1] > y[1] end)
+    local volumes, cumul, precedente = {}, 0, nil
+    for _, e in ipairs(etapes) do
+      cumul = cumul + e[2]
+      if e[1] == precedente then
+        volumes[#volumes] = cumul / u.ligand
+      else
+        volumes[#volumes + 1] = cumul / u.ligand
+      end
+      precedente = e[1]
     end
     return volumes
   end
   if #u.metaux == 1 and u.ligand == 0 and b.ligand > 0 and #b.metaux == 0 then
     local m = u.metaux[1]
-    return { t.V0 * b.ligand / (n_de(t, m[1]) * m[2]) }
+    local s, volumes = sommets(t.lb[m[1]]), {}
+    for i = #s, 2, -1 do volumes[#volumes + 1] = t.V0 * b.ligand / (s[i] * m[2]) end
+    return volumes
   end
   error("titrages : équivalences définies pour un ligand qui titre des métaux, ou un métal seul qui titre le ligand")
 end

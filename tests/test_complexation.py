@@ -204,13 +204,24 @@ class TestEquivalences:
         t = _titrage(CAS["Ca et Zn en compétition, pZn"])
         assert t.volumes_equivalents() == pytest.approx((10.0, 30.0))
 
-    def test_complexes_successifs_comptent_n_ligands(self):
+    def test_complexes_successifs_une_equivalence_par_etape(self):
+        # comme un tétraacide : quatre étapes, un ligand chacune
         t = _titrage(CAS["complexes successifs Cu-NH3, ligand titrant"])
-        assert t.volumes_equivalents() == pytest.approx((8.0,))
+        assert t.volumes_equivalents() == pytest.approx((2.0, 4.0, 6.0, 8.0))
 
-    def test_metal_titrant(self):
+    def test_metal_titrant_du_complexe_le_plus_riche_au_plus_pauvre(self):
+        # 2 mmol de NH3 : Cu(NH3)4, (NH3)3, (NH3)2, NH3 à 0,05 mol/L de Cu2+
         t = _titrage(CAS["complexes successifs Cu-NH3, métal titrant"])
-        assert t.volumes_equivalents() == pytest.approx((10.0,))
+        assert t.volumes_equivalents() == pytest.approx((10.0, 40 / 3, 20.0, 40.0))
+
+    def test_etapes_de_meme_force_confondues(self):
+        t = TitrageComplexometrique(
+            SolutionComplexation({"Ca2+": 0.01, "Mg2+": 0.01}),
+            SolutionComplexation(ligand=0.01),
+            20,
+            [Complexe("Ca2+", (8.0,)), Complexe("Mg2+", (8.0,))],
+        )
+        assert t.volumes_equivalents() == pytest.approx((40.0,))
 
 
 class TestErreurs:

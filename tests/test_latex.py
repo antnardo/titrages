@@ -164,7 +164,6 @@ def _titrages_cp() -> dict:
 # Le titrage de Volhard est suivi par pSCN (clé suivi) ; les autres par leur grandeur.
 SUIVI_CP = {"volhard": "SCN-"}
 VOLUME_MAX_CP = {"edta": 40, "competition": 40, "cuivre": 20, "liebig": 40, "mohr": 30, "volhard": 25}
-STOECHIOMETRIE_CP = {"liebig": {"Ag+": 2}}
 
 
 def _mesure_cp(t, nom: str, V: float, espece: str | None = None) -> float:
@@ -209,10 +208,7 @@ def test_complexation_precipitation_memes_nombres_que_python(nombres_cp):
         elif grandeur == "volume":  # le volume qui amène à ce pM : on y relit le pM
             x, attendu = _mesure_cp(t, nom, x), a
         elif grandeur == "equivalence":
-            if nom in STOECHIOMETRIE_CP:
-                attendu = t.volumes_equivalents(STOECHIOMETRIE_CP[nom])[int(a) - 1]
-            else:
-                attendu = t.volumes_equivalents()[int(a) - 1]
+            attendu = t.volumes_equivalents()[int(a) - 1]
         elif grandeur.startswith("saut-"):
             s = t.sauts(Vmax)[int(a) - 1]
             attendu = {"volume": s.volume, "pM": getattr(s, "pM", None), "pente": s.pente}[grandeur[5:]]

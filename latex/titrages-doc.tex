@@ -691,8 +691,6 @@ Les clés d'un \cle{complexe} :
 \defcle{log beta}{log beta} & & les constantes \emph{globales}
   $\log\beta_1,\dots,\log\beta_n$ ; \mbox{\cle{-inf}} pour un complexe intermédiaire qui ne
   se forme pas \\
-\defcle{stoechiometrie complexe}{stoechiometrie} & $n$ & le complexe
-  $\mathrm{ML}_k$ qui marque l'équivalence, pour \cs{titrageequivalence} \\
 \end{cles}
 
 Une solution a deux clés : \defcle{metal solution}{metal}, répétable, qui prend le
@@ -727,10 +725,16 @@ pCa à l'équivalence : \num{\titragepM{calcium}{20}} ; avec le zinc, pCa à
 \num{\titrageequivalence{zinc}{1}} et \num{\titrageequivalence{zinc}{2}}~mL.
 \end{exemple}
 
-Le dosage de Liebig — l'argent dans les cyanures — forme \ce{Ag(CN)2-}, dont la source
-ne donne que $\log\beta_2$ : \cle{log beta = \{-inf, 20.48, 21.40\}}, et
-\cle{stoechiometrie = 2} pour que l'équivalence soit celle de \ce{Ag(CN)2-} et non
-celle de \ce{Ag(CN)3^2-}, peu stable.
+Les équivalences se comptent comme celles d'un polyacide : une par étape de
+complexation, qu'elle donne un saut ou non. Les étapes sont celles des complexes qui
+prédominent tour à tour — les sommets de l'enveloppe concave des points
+$(j,\log\beta_j)$ — : un complexe qui ne prédomine jamais (\ce{Zn(NH3)^2+} et
+\ce{Zn(NH3)2^2+}, dont les constantes successives croissent) ou que les tables ne
+donnent pas n'a pas d'étape à lui. Le dosage de Liebig — l'argent dans les cyanures —
+forme \ce{Ag(CN)2-}, dont la source ne donne que $\log\beta_2$ :
+\cle{log beta = \{-inf, 20.48, 21.40\}}. Ses équivalences sont celles de
+\ce{Ag(CN)3^2-} puis de \ce{Ag(CN)2-} ; seule la seconde a un saut, comme la troisième
+acidité de l'acide phosphorique.
 
 % =============================================================================
 \section{Précipitation}\label{sec:precipitation}
@@ -1105,7 +1109,6 @@ un titrage rédox se lit par \cs{titrageE} & et réciproquement \\
 \meta{X} a des acidités : préciser le pH du milieu & la clé \cle{pH} \\
 \meta{M} : aucun complexe déclaré & une clé \cle{complexe} pour chaque métal \\
 \meta{X} : aucun précipité déclaré & une clé \cle{precipite} pour chaque partenaire \\
-pas de complexe ML\meta{n} déclaré & \cle{stoechiometrie} au-delà des constantes \\
 équivalences définies pour … & le titrage n'est pas de ceux qu'énumère
   \cs{titrageequivalence} \\
 pas d'événement n° \meta{k} & la courbe a moins de $k$ points anguleux \\

@@ -15,7 +15,7 @@
   complexe = {metal = Cu2+, log beta = {4.1, 7.6, 10.5, 12.6}},
   becher = {ligand = 0.1}, burette = {metal = {Cu2+, 0.05}}, volume max = 20}
 \titragecomplexationdefinir{liebig}{volume = 20, pH = 12, ligand pKa = 9.21,
-  complexe = {metal = Ag+, log beta = {-inf, 20.48, 21.40}, stoechiometrie = 2},
+  complexe = {metal = Ag+, log beta = {-inf, 20.48, 21.40}},
   becher = {ligand = 0.1}, burette = {metal = {Ag+, 0.05}}, volume max = 40}
 \titrageprecipitationdefinir{mohr}{volume = 20, pH = 7.5,
   precipite = {partenaire = Cl-, pKs = 9.75},
@@ -49,6 +49,8 @@
 \ligne{competition}{equivalence}{2}{\titrageequivalence{competition}{2}}
 \ligne{cuivre}{equivalence}{1}{\titrageequivalence{cuivre}{1}}
 \ligne{liebig}{equivalence}{1}{\titrageequivalence{liebig}{1}}
+\ligne{liebig}{equivalence}{2}{\titrageequivalence{liebig}{2}}
+\ligne{cuivre}{equivalence}{4}{\titrageequivalence{cuivre}{4}}
 \lignespM{liebig}{5, 19.9, 20, 30}
 \ligne{liebig}{saut-volume}{1}{\titragesaut{liebig}{1}}
 \ligne{mohr}{equivalence}{2}{\titrageequivalence{mohr}{2}}
