@@ -10,8 +10,18 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from titrages.complexation import TitrageComplexometrique
 from titrages.equilibre import fractions
-from titrages.modeles import Couple, Indicateur, Saut, Tangentes
+from titrages.modeles import (
+    Couple,
+    Indicateur,
+    Saut,
+    SautComplexometrique,
+    SautPrecipitation,
+    SautRedox,
+    Tangentes,
+)
+from titrages.precipitation import TitrageParPrecipitation
 from titrages.redox import TitrageRedox
 from titrages.titrage import Titrage
 
@@ -25,6 +35,8 @@ __all__ = [
     "tracer_sauts",
     "tracer_tangentes",
     "tracer_titrage",
+    "tracer_titrage_complexometrique",
+    "tracer_titrage_precipitation",
     "tracer_titrage_redox",
     "tracer_zone_virage",
 ]
@@ -64,8 +76,22 @@ def tracer_titrage(
     return ax
 
 
+Tous = Titrage | TitrageRedox | TitrageComplexometrique | TitrageParPrecipitation
+
+
+def _ordonnee(s: Saut | SautRedox | SautComplexometrique | SautPrecipitation) -> float:
+    """La grandeur mesurée au saut : pH, E, pM ou pP."""
+    if isinstance(s, Saut):
+        return s.pH
+    if isinstance(s, SautRedox):
+        return s.E
+    if isinstance(s, SautComplexometrique):
+        return s.pM
+    return s.p
+
+
 def tracer_derivee(
-    titrage: Titrage | TitrageRedox,
+    titrage: Tous,
     volume_max: float,
     ax: "Axes | None" = None,
     *,
@@ -73,7 +99,7 @@ def tracer_derivee(
     abscisse: float = 1.0,
     **style: Any,
 ) -> "Axes":
-    """La pente de la courbe selon :math:`V` : d pH/dV, ou dE/dV pour un titrage rédox.
+    """La pente de la courbe selon :math:`V` : d pH/dV, dE/dV, d pM/dV ou d pP/dV.
     ``abscisse`` divise les volumes, comme dans ``tracer_titrage``."""
     ax = _axe(ax)
     c = titrage.courbe(volume_max, points)
@@ -82,7 +108,7 @@ def tracer_derivee(
 
 
 def tracer_sauts(
-    titrage: Titrage | TitrageRedox,
+    titrage: Tous,
     volume_max: float,
     ax: "Axes | None" = None,
     *,
@@ -90,12 +116,12 @@ def tracer_sauts(
     abscisse: float = 1.0,
     **style: Any,
 ) -> "Axes":
-    """Les points d'inflexion, marqués et reportés sur les axes, en pH ou en E.
+    """Les points d'inflexion, marqués et reportés sur les axes, en pH, E, pM ou pP.
     ``abscisse`` divise les volumes, comme dans ``tracer_titrage``."""
     ax = _axe(ax)
     style = {"marker": "o", "ls": "", "color": "k", "ms": 4, **style}
     for s in titrage.sauts(volume_max):
-        y = s.pH if isinstance(s, Saut) else s.E
+        y = _ordonnee(s)
         v = s.volume / abscisse
         ax.plot([v], [y], **style)
         ax.plot([v, v, 0], [0, y, y], ls=":", lw=0.7, color=style["color"])
@@ -219,4 +245,66 @@ def tracer_titrage_redox(
         ref = titrage.reference if isinstance(titrage.reference, str) else f"{titrage.reference:g} V"
         ax.set_xlabel("$V$ versé" if abscisse == 1.0 else r"$V/V_\mathrm{éq}$")
         ax.set_ylabel(f"$E$ (V/{ref})")
+    return ax
+
+
+def tracer_titrage_complexometrique(
+    titrage: TitrageComplexometrique,
+    volume_max: float,
+    ax: "Axes | None" = None,
+    *,
+    points: int = 400,
+    metal: str | None = None,
+    sauts: bool = False,
+    abscisse: float = 1.0,
+    etiquettes: bool = True,
+    **style: Any,
+) -> "Axes":
+    """La courbe :math:`\\mathrm{pM} = f(V)` du ``metal`` suivi (par défaut, celui du titrage).
+    ``abscisse`` divise les volumes, comme dans ``tracer_titrage``."""
+    ax = _axe(ax)
+    c = titrage.courbe(volume_max, points, metal)
+    ax.plot(c.volume / abscisse, c.pM, **style)
+    if sauts:
+        for s in titrage.sauts(volume_max, metal=metal):
+            ax.plot([s.volume / abscisse], [s.pM], "ko", ms=3)
+    if etiquettes:
+        ax.set_xlabel("$V$ versé" if abscisse == 1.0 else r"$V/V_\mathrm{éq}$")
+        ax.set_ylabel(f"p{metal or titrage.metal}")
+    return ax
+
+
+def tracer_titrage_precipitation(
+    titrage: TitrageParPrecipitation,
+    volume_max: float,
+    ax: "Axes | None" = None,
+    *,
+    points: int = 400,
+    evenements: bool = True,
+    abscisse: float = 1.0,
+    etiquettes: bool = True,
+    **style: Any,
+) -> "Axes":
+    """La courbe :math:`\\mathrm{pP} = f(V)` de l'ion commun.
+
+    ``evenements`` marque d'un losange les points anguleux, où un solide apparaît (plein)
+    ou disparaît (vide) ; ``abscisse`` divise les volumes, comme dans ``tracer_titrage``.
+    """
+    ax = _axe(ax)
+    c = titrage.courbe(volume_max, points)
+    (ligne,) = ax.plot(c.volume / abscisse, c.p, **style)
+    if evenements:
+        for e in titrage.evenements(volume_max):
+            ax.plot(
+                [e.volume / abscisse],
+                [e.p],
+                marker="D",
+                ms=4,
+                ls="",
+                color=ligne.get_color(),
+                markerfacecolor=ligne.get_color() if e.apparition else "none",
+            )
+    if etiquettes:
+        ax.set_xlabel("$V$ versé" if abscisse == 1.0 else r"$V/V_\mathrm{éq}$")
+        ax.set_ylabel(f"p{titrage.ion_commun}")
     return ax

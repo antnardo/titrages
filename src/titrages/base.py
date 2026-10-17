@@ -14,9 +14,12 @@ formule est alors retirée de l'index, et la forme se cherche par son nom.
 
 Les couples rédox ont leur propre index (:func:`espece_redox`, :func:`solution_redox`) :
 un même ion peut y avoir un sens différent — :math:`\\mathrm{Cl^-}` est ici un spectateur,
-là le réducteur du dichlore.
+là le réducteur du dichlore. Les ligands, les complexes (:func:`ligand`, :func:`complexe`)
+et les précipités (:func:`precipite`) ont chacun le leur, tirés de ``complexes.toml`` et
+``precipites.toml``, dont l'en-tête dit la source.
 """
 
+import math
 import tomllib
 import unicodedata
 from collections.abc import Mapping
@@ -26,13 +29,26 @@ from importlib import resources
 from typing import Any
 
 from titrages.equilibre import PKE
-from titrages.modeles import Couple, CoupleRedox, Espece, EspeceRedox, Indicateur, Spectateur, charge
+from titrages.modeles import (
+    Complexe,
+    Couple,
+    CoupleRedox,
+    Espece,
+    EspeceRedox,
+    Indicateur,
+    Ligand,
+    Precipite,
+    Spectateur,
+    charge,
+)
 from titrages.redox import SolutionRedox
 from titrages.solution import Solution
 
 __all__ = [
     "Fort",
     "chercher",
+    "complexe",
+    "complexes",
     "conductivite_molaire",
     "couple",
     "couple_redox",
@@ -42,7 +58,11 @@ __all__ = [
     "espece_redox",
     "indicateur",
     "indicateurs",
+    "ligand",
+    "ligands",
     "normaliser",
+    "precipite",
+    "precipites",
     "solution",
     "solution_redox",
 ]
@@ -311,3 +331,147 @@ def solution_redox(
     for cle, C in (composition or {}).items():
         s = s.avec(cle if isinstance(cle, EspeceRedox) else espece_redox(cle), C)
     return s
+
+
+# --- complexes et précipités ---------------------------------------------------------
+
+
+@cache
+def _ligands() -> dict[str, tuple[Ligand, tuple[str, ...]]]:
+    """Les ligands, par leur nom, avec les clés sous lesquelles on les cherche."""
+    return {
+        entree["nom"]: (
+            Ligand(entree["formule"], tuple(entree["pKa"]), entree.get("note", "")),
+            (entree["nom"], entree["formule"], *entree["noms"]),
+        )
+        for entree in _lire("complexes.toml")["ligand"]
+    }
+
+
+@cache
+def _index_ligands() -> dict[str, str]:
+    index: dict[str, str] = {}
+    for nom, (_, cles) in _ligands().items():
+        for cle in cles:
+            k = normaliser(cle)
+            if index.get(k, nom) != nom:
+                raise ValueError(f"base des ligands ambiguë : « {cle} »")
+            index[k] = nom
+    return index
+
+
+def _nom_ligand(nom: str) -> str:
+    try:
+        return _index_ligands()[normaliser(nom)]
+    except KeyError:
+        raise KeyError(f"« {nom} » n'est pas un ligand de la base") from None
+
+
+def ligands() -> tuple[Ligand, ...]:
+    """Tous les ligands de la base, dans l'ordre du fichier."""
+    return tuple(lig for lig, _ in _ligands().values())
+
+
+def ligand(nom: str) -> Ligand:
+    """Le ligand que désigne ``nom`` : ``"EDTA"``, ``"NH3"``, ``"ion thiosulfate"``.
+
+    >>> ligand("EDTA").pKa
+    (0.0, 1.5, 2.0, 2.66, 6.16, 10.24)
+    """
+    return _ligands()[_nom_ligand(nom)][0]
+
+
+def _cumuler(log_K: list[float], depart: int) -> tuple[float, ...]:
+    """Les log β globaux : -∞ avant ``depart``, puis la première valeur, puis les cumuls."""
+    log_beta = [-math.inf] * (depart - 1)
+    for k, valeur in enumerate(log_K):
+        # arrondi au-delà des chiffres de la source, pour que 3,31 + 3,91 donne 7,22
+        log_beta.append(float(valeur) if k == 0 else round(log_beta[-1] + float(valeur), 10))
+    return tuple(log_beta)
+
+
+@cache
+def _complexes() -> dict[str, dict[str, Complexe]]:
+    """Les complexes, par ligand puis par métal."""
+    table: dict[str, dict[str, Complexe]] = {nom: {} for nom in _ligands()}
+    for entree in _lire("complexes.toml")["complexe"]:
+        lig, metal = _nom_ligand(entree["ligand"]), entree["metal"]
+        if normaliser(metal) in {normaliser(m) for m in table[lig]}:
+            raise ValueError(f"base des complexes : {metal} et {lig} deux fois")
+        table[lig][metal] = Complexe(
+            metal,
+            _cumuler(entree["log_K"], int(entree.get("depart", 1))),
+            f"{metal}-{lig}",
+            entree.get("note", ""),
+        )
+    return table
+
+
+def complexes(nom_ligand: str) -> tuple[Complexe, ...]:
+    """Les complexes de la base que forme ce ligand, un par métal.
+
+    >>> [c.metal for c in complexes("ammoniac")]
+    ['Ag+', 'Co2+', 'Ni2+', 'Cu2+', 'Zn2+', 'Cd2+']
+    """
+    return tuple(_complexes()[_nom_ligand(nom_ligand)].values())
+
+
+def complexe(metal: str, nom_ligand: str) -> Complexe:
+    """Les complexes successifs de ``metal`` avec le ligand, constantes **globales**.
+
+    La base donne les constantes successives de la source ; elles sont cumulées ici.
+
+    >>> complexe("Cu2+", "NH3").log_beta
+    (4.04, 7.47, 10.27, 11.75)
+    >>> complexe("Ag+", "cyanure").log_beta
+    (-inf, 20.48, 21.4)
+    """
+    lig = _nom_ligand(nom_ligand)
+    cle = normaliser(metal)
+    for m, c in _complexes()[lig].items():
+        if normaliser(m) == cle:
+            return c
+    raise KeyError(f"la base n'a pas de complexe de {metal} avec {lig}")
+
+
+@cache
+def precipites() -> tuple[Precipite, ...]:
+    """Tous les précipités de la base, dans l'ordre du fichier."""
+    return tuple(
+        Precipite(
+            p["partenaire"],
+            float(p["pKs"]),
+            int(p.get("nu", 1)),
+            int(p.get("mu", 1)),
+            tuple(p.get("pKa", ())),
+            p["formule"],
+            p["commun"],
+            p.get("note", ""),
+        )
+        for p in _lire("precipites.toml")["precipite"]
+    )
+
+
+@cache
+def _index_precipites() -> dict[str, Precipite]:
+    index: dict[str, Precipite] = {}
+    for p, entree in zip(precipites(), _lire("precipites.toml")["precipite"], strict=True):
+        for cle in (entree["formule"], *entree["noms"]):
+            k = normaliser(cle)
+            if k in index:
+                raise ValueError(f"base des précipités ambiguë : « {cle} »")
+            index[k] = p
+    return index
+
+
+def precipite(nom: str) -> Precipite:
+    """Le précipité que désigne ``nom`` : sa formule ou son nom.
+
+    >>> p = precipite("chromate d'argent")
+    >>> p.commun, p.partenaire, p.nu, p.pKs
+    ('Ag+', 'CrO4^2-', 2, 11.92)
+    """
+    try:
+        return _index_precipites()[normaliser(nom)]
+    except KeyError:
+        raise KeyError(f"« {nom} » n'est pas un précipité de la base") from None

@@ -1,5 +1,5 @@
 % titrages.sty — courbes de titrage sans approximation, dans pgfplots :
-% pH-métrie, conductimétrie, potentiométrie.
+% pH-métrie, conductimétrie, potentiométrie, complexométrie, précipitation.
 %
 % Copyright (c) 2026 antnardo — licence MIT (voir LICENSE).
 %
@@ -689,6 +689,197 @@
     \cs_undefine:c { __titrages_ #1 _sigma:n }
   }
 
+% --- complexométrie et précipitation (moteur lua seulement) -------------------------
+%
+% Les deux familles ne passent que par Lua : leur courbe est paramétrée par pL ou pP,
+% et la grandeur tracée (pM, ou pP d'un ensemble de solides qui change en cours de
+% route) n'est pas une expression unique que pgfplots saurait tracer.
+%
+% Les noms d'espèces (Ca2+, CrO4^2-) passent à Lua en chaînes, tels qu'écrits.
+
+\cs_new:Npn \__titrages_chaine:n #1 { "\lua_escape:e { \tl_to_str:n { #1 } }" }
+\cs_generate_variant:Nn \__titrages_chaine:n { e }
+\cs_new:Npn \__titrages_couple_lua:n #1
+  {
+    { \__titrages_chaine:e { \clist_item:nn { #1 } { 1 } } ,
+      \fp_eval:n { \clist_item:nn { #1 } { 2 } } } ,
+  }
+\cs_generate_variant:Nn \__titrages_couple_lua:n { x }
+
+\tl_new:N \l__titrages_especes_tl     % les métaux ou les partenaires d'une solution
+\fp_new:N \l__titrages_ligand_fp      % le ligand, ou l'ion commun, d'une solution
+\tl_new:N \l__titrages_complexes_tl
+\tl_new:N \l__titrages_precipites_tl
+\tl_new:N \l__titrages_metal_tl
+\clist_new:N \l__titrages_logbeta_clist
+\tl_new:N \l__titrages_partenaire_tl
+\fp_new:N \l__titrages_pKs_fp
+\int_new:N \l__titrages_nu_int
+\int_new:N \l__titrages_mu_int
+\tl_new:N \l__titrages_suivi_tl
+\tl_new:N \l__titrages_commun_tl
+\bool_new:N \l__titrages_pH_bool
+\tl_new:N \l__titrages_becher_cp_tl
+\tl_new:N \l__titrages_burette_cp_tl
+
+% Une solution : metal = {Ca2+, 0.01} (répétable) et ligand = …, ou
+% partenaire = {Cl-, 0.05} (répétable) et commun = ….
+\keys_define:nn { titrages / cp / solution }
+  {
+    metal      .code:n = { \tl_put_right:Nx \l__titrages_especes_tl { \__titrages_couple_lua:n { #1 } } } ,
+    partenaire .code:n = { \tl_put_right:Nx \l__titrages_especes_tl { \__titrages_couple_lua:n { #1 } } } ,
+    ligand     .code:n = { \fp_set:Nn \l__titrages_ligand_fp { #1 } } ,
+    commun     .code:n = { \fp_set:Nn \l__titrages_ligand_fp { #1 } } ,
+  }
+
+% #1 becher ou burette, #2 les clés, #3 metaux ou partenaires, #4 ligand ou commun
+\cs_new_protected:Npn \__titrages_solution_cp:nnnn #1 #2 #3 #4
+  {
+    \tl_clear:N \l__titrages_especes_tl
+    \fp_zero:N \l__titrages_ligand_fp
+    \keys_set:nn { titrages / cp / solution } { #2 }
+    \tl_set:cx { l__titrages_ #1 _cp_tl }
+      { { #3 = { \l__titrages_especes_tl } , #4 = \fp_use:N \l__titrages_ligand_fp } }
+  }
+
+\keys_define:nn { titrages / cp / complexe }
+  {
+    metal    .code:n = { \tl_set:Nn \l__titrages_metal_tl { #1 } } ,
+    log~beta .code:n = { \clist_set:Nx \l__titrages_logbeta_clist { #1 } } ,
+    stoechiometrie .code:n = { \tl_set:Nx \l__titrages_stoechio_tl { \int_eval:n { #1 } } } ,
+  }
+\tl_new:N \l__titrages_stoechio_tl
+% Un complexe non tabulé a log beta = -inf, que Lua écrit -math.huge.
+\cs_new:Npn \__titrages_logbeta_lua:n #1
+  { \fp_compare:nNnTF { #1 } = { -inf } { -math.huge } { \fp_eval:n { #1 } } , }
+
+\keys_define:nn { titrages / cp / precipite }
+  {
+    partenaire .code:n = { \tl_set:Nn \l__titrages_partenaire_tl { #1 } } ,
+    pKs        .code:n = { \fp_set:Nn \l__titrages_pKs_fp { #1 } } ,
+    nu         .code:n = { \int_set:Nn \l__titrages_nu_int { #1 } } ,
+    mu         .code:n = { \int_set:Nn \l__titrages_mu_int { #1 } } ,
+    pKa        .code:n = { \clist_set:Nx \l__titrages_pKa_clist { #1 } } ,
+  }
+
+% Les clés communes aux deux familles.
+\cs_new_protected:Npn \__titrages_cles_cp:n #1
+  {
+    \keys_define:nn { titrages / #1 }
+      {
+        volume     .code:n = { \fp_set:Nn \l__titrages_V_fp { ##1 } } ,
+        pH         .code:n = { \fp_set:Nn \l__titrages_pH_fp { ##1 } \bool_set_true:N \l__titrages_pH_bool } ,
+        suivi      .code:n = { \tl_set:Nn \l__titrages_suivi_tl { ##1 } } ,
+        volume~max .code:n = { \fp_set:Nn \l__titrages_Vmax_fp { ##1 } } ,
+        points     .code:n = { \int_set:Nn \l__titrages_points_int { ##1 } } ,
+        echelle    .code:n = { \fp_set:Nn \l__titrages_echelle_fp { ##1 } } ,
+        abscisse   .choices:nn = { volume , n }
+          { \str_set:Nx \l__titrages_abscisse_str { \l_keys_choice_tl } } ,
+      }
+  }
+\__titrages_cles_cp:n { complexation }
+\__titrages_cles_cp:n { precipitation }
+
+\keys_define:nn { titrages / complexation }
+  {
+    becher     .code:n = { \__titrages_solution_cp:nnnn { becher } { #1 } { metaux } { ligand } } ,
+    burette    .code:n = { \__titrages_solution_cp:nnnn { burette } { #1 } { metaux } { ligand } } ,
+    ligand~pKa .code:n = { \clist_set:Nx \l__titrages_pKa_clist { #1 } } ,
+    complexe   .code:n =
+      {
+        \tl_clear:N \l__titrages_metal_tl
+        \clist_clear:N \l__titrages_logbeta_clist
+        \tl_set:Nn \l__titrages_stoechio_tl { nil }
+        \keys_set:nn { titrages / cp / complexe } { #1 }
+        \tl_put_right:Nx \l__titrages_complexes_tl
+          {
+            { \__titrages_chaine:V \l__titrages_metal_tl ,
+              { \clist_map_function:NN \l__titrages_logbeta_clist \__titrages_logbeta_lua:n } ,
+              \l__titrages_stoechio_tl } ,
+          }
+      } ,
+  }
+
+\keys_define:nn { titrages / precipitation }
+  {
+    becher     .code:n = { \__titrages_solution_cp:nnnn { becher } { #1 } { partenaires } { commun } } ,
+    burette    .code:n = { \__titrages_solution_cp:nnnn { burette } { #1 } { partenaires } { commun } } ,
+    ion~commun .code:n = { \tl_set:Nn \l__titrages_commun_tl { #1 } } ,
+    precipite  .code:n =
+      {
+        \tl_clear:N \l__titrages_partenaire_tl
+        \fp_zero:N \l__titrages_pKs_fp
+        \int_set:Nn \l__titrages_nu_int { 1 }
+        \int_set:Nn \l__titrages_mu_int { 1 }
+        \clist_clear:N \l__titrages_pKa_clist
+        \keys_set:nn { titrages / cp / precipite } { #1 }
+        \tl_put_right:Nx \l__titrages_precipites_tl
+          {
+            { partenaire = \__titrages_chaine:V \l__titrages_partenaire_tl ,
+              pKs = \fp_use:N \l__titrages_pKs_fp ,
+              nu = \int_use:N \l__titrages_nu_int ,
+              mu = \int_use:N \l__titrages_mu_int ,
+              pKa = { \clist_map_function:NN \l__titrages_pKa_clist \__titrages_fp_virgule:n } } ,
+          }
+      } ,
+  }
+\cs_generate_variant:Nn \__titrages_chaine:n { V }
+
+% #1 complexation ou precipitation, #2 nom, #3 clés, #4 code Lua propre à la famille
+\cs_new_protected:Npn \__titrages_definir_cp:nnnn #1 #2 #3 #4
+  {
+    \group_begin:
+      \__titrages_initialiser:
+      \bool_set_false:N \l__titrages_pH_bool
+      \tl_clear:N \l__titrages_suivi_tl
+      \tl_set:Nn \l__titrages_commun_tl { Ag+ }
+      \tl_clear:N \l__titrages_complexes_tl
+      \tl_clear:N \l__titrages_precipites_tl
+      \clist_clear:N \l__titrages_pKa_clist
+      \tl_set:Nn \l__titrages_becher_cp_tl { { } }
+      \tl_set:Nn \l__titrages_burette_cp_tl { { } }
+      \keys_set:nn { titrages / #1 } { #3 }
+      \str_if_eq:VnF \g__titrages_moteur_str { lua }
+        { \msg_error:nnn { titrages } { lua-seulement } { \titragedefinir~(#1) } }
+      \str_if_eq:VnT \g__titrages_moteur_str { lua }
+        {
+          \lua_now:e
+            {
+              titrages.definir_ #1 ("\lua_escape:e { #2 }", {
+                V0 = \fp_use:N \l__titrages_V_fp ,
+                pH = \bool_if:NTF \l__titrages_pH_bool { \fp_use:N \l__titrages_pH_fp } { nil } ,
+                suivi = \tl_if_empty:NTF \l__titrages_suivi_tl { nil } { \__titrages_chaine:V \l__titrages_suivi_tl } ,
+                Vmax = \fp_use:N \l__titrages_Vmax_fp ,
+                points = \int_use:N \l__titrages_points_int ,
+                abscisse = "\l__titrages_abscisse_str" ,
+                echelle = \fp_use:N \l__titrages_echelle_fp ,
+                becher = \l__titrages_becher_cp_tl ,
+                burette = \l__titrages_burette_cp_tl ,
+                #4
+              })
+            }
+        }
+    \group_end:
+  }
+
+\NewDocumentCommand \titragecomplexationdefinir { m m }
+  {
+    \__titrages_definir_cp:nnnn { complexation } { #1 } { #2 }
+      {
+        pKa = { \clist_map_function:NN \l__titrages_pKa_clist \__titrages_fp_virgule:n } ,
+        complexes = { \l__titrages_complexes_tl } ,
+      }
+  }
+
+\NewDocumentCommand \titrageprecipitationdefinir { m m }
+  {
+    \__titrages_definir_cp:nnnn { precipitation } { #1 } { #2 }
+      {
+        commun = \__titrages_chaine:V \l__titrages_commun_tl ,
+        precipites = { \l__titrages_precipites_tl } ,
+      }
+  }
+
 % --- réglages globaux -----------------------------------------------------------
 
 \cs_new_protected:Npn \__titrages_reglage:Nnn #1 #2 #3
@@ -806,6 +997,12 @@
       }
   }
 
+\NewDocumentCommand \addplottitrageevenements { O{} m }
+  {
+    \__titrages_lua_seulement:N \addplottitrageevenements
+    \lua_now:e { titrages.tex_evenements("\lua_escape:e { #2 }", \__titrages_options:n { #1 }) }
+  }
+
 % Les fractions : une courbe par forme, pH en abscisse.
 \NewDocumentCommand \addplotfractions { O{} m }
   {
@@ -851,6 +1048,15 @@
 
 \NewExpandableDocumentCommand \titrageE { m m }
   { \lua_now:e { titrages.tex_nombre("\lua_escape:e { #1 }", "E", \fp_eval:n { #2 }) } }
+
+\NewExpandableDocumentCommand \titragepM { O{} m m }
+  {
+    \lua_now:e
+      { titrages.tex_nombre("\lua_escape:e { #2 }", "pM", \fp_eval:n { #3 }, \__titrages_chaine:n { #1 }) }
+  }
+
+\NewExpandableDocumentCommand \titrageevenement { O{volume} m m }
+  { \lua_now:e { titrages.tex_nombre("\lua_escape:e { #2 }", "evenement", #3, "#1") } }
 
 \NewExpandableDocumentCommand \titrageconductivite { m m }
   { \lua_now:e { titrages.tex_nombre("\lua_escape:e { #1 }", "conductivite", \fp_eval:n { #2 }) } }
@@ -985,7 +1191,7 @@
     % Ceux-là demandent le moteur lua : on le dit, au lieu d'une erreur obscure.
     \RenewDocumentCommand \titrageequivalence { m m }
       { \msg_error:nnn { titrages } { lua-seulement } { \titrageequivalence } }
-    \clist_map_inline:nn { \titragesaut , \titragetangentes }
+    \clist_map_inline:nn { \titragesaut , \titragetangentes , \titragepM , \titrageevenement }
       { \RenewDocumentCommand #1 { O{} m m } { \msg_error:nnn { titrages } { lua-seulement } { #1 } } }
   }
 

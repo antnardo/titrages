@@ -1,0 +1,81 @@
+% La complexométrie et la précipitation sous le moteur lua : compilé par lualatex, ce
+% document écrit titrages-test-cp.dat, que tests/test_latex.py compare au paquet Python.
+\documentclass{article}
+\usepackage{titrages}
+\pgfplotsset{compat=1.18}
+\titragesreglages{chiffres = 12}
+\titragecomplexationdefinir{edta}{volume = 20, pH = 10, ligand pKa = {0, 1.5, 2, 2.66, 6.16, 10.24},
+  complexe = {metal = Ca2+, log beta = 10.7},
+  becher = {metal = {Ca2+, 0.01}}, burette = {ligand = 0.01}, volume max = 40}
+\titragecomplexationdefinir{competition}{volume = 20, pH = 10, ligand pKa = {0, 1.5, 2, 2.66, 6.16, 10.24},
+  complexe = {metal = Ca2+, log beta = 10.7}, complexe = {metal = Zn2+, log beta = 16.5},
+  becher = {metal = {Ca2+, 0.01}, metal = {Zn2+, 0.005}}, burette = {ligand = 0.01},
+  suivi = Zn2+, volume max = 40}
+\titragecomplexationdefinir{cuivre}{volume = 20, pH = 11, ligand pKa = 9.25,
+  complexe = {metal = Cu2+, log beta = {4.1, 7.6, 10.5, 12.6}},
+  becher = {ligand = 0.1}, burette = {metal = {Cu2+, 0.05}}, volume max = 20}
+\titragecomplexationdefinir{liebig}{volume = 20, pH = 12, ligand pKa = 9.21,
+  complexe = {metal = Ag+, log beta = {-inf, 20.48, 21.40}, stoechiometrie = 2},
+  becher = {ligand = 0.1}, burette = {metal = {Ag+, 0.05}}, volume max = 40}
+\titrageprecipitationdefinir{mohr}{volume = 20, pH = 7.5,
+  precipite = {partenaire = Cl-, pKs = 9.75},
+  precipite = {partenaire = CrO4^2-, pKs = 11.95, nu = 2, pKa = 6.5},
+  becher = {partenaire = {Cl-, 0.05}, partenaire = {CrO4^2-, 0.005}}, burette = {commun = 0.05},
+  volume max = 30}
+\titrageprecipitationdefinir{volhard}{volume = 20, suivi = SCN-,
+  precipite = {partenaire = Cl-, pKs = 9.75}, precipite = {partenaire = SCN-, pKs = 12},
+  becher = {commun = 0.1, partenaire = {Cl-, 0.05}}, burette = {partenaire = {SCN-, 0.1}},
+  volume max = 25}
+\ExplSyntaxOn
+\iow_new:N \g_test_iow
+\iow_open:Nn \g_test_iow { \jobname .dat }
+% nom, grandeur, argument, valeur
+\cs_new_protected:Npn \ligne #1 #2 #3 #4
+  { \iow_now:Nx \g_test_iow { #1 ~ #2 ~ #3 ~ #4 } }
+\cs_new_protected:Npn \lignespM #1 #2
+  { \clist_map_inline:nn { #2 } { \ligne { #1 } { pM } { ##1 } { \titragepM { #1 } { ##1 } } } }
+\ExplSyntaxOff
+\begin{document}
+\lignespM{edta}{1, 10, 19.9, 20, 20.1, 30}
+\lignespM{competition}{5, 10, 20, 30, 35}
+\ligne{competition}{pMCa2+}{15}{\titragepM[Ca2+]{competition}{15}}
+\lignespM{cuivre}{2, 8, 12}
+\lignespM{mohr}{5, 19.99, 20, 20.01, 25}
+\ligne{mohr}{pMCl-}{10}{\titragepM[Cl-]{mohr}{10}}
+\lignespM{volhard}{2, 9, 11}
+\ligne{volhard}{pMAg+}{5}{\titragepM[Ag+]{volhard}{5}}
+\ligne{edta}{volume}{4}{\titragevolume{edta}{4}}
+\ligne{mohr}{volume}{6}{\titragevolume{mohr}{6}}
+\ligne{competition}{equivalence}{2}{\titrageequivalence{competition}{2}}
+\ligne{cuivre}{equivalence}{1}{\titrageequivalence{cuivre}{1}}
+\ligne{liebig}{equivalence}{1}{\titrageequivalence{liebig}{1}}
+\lignespM{liebig}{5, 19.9, 20, 30}
+\ligne{liebig}{saut-volume}{1}{\titragesaut{liebig}{1}}
+\ligne{mohr}{equivalence}{2}{\titrageequivalence{mohr}{2}}
+\ligne{volhard}{equivalence}{1}{\titrageequivalence{volhard}{1}}
+\ligne{edta}{saut-volume}{1}{\titragesaut{edta}{1}}
+\ligne{edta}{saut-pM}{1}{\titragesaut[pM]{edta}{1}}
+\ligne{edta}{saut-pente}{1}{\titragesaut[pente]{edta}{1}}
+\ligne{mohr}{saut-volume}{1}{\titragesaut{mohr}{1}}
+\ligne{mohr}{saut-pente}{1}{\titragesaut[pente]{mohr}{1}}
+\ligne{mohr}{evenement-volume}{2}{\titrageevenement{mohr}{2}}
+\ligne{mohr}{evenement-pM}{2}{\titrageevenement[pM]{mohr}{2}}
+\ligne{volhard}{evenement-volume}{2}{\titrageevenement{volhard}{2}}
+\begin{tikzpicture}
+  \begin{axis}
+    \addplottitrage{edta}
+    \addplottitragesauts{edta}
+    \addplottitragederivee{edta}
+  \end{axis}
+\end{tikzpicture}
+\begin{tikzpicture}
+  \begin{axis}
+    \addplottitrage{mohr}
+    \addplottitrageevenements{mohr}
+    \addplottitragesauts{mohr}
+    \addplottitrage{volhard}
+    \addplottitrageevenements{volhard}
+    \addplottitragederivee{volhard}
+  \end{axis}
+\end{tikzpicture}
+\end{document}

@@ -3,7 +3,10 @@
 Le paquet trace les courbes pH = f(V), σ = f(V) et E = f(V) du titrage d'un bécher
 quelconque par une burette quelconque — acides et bases forts ou faibles,
 polyacides, mélanges, titrant faible, couples rédox à plusieurs étapes ou
-dimériques — avec la dilution, sans aucune approximation.
+dimériques — avec la dilution, sans aucune approximation ; et, sous LuaLaTeX,
+pM = f(V) d'un titrage complexométrique en milieu tamponné et pAg = f(V) d'un
+titrage par précipitation (Mohr, Charpentier-Volhard), avec les points anguleux où
+un solide apparaît ou disparaît.
 
 La méthode : à pH imposé, tout est explicite, et le volume versé est une fonction
 directe du pH, V(pH) = -V0 R_bécher(pH) / R_burette(pH), où R est le résidu de
@@ -64,7 +67,9 @@ construit l'archive.
 test_titrages.lua`) ; `tests/titrages-test-lua.tex` et `tests/titrages-test-pgf.tex`
 compilent les tracés des deux moteurs ; `tests/titrages-test-nombres.tex`, compilé
 par lualatex et par pdflatex, écrit les nombres des deux moteurs, que
-`tests/test_latex.py` du paquet Python compare à son calcul. Le paquet Python
+`tests/test_latex.py` du paquet Python compare à son calcul ;
+`tests/titrages-test-cp.tex` fait de même pour la complexométrie et la
+précipitation, sous lualatex. Le paquet Python
 `titrages`, dans le même dépôt, implémente le même calcul avec une base de couples
 et d'indicateurs.
 

@@ -106,5 +106,32 @@ local mn = T.couple_redox({ 1.51 }, { 5 }, { 8 })
 local tv = T.titrage(T.solution_redox({ T.espece_redox(v, 0.1, 0) }), T.solution_redox({ T.espece_redox(mn, 0.02, 1) }), 10)
 proche("vanadium : 3 sauts", #T.sauts_redox(tv, 40), 3, 0)
 
+-- complexométrie
+local edta = { 0.0, 1.5, 2.0, 2.66, 6.16, 10.24 }
+local tca = T.titrage_complexation(T.solution_complexation({ { "Ca2+", 0.01 } }, 0),
+  T.solution_complexation({}, 0.01), 20, { { "Ca2+", { 10.7 } } }, edta, 10)
+proche("pCa(10)", T.pM(tca, 10), 2.4771212476, 1e-9)
+proche("pCa(20)", T.pM(tca, 20), 6.2818168487, 1e-9)
+proche("volume(pL(7))", T.volume_complexation(tca, T.pL(tca, 7)), 7, 1e-9)
+proche("saut complexométrique", T.sauts_complexation(tca, 40)[1][1], 20, 1e-5)
+proche("équivalence EDTA", T.equivalences_complexation(tca)[1], 20, 1e-12)
+local x = T.fractions_complexes({ 10.7 }, 10.7)
+proche("fractions complexes", x[1], 0.5, 1e-12)
+
+-- précipitation
+local tag = T.titrage_precipitation(T.solution_precipitation(0, { { "Cl-", 0.1 } }),
+  T.solution_precipitation(0.1), 20, { { partenaire = "Cl-", pKs = 9.75 } })
+proche("pAg à l'équivalence", T.pP(tag, 20), 9.75 / 2, 1e-12)
+proche("pAg + pCl", T.pP(tag, 10) + T.p_partenaire(tag, 10, "Cl-"), 9.75, 1e-9)
+proche("volume(pAg(13))", T.volume_precipitation(tag, T.pP(tag, 13)), 13, 1e-9)
+proche("saut AgCl", T.sauts_precipitation(tag, 40)[1][1], 20, 1e-4)
+local mohr = T.titrage_precipitation(T.solution_precipitation(0, { { "Cl-", 0.05 }, { "CrO4^2-", 0.005 } }),
+  T.solution_precipitation(0.05), 20,
+  { { partenaire = "Cl-", pKs = 9.75 }, { partenaire = "CrO4^2-", pKs = 11.95, nu = 2, pKa = { 6.5 } } }, 7.5)
+local ev = T.evenements(mohr, 30)
+proche("Mohr : deux événements", #ev, 2, 0)
+proche("Mohr : le chromate apparaît", ev[2][1], 20.0113792425, 1e-8)
+proche("Mohr : équivalence du chromate", T.equivalences_precipitation(mohr)[2], 24, 1e-12)
+
 print(("%d/%d vérifications passées"):format(total - echecs, total))
 os.exit(echecs == 0 and 0 or 1)

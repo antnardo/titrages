@@ -17,7 +17,22 @@ LaTeX partagent un numéro de version.
   partenaire basique à pH tamponné ; apparitions et disparitions de solides
   (`evenements`), sauts dans les morceaux lisses, volumes équivalents (Mohr,
   Charpentier-Volhard, halogénures successifs).
-- Sections « La complexométrie » et « La précipitation » de `docs/DOC.md`.
+- `volumes_equivalents(stoechiometrie)` en complexométrie : le complexe qui marque
+  l'équivalence, quand ce n'est pas le dernier déclaré (Liebig, `Ag(CN)2-`).
+- Une base de ligands (13), de complexes (92) et de précipités (41), tirée des tables
+  de D. Harvey, *Analytical Chemistry 2.1* (Martell et Smith) : `ligand`, `ligands`,
+  `complexe`, `complexes`, `precipite`, `precipites`. Champs `note` sur `Ligand`,
+  `Complexe` et `Precipite`, `commun` sur `Precipite` ; l'ion commun d'un
+  `TitrageParPrecipitation` se déduit des précipités.
+- Le tracé : `tracer_titrage_complexometrique`, `tracer_titrage_precipitation` ;
+  `tracer_derivee` et `tracer_sauts` acceptent les deux familles ; `vers_pgfplots`
+  exporte pM et pP.
+- Le paquet LaTeX : `\titragecomplexationdefinir`, `\titrageprecipitationdefinir`,
+  `\addplottitrageevenements`, `\titragepM`, `\titrageevenement`, sous le moteur
+  lua ; `\addplottitrage`, `\addplottitragederivee`, `\addplottitragesauts`,
+  `\titragevolume`, `\titrageequivalence` et `\titragesaut` s'y appliquent.
+- Sections « La complexométrie » et « La précipitation » de `docs/DOC.md` et de la
+  documentation LaTeX.
 
 ## [0.1.4] — 2026-10-11
 

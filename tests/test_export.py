@@ -14,3 +14,30 @@ def test_export_redox_et_conductimetrie():
     texte = vers_pgfplots(c, 3)
     assert texte.count("(") == 5
     assert texte.startswith("(0,")  # le volume d'abord, puis σ
+
+
+def test_export_complexometrie_et_precipitation():
+    from titrages import (
+        Complexe,
+        Precipite,
+        SolutionComplexation,
+        SolutionPrecipitation,
+        TitrageComplexometrique,
+        TitrageParPrecipitation,
+    )
+
+    c = TitrageComplexometrique(
+        SolutionComplexation({"Ca2+": 0.01}),
+        SolutionComplexation(ligand=0.01),
+        20,
+        [Complexe("Ca2+", (8.0,))],
+    ).courbe(40, 5)
+    assert vers_pgfplots(c, 3).startswith("(4e-08,2)")
+    p = TitrageParPrecipitation(
+        SolutionPrecipitation(partenaires={"Cl-": 0.1}),
+        SolutionPrecipitation(commun=0.1),
+        20,
+        [Precipite("Cl-", 9.75)],
+    ).courbe(40, 5)
+    texte = vers_pgfplots(p, 3)
+    assert texte.count("(") == 5 and texte.endswith(",1.48)")

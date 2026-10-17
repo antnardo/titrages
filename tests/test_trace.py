@@ -69,3 +69,44 @@ def test_conductimetrie_et_redox():
     )
     assert a.lines[-1].get_ydata()[0] == pytest.approx(10 * a.lines[0].get_ydata()[0] / (1 + 0))
     plt.close(fig)
+
+
+def test_complexometrie_et_precipitation():
+    from titrages import (
+        Complexe,
+        Ligand,
+        Precipite,
+        SolutionComplexation,
+        SolutionPrecipitation,
+        TitrageComplexometrique,
+        TitrageParPrecipitation,
+    )
+    from titrages.trace import tracer_titrage_complexometrique, tracer_titrage_precipitation
+
+    edta = Ligand("Y4-", (0.0, 1.5, 2.0, 2.66, 6.16, 10.24))
+    c = TitrageComplexometrique(
+        SolutionComplexation({"Ca2+": 0.01}),
+        SolutionComplexation(ligand=0.01),
+        20,
+        [Complexe("Ca2+", (10.7,))],
+        edta,
+        10,
+    )
+    p = TitrageParPrecipitation(
+        SolutionPrecipitation(partenaires={"Cl-": 0.05, "CrO4^2-": 0.005}),
+        SolutionPrecipitation(commun=0.05),
+        20,
+        [Precipite("Cl-", 9.75), Precipite("CrO4^2-", 11.95, nu=2, pKa=(6.5,))],
+        pH=7.5,
+    )
+    fig, (a, b) = plt.subplots(1, 2)
+    tracer_titrage_complexometrique(c, 40, a, sauts=True)
+    tracer_sauts(c, 40, a)
+    tracer_derivee(c, 40, a.twinx())
+    tracer_titrage_precipitation(p, 30, b, abscisse=20)
+    tracer_sauts(p, 30, b, abscisse=20)
+    assert a.get_ylabel() == "pCa2+" and b.get_ylabel() == "pAg+"
+    # la courbe, puis un losange par événement : Cl- au départ, CrO4^2- après l'équivalence
+    assert len(b.lines) >= 3
+    assert all(ligne.get_xdata().max() <= 1.5 + 1e-9 for ligne in b.lines)
+    plt.close(fig)

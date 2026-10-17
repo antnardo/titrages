@@ -147,11 +147,28 @@ couplés non tamponnés, qui sortent largement du programme.
   main, bilans résolus par dichotomie) : accord à 10⁻⁹ ou mieux.
 - Documentation : deux sections de `docs/DOC.md`.
 
+### Fait le 18 octobre 2026 : Lua, LaTeX, tracé, base
+
+- Le moteur Lua porte les deux familles (`titrage_complexation`,
+  `titrage_precipitation` et leurs fonctions), confronté au moteur Python par
+  `tests/test_lua.py` à 10⁻⁹ près.
+- Le paquet LaTeX : `\titragecomplexationdefinir`, `\titrageprecipitationdefinir`,
+  `\addplottitrageevenements`, `\titragepM`, `\titrageevenement`, moteur lua
+  seulement ; `latex/tests/titrages-test-cp.tex`, comparé à Python par
+  `tests/test_latex.py`. Documentation l3doc : sections 8 et 9.
+- Le tracé matplotlib (`tracer_titrage_complexometrique`,
+  `tracer_titrage_precipitation`) et l'export pgfplots.
+- La base : 13 ligands, 92 complexes, 41 précipités, des tables de Harvey
+  (*Analytical Chemistry 2.1*, § 16.10 à 16.12, d'après Martell et Smith), recopiées
+  telles qu'imprimées, avec leurs conditions. Une coquille de la source (Ksp de PbCl₂)
+  est signalée dans la note.
+- Le complexe qui marque l'équivalence peut se choisir (`stoechiometrie`) : dans le
+  dosage de Liebig, c'est Ag(CN)₂⁻, pas le dernier complexe déclaré.
+
 ### Reste à faire
 
-1. le portage Lua (`latex/titrages.lua`), les clés et commandes de
-   `titrages.sty`, leur comparaison dans `test_lua`, la documentation LaTeX ;
-2. le tracé (`trace.py`) et l'export pgfplots des deux nouvelles courbes ;
-3. la base de constantes (β, Ks) avec leurs sources, prises dans une
-   référence ;
-4. le niveau 2 (pH non tamponné), qui reste hors du projet.
+1. Le moteur pgf n'a pas les deux familles : leur courbe n'est pas une expression
+   unique (pM se déduit de pL et du volume ; l'ensemble des solides change).
+2. La base n'est pas accessible depuis LaTeX, comme celle des couples.
+3. Le niveau 2 (pH non tamponné, complexation et précipitation couplées) reste hors
+   du projet.

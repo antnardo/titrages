@@ -8,12 +8,18 @@ de la base, par exemple, que le paquet LaTeX ne connaît pas.
 import numpy as np
 import numpy.typing as npt
 
-from titrages.modeles import Courbe, CourbeConductimetrique, CourbeRedox
+from titrages.modeles import (
+    Courbe,
+    CourbeComplexometrique,
+    CourbeConductimetrique,
+    CourbePrecipitation,
+    CourbeRedox,
+)
 
 __all__ = ["vers_pgfplots"]
 
 Tableau = npt.NDArray[np.float64]
-Toutes = Courbe | CourbeRedox | CourbeConductimetrique
+Toutes = Courbe | CourbeRedox | CourbeConductimetrique | CourbeComplexometrique | CourbePrecipitation
 
 
 def _colonnes(courbe: Toutes) -> dict[str, Tableau]:
@@ -22,10 +28,14 @@ def _colonnes(courbe: Toutes) -> dict[str, Tableau]:
         return {"volume": courbe.volume, "pH": courbe.pH, "pente": courbe.pente}
     if isinstance(courbe, CourbeRedox):
         return {"volume": courbe.volume, "E": courbe.E, "pente": courbe.pente}
+    if isinstance(courbe, CourbeComplexometrique):
+        return {"volume": courbe.volume, "pM": courbe.pM, "pente": courbe.pente}
+    if isinstance(courbe, CourbePrecipitation):
+        return {"volume": courbe.volume, "p": courbe.p, "pente": courbe.pente}
     return {"volume": courbe.volume, "sigma": courbe.conductivite, "pH": courbe.pH}
 
 
 def vers_pgfplots(courbe: Toutes, chiffres: int = 5) -> str:
-    """La liste ``(V,y)`` à mettre dans ``\\addplot coordinates {…}`` : pH, E ou σ."""
+    """La liste ``(V,y)`` à mettre dans ``\\addplot coordinates {…}`` : pH, E, σ, pM ou pP."""
     volume, y = list(_colonnes(courbe).values())[:2]
     return " ".join(f"({v:.{chiffres}g},{p:.{chiffres}g})" for v, p in zip(volume, y, strict=True))

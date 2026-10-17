@@ -1,0 +1,354 @@
+# Produits de solubilité, à 25 °C et force ionique nulle sauf mention contraire (note).
+#
+# Source : D. Harvey, Analytical Chemistry 2.1, LibreTexts, CC BY-NC-SA 4.0 — § 16.10
+# « Solubility Products » pour les pKs, § 16.11 « Acid Dissociation Constants » pour les
+# pKa des partenaires ; ces tables reprennent A. E. Martell et R. M. Smith, Critical
+# Stability Constants, vol. 1–4, Plenum Press, 1976. Valeurs recopiées telles qu'imprimées.
+#
+# Un solide P_nu X_mu lie l'ion commun P (`commun`) au partenaire X : Ks = [P]^nu [X]^mu.
+# `pKa` sont ceux des formes protonées du partenaire : à pH fixé, seule sa forme la plus
+# basique précipite (pKa1 de l'acide chromique à 20 °C ; la première acidité de l'acide
+# sulfurique est forte, seule la seconde figure).
+
+[[precipite]]
+formule = "AgCl"
+noms = ["chlorure d'argent"]
+commun = "Ag+"
+partenaire = "Cl-"
+pKs = 9.74
+
+[[precipite]]
+formule = "AgBr"
+noms = ["bromure d'argent"]
+commun = "Ag+"
+partenaire = "Br-"
+pKs = 12.3
+
+[[precipite]]
+formule = "AgI"
+noms = ["iodure d'argent"]
+commun = "Ag+"
+partenaire = "I-"
+pKs = 16.08
+
+[[precipite]]
+formule = "AgSCN"
+noms = ["thiocyanate d'argent"]
+commun = "Ag+"
+partenaire = "SCN-"
+pKs = 11.97
+pKa = [0.9]
+
+[[precipite]]
+formule = "AgCN"
+noms = ["cyanure d'argent"]
+commun = "Ag+"
+partenaire = "CN-"
+pKs = 15.66
+pKa = [9.21]
+
+[[precipite]]
+formule = "Ag2CrO4"
+noms = ["chromate d'argent"]
+commun = "Ag+"
+partenaire = "CrO4^2-"
+nu = 2
+pKs = 11.92
+pKa = [-0.2, 6.51]
+
+[[precipite]]
+formule = "Ag2CO3"
+noms = ["carbonate d'argent"]
+commun = "Ag+"
+partenaire = "CO3^2-"
+nu = 2
+pKs = 11.09
+pKa = [6.352, 10.329]
+
+[[precipite]]
+formule = "Ag2SO4"
+noms = ["sulfate d'argent"]
+commun = "Ag+"
+partenaire = "SO4^2-"
+nu = 2
+pKs = 4.83
+pKa = [1.99]
+
+[[precipite]]
+formule = "Ag3PO4"
+noms = ["phosphate d'argent"]
+commun = "Ag+"
+partenaire = "PO4^3-"
+nu = 3
+pKs = 17.55
+pKa = [2.148, 7.199, 12.35]
+
+[[precipite]]
+formule = "AgIO3"
+noms = ["iodate d'argent"]
+commun = "Ag+"
+partenaire = "IO3-"
+pKs = 7.51
+pKa = [0.77]
+
+[[precipite]]
+formule = "BaSO4"
+noms = ["sulfate de baryum"]
+commun = "Ba2+"
+partenaire = "SO4^2-"
+pKs = 9.96
+pKa = [1.99]
+
+[[precipite]]
+formule = "BaCrO4"
+noms = ["chromate de baryum"]
+commun = "Ba2+"
+partenaire = "CrO4^2-"
+pKs = 9.67
+pKa = [-0.2, 6.51]
+
+[[precipite]]
+formule = "BaCO3"
+noms = ["carbonate de baryum"]
+commun = "Ba2+"
+partenaire = "CO3^2-"
+pKs = 8.3
+pKa = [6.352, 10.329]
+
+[[precipite]]
+formule = "BaF2"
+noms = ["fluorure de baryum"]
+commun = "Ba2+"
+partenaire = "F-"
+mu = 2
+pKs = 5.76
+pKa = [3.17]
+
+[[precipite]]
+formule = "BaC2O4"
+noms = ["oxalate de baryum"]
+commun = "Ba2+"
+partenaire = "C2O4^2-"
+pKs = 6.0
+pKa = [1.252, 4.266]
+note = "20 °C, force ionique 0,1 mol/L."
+
+[[precipite]]
+formule = "Ba(IO3)2"
+noms = ["iodate de baryum"]
+commun = "Ba2+"
+partenaire = "IO3-"
+mu = 2
+pKs = 8.81
+pKa = [0.77]
+
+[[precipite]]
+formule = "CaC2O4"
+noms = ["oxalate de calcium"]
+commun = "Ca2+"
+partenaire = "C2O4^2-"
+pKs = 7.9
+pKa = [1.252, 4.266]
+note = "20 °C, force ionique 0,1 mol/L."
+
+[[precipite]]
+formule = "CaF2"
+noms = ["fluorure de calcium"]
+commun = "Ca2+"
+partenaire = "F-"
+mu = 2
+pKs = 10.41
+pKa = [3.17]
+
+[[precipite]]
+formule = "CaSO4"
+noms = ["sulfate de calcium"]
+commun = "Ca2+"
+partenaire = "SO4^2-"
+pKs = 4.62
+pKa = [1.99]
+
+[[precipite]]
+formule = "CaCO3"
+noms = ["carbonate de calcium"]
+commun = "Ca2+"
+partenaire = "CO3^2-"
+pKs = 8.35
+pKa = [6.352, 10.329]
+note = "Calcite ; l'aragonite a pKs = 8,22."
+
+[[precipite]]
+formule = "Ca(IO3)2"
+noms = ["iodate de calcium"]
+commun = "Ca2+"
+partenaire = "IO3-"
+mu = 2
+pKs = 6.15
+pKa = [0.77]
+
+[[precipite]]
+formule = "SrSO4"
+noms = ["sulfate de strontium"]
+commun = "Sr2+"
+partenaire = "SO4^2-"
+pKs = 6.5
+pKa = [1.99]
+
+[[precipite]]
+formule = "SrCO3"
+noms = ["carbonate de strontium"]
+commun = "Sr2+"
+partenaire = "CO3^2-"
+pKs = 9.03
+pKa = [6.352, 10.329]
+
+[[precipite]]
+formule = "SrF2"
+noms = ["fluorure de strontium"]
+commun = "Sr2+"
+partenaire = "F-"
+mu = 2
+pKs = 8.54
+pKa = [3.17]
+
+[[precipite]]
+formule = "SrC2O4"
+noms = ["oxalate de strontium"]
+commun = "Sr2+"
+partenaire = "C2O4^2-"
+pKs = 6.4
+pKa = [1.252, 4.266]
+note = "20 °C, force ionique 0,1 mol/L."
+
+[[precipite]]
+formule = "PbCl2"
+noms = ["chlorure de plomb(II)"]
+commun = "Pb2+"
+partenaire = "Cl-"
+mu = 2
+pKs = 4.78
+note = "La source imprime Ksp = 2,0·10⁻¹⁹, coquille : pKs = 4,78 est la valeur retenue."
+
+[[precipite]]
+formule = "PbBr2"
+noms = ["bromure de plomb(II)"]
+commun = "Pb2+"
+partenaire = "Br-"
+mu = 2
+pKs = 5.68
+note = "Force ionique 0,5 mol/L."
+
+[[precipite]]
+formule = "PbI2"
+noms = ["iodure de plomb(II)"]
+commun = "Pb2+"
+partenaire = "I-"
+mu = 2
+pKs = 8.1
+
+[[precipite]]
+formule = "PbSO4"
+noms = ["sulfate de plomb(II)"]
+commun = "Pb2+"
+partenaire = "SO4^2-"
+pKs = 7.79
+pKa = [1.99]
+
+[[precipite]]
+formule = "PbCO3"
+noms = ["carbonate de plomb(II)"]
+commun = "Pb2+"
+partenaire = "CO3^2-"
+pKs = 13.13
+pKa = [6.352, 10.329]
+
+[[precipite]]
+formule = "PbF2"
+noms = ["fluorure de plomb(II)"]
+commun = "Pb2+"
+partenaire = "F-"
+mu = 2
+pKs = 7.44
+pKa = [3.17]
+
+[[precipite]]
+formule = "Pb(IO3)2"
+noms = ["iodate de plomb(II)"]
+commun = "Pb2+"
+partenaire = "IO3-"
+mu = 2
+pKs = 12.61
+pKa = [0.77]
+
+[[precipite]]
+formule = "Hg2Cl2"
+noms = ["chlorure de mercure(I)"]
+commun = "Hg2^2+"
+partenaire = "Cl-"
+mu = 2
+pKs = 17.91
+
+[[precipite]]
+formule = "Hg2Br2"
+noms = ["bromure de mercure(I)"]
+commun = "Hg2^2+"
+partenaire = "Br-"
+mu = 2
+pKs = 22.25
+
+[[precipite]]
+formule = "Hg2I2"
+noms = ["iodure de mercure(I)"]
+commun = "Hg2^2+"
+partenaire = "I-"
+mu = 2
+pKs = 28.33
+
+[[precipite]]
+formule = "Hg2(SCN)2"
+noms = ["thiocyanate de mercure(I)"]
+commun = "Hg2^2+"
+partenaire = "SCN-"
+mu = 2
+pKs = 19.52
+pKa = [0.9]
+
+[[precipite]]
+formule = "CuCl"
+noms = ["chlorure de cuivre(I)"]
+commun = "Cu+"
+partenaire = "Cl-"
+pKs = 6.73
+
+[[precipite]]
+formule = "CuBr"
+noms = ["bromure de cuivre(I)"]
+commun = "Cu+"
+partenaire = "Br-"
+pKs = 8.3
+
+[[precipite]]
+formule = "CuSCN"
+noms = ["thiocyanate de cuivre(I)"]
+commun = "Cu+"
+partenaire = "SCN-"
+pKs = 13.4
+pKa = [0.9]
+note = "Force ionique 5,0 mol/L."
+
+[[precipite]]
+formule = "MgF2"
+noms = ["fluorure de magnésium"]
+commun = "Mg2+"
+partenaire = "F-"
+mu = 2
+pKs = 8.18
+pKa = [3.17]
+
+[[precipite]]
+formule = "MgCO3"
+noms = ["carbonate de magnésium"]
+commun = "Mg2+"
+partenaire = "CO3^2-"
+pKs = 7.46
+pKa = [6.352, 10.329]

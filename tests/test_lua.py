@@ -161,3 +161,191 @@ io.write(string.format('"tangentes":[%.12g,%.12g]}}', tg.V, tg.E))
         assert V == pytest.approx(s.volume, rel=1e-9)
         assert E == pytest.approx(s.E, abs=1e-9)
         assert pente == pytest.approx(s.pente, rel=1e-6)
+
+
+# --- complexométrie et précipitation -------------------------------------------------
+
+CP_VOLUMES = [0.5, 5, 9.99, 10, 10.01, 15, 19.99, 20, 20.01, 24, 30]
+
+
+def _executer(script: str, dossier: Path) -> dict:
+    fichier = dossier / "cp.lua"
+    fichier.write_text(
+        f'package.path = "{LATEX.as_posix()}/?.lua;" .. package.path\nlocal T = require("titrages")\n'
+        + script,
+        encoding="utf-8",
+    )
+    sortie = subprocess.run([INTERPRETE, str(fichier)], capture_output=True, text=True, check=True)
+    return json.loads(sortie.stdout)
+
+
+_EXPORT = """
+local function liste(t) local r = {} for i, x in ipairs(t) do r[i] = string.format("%.17g", x) end return "[" .. table.concat(r, ",") .. "]" end
+local function triplets(l) local r = {} for i, s in ipairs(l) do r[i] = string.format("[%.17g,%.17g,%.17g]", s[1], s[2], s[3]) end return "[" .. table.concat(r, ",") .. "]" end
+"""
+
+COMPLEXATION = {
+    "Ca-EDTA": (
+        '{{"Ca2+",0.01}}, 0',
+        "{}, 0.01",
+        '{{"Ca2+",{10.7}}}',
+        "{0.0,1.5,2.0,2.66,6.16,10.24}",
+        "10",
+    ),
+    "Ca et Zn": (
+        '{{"Ca2+",0.01},{"Zn2+",0.005}}, 0',
+        "{}, 0.01",
+        '{{"Ca2+",{10.7}},{"Zn2+",{16.5}}}',
+        "{0.0,1.5,2.0,2.66,6.16,10.24}",
+        "10",
+    ),
+    "Cu-NH3, métal titrant": (
+        "{}, 0.1",
+        '{{"Cu2+",0.05}}, 0',
+        '{{"Cu2+",{4.1,7.6,10.5,12.6}}}',
+        "{9.25}",
+        "11",
+    ),
+}
+
+
+def _complexation_python(nom: str):
+    from titrages import Complexe, Ligand, SolutionComplexation, TitrageComplexometrique
+
+    edta = Ligand("Y4-", (0.0, 1.5, 2.0, 2.66, 6.16, 10.24))
+    ca, zn = Complexe("Ca2+", (10.7,)), Complexe("Zn2+", (16.5,))
+    if nom == "Ca-EDTA":
+        return TitrageComplexometrique(
+            SolutionComplexation({"Ca2+": 0.01}), SolutionComplexation(ligand=0.01), 20, [ca], edta, 10
+        )
+    if nom == "Ca et Zn":
+        return TitrageComplexometrique(
+            SolutionComplexation({"Ca2+": 0.01, "Zn2+": 0.005}),
+            SolutionComplexation(ligand=0.01),
+            20,
+            [ca, zn],
+            edta,
+            10,
+        )
+    return TitrageComplexometrique(
+        SolutionComplexation(ligand=0.1),
+        SolutionComplexation({"Cu2+": 0.05}),
+        20,
+        [Complexe("Cu2+", (4.1, 7.6, 10.5, 12.6))],
+        Ligand("NH3", (9.25,)),
+        11,
+    )
+
+
+@pytest.mark.parametrize("nom", COMPLEXATION)
+def test_complexation_memes_nombres(nom, tmp_path):
+    becher, burette, complexes, pKa, pH = COMPLEXATION[nom]
+    lua = _executer(
+        _EXPORT
+        + f"""
+local t = T.titrage_complexation(T.solution_complexation({becher}), T.solution_complexation({burette}),
+  20, {complexes}, {pKa}, {pH})
+local pM, pL, pente = {{}}, {{}}, {{}}
+for i, V in ipairs({{{", ".join(map(str, CP_VOLUMES))}}}) do
+  pM[i], pL[i] = T.pM(t, V), T.pL(t, V)
+  pente[i] = T.pente_complexation(t, pL[i])
+end
+local ok, eq = pcall(T.equivalences_complexation, t)
+io.write('{{"pM":' .. liste(pM) .. ',"pente":' .. liste(pente) .. ',"sauts":' .. triplets(T.sauts_complexation(t, 40))
+  .. ',"equivalences":' .. (ok and liste(eq) or "null") .. '}}')
+""",
+        tmp_path,
+    )
+    t = _complexation_python(nom)
+    assert lua["pM"] == pytest.approx(t.pM(CP_VOLUMES).tolist(), abs=1e-9)
+    assert lua["pente"] == pytest.approx(t.pente(t.pL(CP_VOLUMES)).tolist(), rel=1e-9)
+    sauts = t.sauts(40)
+    assert len(lua["sauts"]) == len(sauts)
+    for (V, pM, pente), s in zip(lua["sauts"], sauts, strict=True):
+        assert (V, pM, pente) == pytest.approx((s.volume, s.pM, s.pente), rel=1e-9)
+    assert lua["equivalences"] == pytest.approx(list(t.volumes_equivalents()), rel=1e-12)
+
+
+PRECIPITATION = {
+    "Mohr": (
+        '0, {{"Cl-",0.05},{"CrO4^2-",0.005}}',
+        "0.05",
+        '{{partenaire="Cl-",pKs=9.75},{partenaire="CrO4^2-",pKs=11.95,nu=2,pKa={6.5}}}',
+        "7.5",
+    ),
+    "iodure et chlorure": (
+        '0, {{"Cl-",0.05},{"I-",0.05}}',
+        "0.1",
+        '{{partenaire="Cl-",pKs=9.75},{partenaire="I-",pKs=16.08}}',
+        "nil",
+    ),
+    "Charpentier-Volhard": (
+        '0.1, {{"Cl-",0.05}}',
+        '0, {{"SCN-",0.1}}',
+        '{{partenaire="Cl-",pKs=9.75},{partenaire="SCN-",pKs=12}}',
+        "nil",
+    ),
+}
+
+
+def _precipitation_python(nom: str):
+    from titrages import Precipite, SolutionPrecipitation, TitrageParPrecipitation
+
+    cl = Precipite("Cl-", 9.75)
+    if nom == "Mohr":
+        return TitrageParPrecipitation(
+            SolutionPrecipitation(partenaires={"Cl-": 0.05, "CrO4^2-": 0.005}),
+            SolutionPrecipitation(commun=0.05),
+            20,
+            [cl, Precipite("CrO4^2-", 11.95, nu=2, pKa=(6.5,))],
+            pH=7.5,
+        )
+    if nom == "iodure et chlorure":
+        return TitrageParPrecipitation(
+            SolutionPrecipitation(partenaires={"Cl-": 0.05, "I-": 0.05}),
+            SolutionPrecipitation(commun=0.1),
+            20,
+            [cl, Precipite("I-", 16.08)],
+        )
+    return TitrageParPrecipitation(
+        SolutionPrecipitation(commun=0.1, partenaires={"Cl-": 0.05}),
+        SolutionPrecipitation(partenaires={"SCN-": 0.1}),
+        20,
+        [cl, Precipite("SCN-", 12.0)],
+    )
+
+
+@pytest.mark.parametrize("nom", PRECIPITATION)
+def test_precipitation_memes_nombres(nom, tmp_path):
+    becher, burette, precipites, pH = PRECIPITATION[nom]
+    lua = _executer(
+        _EXPORT
+        + f"""
+local t = T.titrage_precipitation(T.solution_precipitation({becher}), T.solution_precipitation({burette}),
+  20, {precipites}, {pH})
+local p, pente = {{}}, {{}}
+for i, V in ipairs({{{", ".join(map(str, CP_VOLUMES))}}}) do
+  p[i] = T.pP(t, V)
+  pente[i] = T.pente_precipitation(t, p[i])
+end
+local ev = {{}}
+for i, e in ipairs(T.evenements(t, 30)) do
+  ev[i] = string.format('[%.17g,%.17g,"%s",%s]', e[1], e[2], e[3], tostring(e[4]))
+end
+io.write('{{"p":' .. liste(p) .. ',"pente":' .. liste(pente) .. ',"sauts":' .. triplets(T.sauts_precipitation(t, 30))
+  .. ',"evenements":[' .. table.concat(ev, ",") .. '],"equivalences":' .. liste(T.equivalences_precipitation(t)) .. '}}')
+""",
+        tmp_path,
+    )
+    t = _precipitation_python(nom)
+    assert lua["p"] == pytest.approx(t.p(CP_VOLUMES).tolist(), abs=1e-9)
+    assert lua["pente"] == pytest.approx(t.pente(t.p(CP_VOLUMES)).tolist(), rel=1e-9)
+    sauts = t.sauts(30)
+    assert len(lua["sauts"]) == len(sauts)
+    for (V, p, pente), s in zip(lua["sauts"], sauts, strict=True):
+        assert (V, p, pente) == pytest.approx((s.volume, s.p, s.pente), rel=1e-9)
+    evenements = t.evenements(30)
+    assert [(x, a) for _, _, x, a in lua["evenements"]] == [(e.partenaire, e.apparition) for e in evenements]
+    for (V, p, _, _), e in zip(lua["evenements"], evenements, strict=True):
+        assert (V, p) == pytest.approx((e.volume, e.p), rel=1e-9, abs=1e-12)
+    assert lua["equivalences"] == pytest.approx(list(t.volumes_equivalents()), rel=1e-12)

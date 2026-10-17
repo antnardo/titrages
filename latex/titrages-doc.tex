@@ -54,7 +54,7 @@
 
 \title{Le paquet \paquet{titrages}\\[2pt]
   \large Courbes de titrage sans approximation, pour Lua\LaTeX\\
-  pH-métrie, conductimétrie, potentiométrie}
+  pH-métrie, conductimétrie, potentiométrie,\\ complexométrie, précipitation}
 \author{antnardo\thanks{\url{https://github.com/antnardo/titrages}}}
 \date{Version 0.1.4 — 11 octobre 2026}
 
@@ -66,7 +66,11 @@ Le paquet \paquet{titrages} trace dans \paquet{pgfplots} les courbes pH$=f(V)$,
 $\sigma=f(V)$ et $E=f(V)$ du titrage d'un bécher quelconque par une burette
 quelconque — acides et bases forts ou faibles, polyacides, ampholytes, mélanges,
 titrant faible compris, couples rédox à plusieurs étapes ou dimériques — en tenant
-compte de la dilution et sans aucune approximation de réaction prépondérante.
+compte de la dilution et sans aucune approximation de réaction prépondérante. Il
+trace aussi $\mathrm{pM}=f(V)$ d'un titrage complexométrique en milieu tamponné —
+complexes successifs, métaux en compétition — et $\mathrm{pAg}=f(V)$ d'un titrage par
+précipitation — plusieurs solides, méthodes de Mohr et de Charpentier-Volhard —, avec
+les points anguleux où un solide apparaît ou disparaît.
 Sous Lua\LaTeX{}, un moteur écrit en Lua calcule en double précision : il donne en
 plus le pH, la conductivité ou le potentiel à un volume donné, les équivalences, les
 points d'inflexion à la précision de la machine et la méthode des tangentes, sous
@@ -205,6 +209,33 @@ Un couple \emph{dimérique} (\ce{I2}/\ce{I-}, \ce{Cr2O7^2-}/\ce{Cr^3+},
 une simple dilution change son potentiel. Le moteur \texttt{lua} résout alors
 $E(V)$ par dichotomie sur $g(E,V)=V_0R_\text{bécher}+VR_\text{burette}$, qui croît
 avec $E$.
+
+\subsection{La complexométrie}\label{sec:principe-complexation}
+
+Le ligand libre joue le rôle du proton : un métal et ses complexes successifs
+$\mathrm{ML}_j$ se comportent comme un polyacide dont les « protons » seraient des
+ligands. À concentration $\ell'$ de ligand libre imposée — toutes formes protonées
+comprises, le milieu étant tamponné —, les fractions sont explicites,
+$x_j\propto\beta'_j\ell'^j$, avec les constantes conditionnelles
+$\beta'_j=\beta_j\alpha^j$, $\alpha$ la fraction de la forme la plus basique du ligand.
+Le bilan du ligand, $R(\mathrm{pL})=\sum_i C_iY_{1,i}+\ell'-C_L$, est linéaire dans les
+quantités introduites : $V(\mathrm{pL})=-V_0R_\text{bécher}/R_\text{burette}$, plusieurs
+métaux en compétition compris. La courbe est paramétrée par
+$\mathrm{pL}=-\log\ell'$, et $\mathrm{pM}=-\log T_\mathrm{M}(V)+\log\sum_j\beta'_j\ell'^j$
+s'en déduit.
+
+\subsection{La précipitation}\label{sec:principe-precipitation}
+
+Un ion commun P (\ce{Ag+}) forme avec des partenaires $\mathrm X_i$ des solides
+$\mathrm P_\nu\mathrm X_\mu$, $K_s=a^\nu x^\mu$ avec $a=[\mathrm P]$. À $a$ imposé, un
+solide présent fixe son partenaire, $x_\text{sat}=(K_s/a^\nu)^{1/\mu}/\alpha$ ; pour un
+ensemble $S$ de solides présents, le bilan de l'ion commun
+$R_S=a+\sum_{i\in S}r_i\,(C_{\mathrm X_i}-x_{\text{sat},i})-C_\mathrm P$, $r=\nu/\mu$,
+est encore linéaire : chaque ensemble a son volume explicite. On essaie les $2^n$
+ensembles et l'on retient le seul cohérent — chaque solide présent en quantité
+positive, chaque absent non sursaturé. La courbe a des points anguleux là où un solide
+apparaît ou disparaît : ce sont des \emph{événements}, distincts des points
+d'inflexion, qu'on ne cherche qu'à l'intérieur des morceaux lisses.
 
 \subsection{La précision}\label{sec:precision}
 
@@ -625,6 +656,164 @@ Le permanganate est
 \end{exemple}
 
 % =============================================================================
+\section{Complexométrie}\label{sec:complexation}
+
+\begin{function}{\titragecomplexationdefinir}
+\begin{syntax}
+\cs{titragecomplexationdefinir}\marg{nom}\marg{clés}
+\end{syntax}
+Enregistre le titrage complexométrique \meta{nom} (moteur \texttt{lua}). Le milieu est
+tamponné au pH de la clé \cle{pH}.
+\end{function}
+
+{\raggedright Les commandes qui s'y appliquent sont \cs{addplottitrage},
+\cs{addplottitragederivee}, \cs{addplottitragesauts}, \cs{titragepM},
+\cs{titragevolume}, \cs{titrageequivalence} et \cs{titragesaut}. La courbe est
+$\mathrm{pM}=f(V)$ du métal suivi.\par}
+
+\subsection{Les clés du titrage}
+
+\begin{cles}
+\cle{volume}, \cle{becher}, \cle{burette}, \cle{volume max}, \cle{points},
+  \cle{abscisse}, \cle{echelle} & & comme pour un titrage acide-base \\
+\cle{pH} & & le pH du tampon ; obligatoire si le ligand a des pKa \\
+\defcle{ligand pKa}{ligand pKa} & & les pKa des formes protonées du ligand : celles de
+  l'EDTA, \cle{\{0, 1.5, 2, 2.66, 6.16, 10.24\}} \\
+\defcle{complexe}{complexe} & & les complexes d'un métal, répétable : une liste de clés
+  (ci-dessous) \\
+\defcle{suivi}{suivi} & le premier & le métal dont on trace et lit le pM \\
+\end{cles}
+
+Les clés d'un \cle{complexe} :
+
+\begin{cles}
+\defcle{metal}{metal} & & le nom du métal, tel qu'on l'écrit ailleurs : \cle{Ca2+} \\
+\defcle{log beta}{log beta} & & les constantes \emph{globales}
+  $\log\beta_1,\dots,\log\beta_n$ ; \mbox{\cle{-inf}} pour un complexe intermédiaire qui ne
+  se forme pas \\
+\defcle{stoechiometrie complexe}{stoechiometrie} & $n$ & le complexe
+  $\mathrm{ML}_k$ qui marque l'équivalence, pour \cs{titrageequivalence} \\
+\end{cles}
+
+Une solution a deux clés : \defcle{metal solution}{metal}, répétable, qui prend le
+nom et la concentration, \cle{\{Ca2+, 0.01\}}, et \defcle{ligand}{ligand}, la
+concentration du ligand.
+
+\begin{exemple}
+\titragecomplexationdefinir{calcium}{
+  volume = 20, pH = 10, ligand pKa = {0, 1.5, 2, 2.66, 6.16, 10.24},
+  complexe = {metal = Ca2+, log beta = 10.7},
+  becher = {metal = {Ca2+, 0.01}}, burette = {ligand = 0.01},
+  volume max = 40,
+}
+\titragecomplexationdefinir{zinc}{
+  volume = 20, pH = 10, ligand pKa = {0, 1.5, 2, 2.66, 6.16, 10.24},
+  complexe = {metal = Ca2+, log beta = 10.7},
+  complexe = {metal = Zn2+, log beta = 16.5},
+  becher = {metal = {Ca2+, 0.01}, metal = {Zn2+, 0.005}},
+  burette = {ligand = 0.01}, suivi = Zn2+, volume max = 40,
+}
+\begin{tikzpicture}
+\begin{axis}[width=9cm, height=6cm, xlabel={$V$ (mL)}, ylabel={pM}, grid=both]
+  \addplottitrage[thick]{calcium}
+  \addplottitragesauts[black, mark=*]{calcium}
+  \addplottitrage[thick]{zinc}
+  \addplottitragesauts[black, mark=*]{zinc}
+\end{axis}
+\end{tikzpicture}
+
+pCa à l'équivalence : \num{\titragepM{calcium}{20}} ; avec le zinc, pCa à
+\qty{15}{mL} : \num{\titragepM[Ca2+]{zinc}{15}} ; équivalences
+\num{\titrageequivalence{zinc}{1}} et \num{\titrageequivalence{zinc}{2}}~mL.
+\end{exemple}
+
+Le dosage de Liebig — l'argent dans les cyanures — forme \ce{Ag(CN)2-}, dont la source
+ne donne que $\log\beta_2$ : \cle{log beta = \{-inf, 20.48, 21.40\}}, et
+\cle{stoechiometrie = 2} pour que l'équivalence soit celle de \ce{Ag(CN)2-} et non
+celle de \ce{Ag(CN)3^2-}, peu stable.
+
+% =============================================================================
+\section{Précipitation}\label{sec:precipitation}
+
+\begin{function}{\titrageprecipitationdefinir}
+\begin{syntax}
+\cs{titrageprecipitationdefinir}\marg{nom}\marg{clés}
+\end{syntax}
+Enregistre le titrage par précipitation \meta{nom} (moteur \texttt{lua}).
+\end{function}
+
+{\raggedright Les commandes qui s'y appliquent sont \cs{addplottitrage},
+\cs{addplottitragederivee}, \cs{addplottitragesauts}, \cs{addplottitrageevenements},
+\cs{titragepM}, \cs{titragevolume}, \cs{titrageequivalence}, \cs{titragesaut} et
+\cs{titrageevenement}. La courbe est $\mathrm{pP}=f(V)$ de l'ion commun, ou pX d'un
+partenaire (clé \cle{suivi}).\par}
+
+\subsection{Les clés du titrage}
+
+\begin{cles}
+\cle{volume}, \cle{becher}, \cle{burette}, \cle{volume max}, \cle{points},
+  \cle{abscisse}, \cle{echelle} & & comme pour un titrage acide-base \\
+\cle{pH} & & le pH du tampon ; obligatoire si un partenaire a des pKa \\
+\defcle{ion commun}{ion commun} & \cle{Ag+} & le nom de l'ion commun \\
+\defcle{precipite}{precipite} & & un solide possible, répétable : une liste de clés
+  (ci-dessous) \\
+\cle{suivi} & l'ion commun & l'espèce dont on trace et lit le cologarithme : l'ion
+  commun ou un partenaire \\
+\end{cles}
+
+Les clés d'un \cle{precipite} $\mathrm P_\nu\mathrm X_\mu$, $K_s=[\mathrm P]^\nu[\mathrm X]^\mu$ :
+
+\begin{cles}
+\defcle{partenaire}{partenaire} & & le nom du partenaire X : \cle{Cl-},
+  \cle{CrO4\^{}2-} \\
+\defcle{pKs}{pKs} & & le produit de solubilité \\
+\defcle{nu}{nu} & 1 & ions communs par formule \\
+\defcle{mu}{mu} & 1 & partenaires par formule \\
+\defcle{pKa precipite}{pKa} & & les pKa des formes protonées du partenaire : seule
+  sa forme la plus basique précipite \\
+\end{cles}
+
+Une solution a deux clés : \defcle{partenaire solution}{partenaire}, répétable,
+\cle{\{Cl-, 0.05\}}, et \defcle{commun}{commun}, la concentration de l'ion commun.
+
+\begin{function}{\addplottitrageevenements}
+\begin{syntax}
+\cs{addplottitrageevenements}\oarg{options}\marg{nom}
+\end{syntax}
+Marque les points anguleux : l'apparition ou la disparition d'un solide.
+\end{function}
+
+\begin{exemple}
+\titrageprecipitationdefinir{mohr}{
+  volume = 20, pH = 7.5,
+  precipite = {partenaire = Cl-, pKs = 9.75},
+  precipite = {partenaire = CrO4^2-, pKs = 11.95, nu = 2, pKa = 6.5},
+  becher = {partenaire = {Cl-, 0.05}, partenaire = {CrO4^2-, 0.005}},
+  burette = {commun = 0.05}, volume max = 30,
+}
+\titrageprecipitationdefinir{volhard}{
+  volume = 20,
+  precipite = {partenaire = Cl-, pKs = 9.75},
+  precipite = {partenaire = SCN-, pKs = 12},
+  becher = {commun = 0.1, partenaire = {Cl-, 0.05}},
+  burette = {partenaire = {SCN-, 0.1}}, volume max = 25,
+}
+\begin{tikzpicture}
+\begin{axis}[width=9cm, height=6cm, xlabel={$V$ (mL)}, ylabel={pAg}, grid=both]
+  \addplottitrage[thick]{mohr}
+  \addplottitrageevenements[black, mark=diamond*]{mohr}
+  \addplottitrage[thick]{volhard}
+  \addplottitrageevenements[black, mark=diamond*]{volhard}
+\end{axis}
+\end{tikzpicture}
+
+Mohr : le chromate d'argent apparaît à \qty{\titrageevenement{mohr}{2}}{mL}, pAg
+\num{\titrageevenement[pM]{mohr}{2}}. Volhard : le thiocyanate d'argent apparaît dès
+le début, le chlorure d'argent se redissout à
+\qty{\titrageevenement{volhard}{2}}{mL}.
+\end{exemple}
+
+% =============================================================================
 \section{Les nombres}\label{sec:nombres}
 
 Ces commandes sont \emph{développables} : elles s'emploient dans
@@ -635,7 +824,7 @@ arguments numériques passent par \cs[no-index]{fp_eval:n}. Un volume, une
 équivalence ou un point qui n'existe pas rendent \texttt{nan} ; un saut qui
 n'existe pas est une erreur. Sous le moteur \texttt{pgf}, \cs{titragepH},
 \cs{titragepHinitial}, \cs{titrageE}, \cs{titrageconductivite} et
-\cs{titragevolume} existent aussi (§\,\ref{sec:moteurs}) ; les trois autres
+\cs{titragevolume} existent aussi (§\,\ref{sec:moteurs}) ; les autres
 demandent le moteur \texttt{lua}.
 
 \begin{function}[EXP]{\titragepH}
@@ -660,6 +849,16 @@ Le potentiel d'un titrage rédox après avoir versé \meta{V}, en volts par rapp
 la référence du titrage.
 \end{function}
 
+\begin{function}[EXP]{\titragepM}
+\begin{syntax}
+\cs{titragepM}\oarg{espèce}\marg{nom}\marg{V}
+\end{syntax}
+Le cologarithme de l'espèce suivie après avoir versé \meta{V} : pM d'un titrage
+complexométrique, pP de l'ion commun (ou pX du partenaire \cle{suivi}) d'un titrage par
+précipitation. \meta{espèce} en lit une autre : un autre métal, l'ion commun ou un
+partenaire.
+\end{function}
+
 \begin{function}[EXP]{\titrageconductivite}
 \begin{syntax}
 \cs{titrageconductivite}\marg{nom}\marg{V}
@@ -672,7 +871,8 @@ dilution si \cle{conductivite corrigee} est vraie.
 \begin{syntax}
 \cs{titragevolume}\marg{nom}\marg{pH ou E}
 \end{syntax}
-Le volume qui amène à ce pH, ou à ce potentiel (dans la référence du titrage).
+Le volume qui amène à ce pH, à ce potentiel (dans la référence du titrage), ou à ce
+pM de l'espèce suivie.
 \end{function}
 
 \begin{function}[EXP]{\titrageequivalence}
@@ -680,7 +880,9 @@ Le volume qui amène à ce pH, ou à ce potentiel (dans la référence du titrag
 \cs{titrageequivalence}\marg{nom}\marg{k}
 \end{syntax}
 Le volume de la $k$-ième équivalence stœchiométrique. Définie pour un titrant fort
-en acide-base, et pour tout titrage rédox.
+en acide-base, pour tout titrage rédox, pour un ligand qui titre des métaux ou un
+métal qui titre le ligand, pour l'ion commun qui titre des partenaires ou un partenaire
+qui titre l'ion commun restant (Charpentier-Volhard).
 \end{function}
 
 \begin{function}[EXP]{\titragesaut}
@@ -688,7 +890,16 @@ en acide-base, et pour tout titrage rédox.
 \cs{titragesaut}\oarg{champ}\marg{nom}\marg{k}
 \end{syntax}
 Le $k$-ième point d'inflexion. \meta{champ} vaut \cle{volume} (défaut), \cle{pH}
-(ou \cle{E} en rédox) ou \cle{pente}, la pente en ce point par unité de l'abscisse.
+(\cle{E} en rédox, \cle{pM} en complexométrie et en précipitation) ou \cle{pente}, la
+pente en ce point par unité de l'abscisse.
+\end{function}
+
+\begin{function}[EXP]{\titrageevenement}
+\begin{syntax}
+\cs{titrageevenement}\oarg{champ}\marg{nom}\marg{k}
+\end{syntax}
+Le $k$-ième point anguleux d'un titrage par précipitation, où un solide apparaît ou
+disparaît. \meta{champ} vaut \cle{volume} (défaut) ou \cle{pM}.
 \end{function}
 
 \begin{function}[EXP]{\titragetangentes}
@@ -776,6 +987,7 @@ courbes pH, $\sigma$, $E$ & oui & oui \\
 couples rédox dimériques & oui & non \\
 fractions & oui & oui \\
 dérivée, points d'inflexion, tangentes & oui & non \\
+complexométrie, précipitation & oui & non \\
 nombres : pH, $E$, $\sigma$, $V$ (§\,\ref{sec:nombres}) & oui & oui (\paquet{l3fp}) \\
 nombres : équivalences, sauts, tangentes & oui & non \\
 \cle{abscisse = n} & oui & non (\cle{echelle} = $V_\text{éq}$) \\
@@ -816,6 +1028,20 @@ volume\_redox(t, E) & le volume qui amène à ce potentiel (V/ENH), ou \lua{nil}
 courbe\_redox, sauts\_redox, tangentes\_redox, equivalences\_redox & les
   analogues rédox \\
 fractions(pKa, pH) & les fractions de chaque forme \\
+pM(t, V, metal) & pM du métal (complexométrie) \\
+pL(t, V), volume\_complexation(t, pL) & le paramètre de la courbe et son inverse \\
+pente\_complexation(t, pL, metal) & $\mathrm d\,\mathrm{pM}/\mathrm dV$ \\
+courbe\_complexation, sauts\_complexation, equivalences\_complexation & les analogues
+  complexométriques \\
+fractions\_complexes(log\_beta, pL) & les fractions de M, ML, …, ML$_n$ \\
+pP(t, V), p\_partenaire(t, V, X) & pP de l'ion commun, pX d'un partenaire
+  (précipitation) \\
+volume\_precipitation(t, pP), solides(t, pP) & le volume et les solides présents en ce
+  pP \\
+evenements(t, Vmax) & les points anguleux, $\{V, \mathrm{pP}, \text{partenaire},
+  \text{apparition}\}$ \\
+courbe\_precipitation, sauts\_precipitation, equivalences\_precipitation & les analogues
+  pour la précipitation \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -876,6 +1102,13 @@ un couple dimérique n'a qu'une étape & une seule valeur dans \cle{E0} \\
 la burette n'apporte aucun électron & \cle{forme} de l'espèce titrante \\
 référence inconnue & \cle{reference} \\
 un titrage rédox se lit par \cs{titrageE} & et réciproquement \\
+\meta{X} a des acidités : préciser le pH du milieu & la clé \cle{pH} \\
+\meta{M} : aucun complexe déclaré & une clé \cle{complexe} pour chaque métal \\
+\meta{X} : aucun précipité déclaré & une clé \cle{precipite} pour chaque partenaire \\
+pas de complexe ML\meta{n} déclaré & \cle{stoechiometrie} au-delà des constantes \\
+équivalences définies pour … & le titrage n'est pas de ceux qu'énumère
+  \cs{titrageequivalence} \\
+pas d'événement n° \meta{k} & la courbe a moins de $k$ points anguleux \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -888,15 +1121,19 @@ molaires sont les valeurs limites, qui surestiment $\sigma$ dès quelques
 \unit{mmol/L}. La température n'intervient que par \cle{pKe} et
 \cle{pente nernst} ; les pKa, $E^\circ$ et $\lambda^\circ$ sont ceux qu'on donne.
 Les couples rédox qui échangent des protons sont pris à pH fixé ; un métal ou un
-gaz (\ce{Ag}, \ce{H2}) n'est pas un couple de solution. Ni précipitation ni
-complexation.
+gaz (\ce{Ag}, \ce{H2}) n'est pas un couple de solution. La complexation et la
+précipitation sont prises en milieu tamponné : un pH qui varie au cours du titrage
+— un ligand basique sans tampon, un hydroxyde qui précipite — demanderait un solveur
+à plusieurs inconnues. Elles ne se combinent pas entre elles, ni avec l'acide-base ou
+le rédox dans un même titrage.
 
 \section{Avec Python}
 
 Le paquet Python \paquet{titrages}, dans le même dépôt, fait le même calcul — le
 même algorithme, confronté aux deux moteurs de ce paquet par ses tests
 (\texttt{tests/test\_lua.py}, \texttt{tests/test\_latex.py}) — et y ajoute une
-base de couples, d'indicateurs, de conductivités et de couples rédox
+base de couples, d'indicateurs, de conductivités, de couples rédox, de complexes et de
+précipités
 (\texttt{solution}, \texttt{Titrage}, \texttt{TitrageRedox},
 \texttt{tracer\_titrage}). Sa fonction \texttt{vers\_pgfplots} écrit une courbe
 calculée avec la base en coordonnées \paquet{pgfplots}, pour un document que le
@@ -921,6 +1158,9 @@ moteur \texttt{pgf} ne saurait pas calculer. Il s'installe par
   avec leurs courbes.
 \item[0.1.4 (11 octobre 2026)] Rien côté \LaTeX{} ; \texttt{abscisse=} sur toutes les
   fonctions de tracé Python, exemples sous licence CC BY-NC-SA 4.0.
+\item[En préparation] La complexométrie (\cs{titragecomplexationdefinir}, \cs{titragepM})
+  et la précipitation (\cs{titrageprecipitationdefinir},
+  \cs{addplottitrageevenements}, \cs{titrageevenement}).
 \end{description}
 
 \section{Licence}

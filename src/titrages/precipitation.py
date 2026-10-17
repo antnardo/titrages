@@ -81,7 +81,8 @@ class TitrageParPrecipitation:
     """Le titrage de ``volume_becher`` du ``becher`` par la ``burette``, suivi par pP.
 
     ``precipites`` donne les solides possibles ; ``pH`` est celui du tampon, nécessaire
-    dès qu'un partenaire a des acidités. ``ion_commun`` ne sert qu'à nommer.
+    dès qu'un partenaire a des acidités. ``ion_commun`` ne sert qu'à nommer : par défaut,
+    celui que déclarent les précipités, ou Ag⁺.
 
     >>> t = TitrageParPrecipitation(
     ...     SolutionPrecipitation(partenaires={"Cl-": 0.1}),
@@ -98,7 +99,7 @@ class TitrageParPrecipitation:
     volume_becher: float
     precipites: Sequence[Precipite]
     pH: float | None = None
-    ion_commun: str = "Ag+"
+    ion_commun: str | None = None
     _log_alpha: Tableau = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -106,6 +107,11 @@ class TitrageParPrecipitation:
             raise ValueError("le volume du bécher est positif")
         precipites = tuple(self.precipites)
         object.__setattr__(self, "precipites", precipites)
+        communs = {p.commun for p in precipites if p.commun}
+        if len(communs) > 1 or (self.ion_commun and communs - {self.ion_commun}):
+            raise ValueError("les précipités et le titrage n'ont pas le même ion commun")
+        if self.ion_commun is None:
+            object.__setattr__(self, "ion_commun", communs.pop() if communs else "Ag+")
         noms = [p.partenaire for p in precipites]
         if len(set(noms)) != len(noms):
             raise ValueError("un partenaire ne forme qu'un précipité")

@@ -465,11 +465,13 @@ class Ligand:
     Les ``pKa`` sont ceux de ses formes protonées ; c'est la forme la plus basique qui
     complexe. À pH fixé, seule la fraction :math:`\\alpha` de cette forme compte : les
     constantes de formation deviennent conditionnelles, :math:`\\beta'_j = \\beta_j\\alpha^j`.
-    Un ligand sans acidité (``pKa`` vide) complexe tel quel, à tout pH.
+    Un ligand sans acidité (``pKa`` vide) complexe tel quel, à tout pH. ``note`` dit,
+    pour un ligand de la base, les conditions de la mesure.
     """
 
     nom: str = "L"
     pKa: tuple[float, ...] = ()
+    note: str = field(default="", compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "pKa", tuple(sorted(float(p) for p in self.pKa)))
@@ -483,11 +485,16 @@ class Complexe:
     :math:`\\log\\beta_j` pour :math:`\\mathrm{M} + j\\,\\mathrm{L} = \\mathrm{ML}_j`, de
     :math:`j = 1` à :math:`n`. Le complexe calcium-EDTA est ``Complexe("Ca2+", (10.7,))``,
     les complexes amminecuivre(II) ``Complexe("Cu2+", (4.1, 7.6, 10.5, 12.6))``.
+
+    Un complexe intermédiaire que les tables ne donnent pas — on ne connaît que
+    :math:`\\beta_2` pour :math:`\\mathrm{Ag(CN)_2^-}` — a :math:`\\log\\beta = -\\infty` :
+    il ne se forme pas. ``note`` dit, pour un complexe de la base, sa source et ses conditions.
     """
 
     metal: str
     log_beta: tuple[float, ...]
     nom: str = ""
+    note: str = field(default="", compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "log_beta", tuple(float(b) for b in self.log_beta))
@@ -537,7 +544,8 @@ class Precipite:
     ``Precipite("Cl-", 9.75)``, le chromate d'argent ``Precipite("CrO4^2-", 11.95, nu=2)``.
     Les ``pKa`` sont ceux des formes protonées du partenaire (l'ion chromate est une base
     faible) : à pH fixé, seule sa forme la plus basique précipite, et le produit de
-    solubilité devient conditionnel.
+    solubilité devient conditionnel. ``commun`` nomme l'ion commun (``"Ag+"``) ; il fixe
+    celui du titrage quand on ne le donne pas.
     """
 
     partenaire: str
@@ -546,6 +554,8 @@ class Precipite:
     mu: int = 1
     pKa: tuple[float, ...] = ()
     nom: str = ""
+    commun: str = ""
+    note: str = field(default="", compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "pKa", tuple(sorted(float(p) for p in self.pKa)))

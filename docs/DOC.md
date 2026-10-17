@@ -231,7 +231,7 @@ pM s'en déduit au volume obtenu.
 | `derivee_volume(pL)` | $\mathrm{d}V/\mathrm{d}\mathrm{pL}$ |
 | `courbe(volume_max, points, metal)` | une `CourbeComplexometrique` (`volume`, `pM`, `pL`, `pente`), à abscisse curviligne |
 | `sauts(volume_max, points, metal)` | des `SautComplexometrique`, maxima de la pente affinés |
-| `volumes_equivalents()` | ligand titrant : $n\,C_M V_0/C_L$ cumulés, métaux rangés par $\log\beta_n/n$ décroissant ; métal titrant : $V_0 C_L/(n\,C_M)$ |
+| `volumes_equivalents(stoechiometrie)` | ligand titrant : $n\,C_M V_0/C_L$ cumulés, métaux rangés par $\log\beta_n/n$ décroissant ; métal titrant : $V_0 C_L/(n\,C_M)$ ; $n$ est le dernier complexe, ou celui que `stoechiometrie` donne par métal (`{"Ag+": 2}` pour Liebig) |
 
 `fractions_complexes(log_beta, pL)` donne les fractions de $\mathrm{M}, \mathrm{ML},
 \dots, \mathrm{ML}_n$.
@@ -299,21 +299,50 @@ donne ce pH, $C = -\delta/(Y_1 - q)$, le sens direct de la courbe pH = f(pC).
 `src/titrages/donnees/*.toml`. Casse, accents, espaces et écriture des charges ne
 comptent pas ; une clé ambiguë dans la base est une erreur au chargement.
 
+Les ligands, les complexes et les précipités viennent des tables de D. Harvey,
+*Analytical Chemistry 2.1* (LibreTexts, § 16.10 à 16.12), qui reprennent Martell et
+Smith, *Critical Stability Constants* ; la source et les conditions de chaque valeur
+sont en tête de `complexes.toml` et `precipites.toml`, et dans le champ `note`.
+
+```pycon
+>>> from titrages import complexe, ligand, precipite
+>>> ligand("EDTA").pKa
+(0.0, 1.5, 2.0, 2.66, 6.16, 10.24)
+>>> complexe("Cu2+", "ammoniac").log_beta
+(4.04, 7.47, 10.27, 11.75)
+>>> p = precipite("chromate d'argent")
+>>> p.commun, p.partenaire, p.nu, p.pKs
+('Ag+', 'CrO4^2-', 2, 11.92)
+
+```
+
+La source donne des constantes **successives** ; `complexe` les cumule en
+$\log\beta$. Quand elle ne donne qu'une constante globale — $\log\beta_2$ pour
+$\mathrm{Ag(CN)_2^-}$ —, les complexes d'indice inférieur ont $\log\beta = -\infty$ :
+ils ne se forment pas. `ligands()`, `complexes(ligand)`, `precipites()`. Un précipité de
+la base porte son ion commun : `TitrageParPrecipitation` le reprend quand on ne lui en
+donne pas.
+
 ## Le tracé
 
 `titrages.trace` (matplotlib, `pip install "titrages[trace]"`) : `tracer_titrage`
 et `tracer_titrage_redox` (les courbes), `tracer_conductimetrie`, `tracer_derivee`,
 `tracer_sauts` et `tracer_tangentes` (ces trois-là acceptent un `Titrage` comme un
-`TitrageRedox`), `tracer_fractions`, `tracer_zone_virage`. Chacune dessine sur
-l'`Axes` donné, ou l'axe courant, et le rend.
+`TitrageRedox`), `tracer_fractions`, `tracer_zone_virage`. Pour les deux autres
+familles, `tracer_titrage_complexometrique` (pM, `metal=` pour en suivre un autre) et
+`tracer_titrage_precipitation` (pP, avec un losange à chaque événement, plein pour une
+apparition, vide pour une disparition) ; `tracer_derivee` et `tracer_sauts` les
+acceptent aussi. Chacune dessine sur l'`Axes` donné, ou l'axe courant, et le rend.
 
 ## L'export
 
-`vers_pgfplots(courbe)`, pour les trois sortes de courbes (pH, σ, E) : la liste
+`vers_pgfplots(courbe)`, pour les cinq sortes de courbes (pH, σ, E, pM, pP) : la liste
 `(V,y)` d'un `\addplot coordinates`. Pour un fichier, `numpy.savetxt` sur les
 colonnes de la courbe suffit.
 
 ## Le paquet LaTeX
 
-Voir `latex/titrages-doc.pdf`. Son moteur Lua implémente le même algorithme ;
-`tests/test_lua.py` confronte les deux.
+Voir `latex/titrages-doc.pdf`. Son moteur Lua implémente le même algorithme, la
+complexométrie et la précipitation comprises (`\titragecomplexationdefinir`,
+`\titrageprecipitationdefinir`) ; `tests/test_lua.py` confronte les deux, et
+`tests/test_latex.py` les nombres que rendent les documents.

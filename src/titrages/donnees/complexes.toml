@@ -1,0 +1,604 @@
+# Ligands et constantes de formation de complexes, à 25 °C et force ionique nulle sauf
+# mention contraire (note).
+#
+# Source : D. Harvey, Analytical Chemistry 2.1, LibreTexts, CC BY-NC-SA 4.0 —
+# § 16.11 « Acid Dissociation Constants » pour les pKa des ligands, § 16.12 « Formation
+# Constants » pour les complexes ; ces tables reprennent A. E. Martell et R. M. Smith,
+# Critical Stability Constants, vol. 1–4, Plenum Press, 1976.
+#
+# Les valeurs sont recopiées telles qu'imprimées. `log_K` donne les constantes
+# **successives** log K_1, log K_2, … dans l'ordre de la table ; le paquet les cumule en
+# log β. Quand la table ne donne qu'une constante globale — log β_2 = 20,48 pour
+# Ag(CN)2^- —, `depart = 2` dit que la première valeur est log β_2, et que les
+# complexes d'indice inférieur ne sont pas tabulés : ils ne se forment pas (log β = -∞).
+# Une valeur entre crochets dans la source, « moins sûre », est signalée par la note.
+
+# --- ligands -----------------------------------------------------------------------
+
+[[ligand]]
+nom = "EDTA"
+formule = "Y4-"
+pKa = [0.0, 1.5, 2.0, 2.66, 6.16, 10.24]
+noms = ["EDTA", "Y4-", "éthylènediaminetétraacétate", "acide éthylènediaminetétraacétique"]
+note = "pKa à force ionique 0,1 mol/L ; les constantes de formation de ses complexes à 20 °C et 0,1 mol/L."
+
+[[ligand]]
+nom = "NTA"
+formule = "N(CH2COO)3^3-"
+pKa = [1.1, 1.650, 2.940, 10.334]
+noms = ["NTA", "nitrilotriacétate", "acide nitrilotriacétique"]
+note = "pKa à 20 °C (pKa1 à 0,1 mol/L) ; les constantes de formation à 20 °C et 0,1 mol/L."
+
+[[ligand]]
+nom = "ammoniac"
+formule = "NH3"
+pKa = [9.244]
+noms = ["ammoniac", "NH3"]
+
+[[ligand]]
+nom = "cyanure"
+formule = "CN-"
+pKa = [9.21]
+noms = ["cyanure", "ion cyanure", "CN-"]
+
+[[ligand]]
+nom = "chlorure"
+formule = "Cl-"
+pKa = []
+noms = ["chlorure", "ion chlorure", "Cl-"]
+
+[[ligand]]
+nom = "iodure"
+formule = "I-"
+pKa = []
+noms = ["iodure", "ion iodure", "I-"]
+
+[[ligand]]
+nom = "fluorure"
+formule = "F-"
+pKa = [3.17]
+noms = ["fluorure", "ion fluorure", "F-"]
+
+[[ligand]]
+nom = "thiocyanate"
+formule = "SCN-"
+pKa = [0.9]
+noms = ["thiocyanate", "ion thiocyanate", "SCN-"]
+
+[[ligand]]
+nom = "thiosulfate"
+formule = "S2O3^2-"
+pKa = [0.6, 1.6]
+noms = ["thiosulfate", "ion thiosulfate", "S2O3^2-"]
+
+[[ligand]]
+nom = "oxalate"
+formule = "C2O4^2-"
+pKa = [1.252, 4.266]
+noms = ["oxalate", "ion oxalate", "C2O4^2-"]
+
+[[ligand]]
+nom = "éthanoate"
+formule = "CH3COO-"
+pKa = [4.757]
+noms = ["éthanoate", "acétate", "ion éthanoate", "ion acétate", "CH3COO-"]
+
+[[ligand]]
+nom = "éthylènediamine"
+formule = "en"
+pKa = [6.848, 9.928]
+noms = ["éthylènediamine", "en", "H2NCH2CH2NH2"]
+
+[[ligand]]
+nom = "orthophénanthroline"
+formule = "phen"
+pKa = [4.86]
+noms = ["orthophénanthroline", "1,10-phénanthroline", "phénanthroline", "phen"]
+
+# --- complexes : EDTA (20 °C, 0,1 mol/L) --------------------------------------------
+
+[[complexe]]
+ligand = "EDTA"
+metal = "Mg2+"
+log_K = [8.79]
+
+[[complexe]]
+ligand = "EDTA"
+metal = "Ca2+"
+log_K = [10.69]
+
+[[complexe]]
+ligand = "EDTA"
+metal = "Ba2+"
+log_K = [7.86]
+
+[[complexe]]
+ligand = "EDTA"
+metal = "Bi3+"
+log_K = [27.8]
+
+[[complexe]]
+ligand = "EDTA"
+metal = "Co2+"
+log_K = [16.31]
+
+[[complexe]]
+ligand = "EDTA"
+metal = "Ni2+"
+log_K = [18.62]
+
+[[complexe]]
+ligand = "EDTA"
+metal = "Cu2+"
+log_K = [18.80]
+
+[[complexe]]
+ligand = "EDTA"
+metal = "Cr3+"
+log_K = [23.4]
+note = "Valeur entre crochets dans la source : moins sûre."
+
+[[complexe]]
+ligand = "EDTA"
+metal = "Fe3+"
+log_K = [25.1]
+
+[[complexe]]
+ligand = "EDTA"
+metal = "Ag+"
+log_K = [7.32]
+
+[[complexe]]
+ligand = "EDTA"
+metal = "Zn2+"
+log_K = [16.50]
+
+[[complexe]]
+ligand = "EDTA"
+metal = "Cd2+"
+log_K = [16.46]
+
+[[complexe]]
+ligand = "EDTA"
+metal = "Hg2+"
+log_K = [21.7]
+
+[[complexe]]
+ligand = "EDTA"
+metal = "Pb2+"
+log_K = [18.04]
+
+[[complexe]]
+ligand = "EDTA"
+metal = "Al3+"
+log_K = [16.3]
+
+# --- NTA (20 °C, 0,1 mol/L) -----------------------------------------------------------
+
+[[complexe]]
+ligand = "NTA"
+metal = "Mg2+"
+log_K = [5.41]
+
+[[complexe]]
+ligand = "NTA"
+metal = "Ca2+"
+log_K = [6.41]
+
+[[complexe]]
+ligand = "NTA"
+metal = "Ba2+"
+log_K = [4.82]
+
+[[complexe]]
+ligand = "NTA"
+metal = "Mn2+"
+log_K = [7.44]
+
+[[complexe]]
+ligand = "NTA"
+metal = "Fe2+"
+log_K = [8.33]
+
+[[complexe]]
+ligand = "NTA"
+metal = "Co2+"
+log_K = [10.38]
+
+[[complexe]]
+ligand = "NTA"
+metal = "Ni2+"
+log_K = [11.53]
+
+[[complexe]]
+ligand = "NTA"
+metal = "Cu2+"
+log_K = [12.96]
+
+[[complexe]]
+ligand = "NTA"
+metal = "Fe3+"
+log_K = [15.9]
+
+[[complexe]]
+ligand = "NTA"
+metal = "Zn2+"
+log_K = [10.67]
+
+[[complexe]]
+ligand = "NTA"
+metal = "Cd2+"
+log_K = [9.83]
+
+[[complexe]]
+ligand = "NTA"
+metal = "Pb2+"
+log_K = [11.39]
+
+# --- ammoniac --------------------------------------------------------------------------
+
+[[complexe]]
+ligand = "ammoniac"
+metal = "Ag+"
+log_K = [3.31, 3.91]
+
+[[complexe]]
+ligand = "ammoniac"
+metal = "Co2+"
+log_K = [1.99, 1.51, 0.93, 0.64, 0.06, -0.73]
+note = "20 °C."
+
+[[complexe]]
+ligand = "ammoniac"
+metal = "Ni2+"
+log_K = [2.72, 2.17, 1.66, 1.12, 0.67, -0.03]
+
+[[complexe]]
+ligand = "ammoniac"
+metal = "Cu2+"
+log_K = [4.04, 3.43, 2.80, 1.48]
+
+[[complexe]]
+ligand = "ammoniac"
+metal = "Zn2+"
+log_K = [2.21, 2.29, 2.36, 2.03]
+
+[[complexe]]
+ligand = "ammoniac"
+metal = "Cd2+"
+log_K = [2.55, 2.01, 1.34, 0.84]
+
+# --- cyanure ---------------------------------------------------------------------------
+
+[[complexe]]
+ligand = "cyanure"
+metal = "Fe2+"
+depart = 6
+log_K = [35.4]
+
+[[complexe]]
+ligand = "cyanure"
+metal = "Fe3+"
+depart = 6
+log_K = [43.6]
+
+[[complexe]]
+ligand = "cyanure"
+metal = "Ag+"
+depart = 2
+log_K = [20.48, 0.92]
+
+[[complexe]]
+ligand = "cyanure"
+metal = "Zn2+"
+depart = 2
+log_K = [11.07, 4.98, 3.57]
+
+[[complexe]]
+ligand = "cyanure"
+metal = "Cd2+"
+log_K = [6.01, 5.11, 4.53, 2.27]
+
+[[complexe]]
+ligand = "cyanure"
+metal = "Hg2+"
+log_K = [17.00, 15.75, 3.56, 2.66]
+
+[[complexe]]
+ligand = "cyanure"
+metal = "Ni2+"
+depart = 4
+log_K = [30.22]
+
+# --- chlorure --------------------------------------------------------------------------
+
+[[complexe]]
+ligand = "chlorure"
+metal = "Cu2+"
+log_K = [0.40]
+
+[[complexe]]
+ligand = "chlorure"
+metal = "Fe3+"
+log_K = [1.48, 0.65]
+
+[[complexe]]
+ligand = "chlorure"
+metal = "Ag+"
+log_K = [3.70, 1.92, 0.78, -0.3]
+note = "Force ionique 5,0 mol/L."
+
+[[complexe]]
+ligand = "chlorure"
+metal = "Zn2+"
+log_K = [0.43, 0.18, -0.11, -0.3]
+
+[[complexe]]
+ligand = "chlorure"
+metal = "Cd2+"
+log_K = [1.98, 1.62, -0.2, -0.7]
+
+[[complexe]]
+ligand = "chlorure"
+metal = "Pb2+"
+log_K = [1.59, 0.21, -0.1, -0.3]
+
+# --- iodure ----------------------------------------------------------------------------
+
+[[complexe]]
+ligand = "iodure"
+metal = "Ag+"
+log_K = [6.58, 5.12, 1.4]
+note = "log K2 et log K3 entre crochets dans la source : moins sûrs."
+
+[[complexe]]
+ligand = "iodure"
+metal = "Cd2+"
+log_K = [2.28, 1.64, 1.08, 1.0]
+note = "18 °C."
+
+[[complexe]]
+ligand = "iodure"
+metal = "Pb2+"
+log_K = [1.92, 1.28, 0.7, 0.6]
+
+# --- fluorure --------------------------------------------------------------------------
+
+[[complexe]]
+ligand = "fluorure"
+metal = "Al3+"
+log_K = [6.11, 5.01, 3.88, 3.0, 1.4, 0.4]
+
+# --- thiocyanate -----------------------------------------------------------------------
+
+[[complexe]]
+ligand = "thiocyanate"
+metal = "Mn2+"
+log_K = [1.23]
+
+[[complexe]]
+ligand = "thiocyanate"
+metal = "Fe2+"
+log_K = [1.31]
+
+[[complexe]]
+ligand = "thiocyanate"
+metal = "Co2+"
+log_K = [1.71]
+
+[[complexe]]
+ligand = "thiocyanate"
+metal = "Ni2+"
+log_K = [1.76]
+
+[[complexe]]
+ligand = "thiocyanate"
+metal = "Cu2+"
+log_K = [2.33]
+
+[[complexe]]
+ligand = "thiocyanate"
+metal = "Fe3+"
+log_K = [3.02]
+
+[[complexe]]
+ligand = "thiocyanate"
+metal = "Ag+"
+log_K = [4.8, 3.43, 1.27, 0.2]
+
+[[complexe]]
+ligand = "thiocyanate"
+metal = "Zn2+"
+log_K = [1.33, 0.58, 0.09, -0.4]
+
+[[complexe]]
+ligand = "thiocyanate"
+metal = "Cd2+"
+log_K = [1.89, 0.89, 0.02, -0.5]
+
+[[complexe]]
+ligand = "thiocyanate"
+metal = "Hg2+"
+depart = 2
+log_K = [17.26, 2.71, 1.83]
+
+# --- thiosulfate -----------------------------------------------------------------------
+
+[[complexe]]
+ligand = "thiosulfate"
+metal = "Ag+"
+log_K = [8.82, 4.85, 0.53]
+note = "20 °C."
+
+# --- oxalate ---------------------------------------------------------------------------
+
+[[complexe]]
+ligand = "oxalate"
+metal = "Ca2+"
+log_K = [1.66, 1.03]
+note = "Force ionique 1 mol/L."
+
+[[complexe]]
+ligand = "oxalate"
+metal = "Fe2+"
+log_K = [3.05, 2.10]
+note = "Force ionique 1 mol/L."
+
+[[complexe]]
+ligand = "oxalate"
+metal = "Co2+"
+log_K = [4.72, 2.28]
+
+[[complexe]]
+ligand = "oxalate"
+metal = "Ni2+"
+log_K = [5.16]
+
+[[complexe]]
+ligand = "oxalate"
+metal = "Cu2+"
+log_K = [6.23, 4.04]
+
+[[complexe]]
+ligand = "oxalate"
+metal = "Fe3+"
+log_K = [7.53, 6.11, 4.83]
+note = "Force ionique 0,5 mol/L."
+
+[[complexe]]
+ligand = "oxalate"
+metal = "Zn2+"
+log_K = [4.87, 2.78]
+
+# --- éthanoate -------------------------------------------------------------------------
+
+[[complexe]]
+ligand = "éthanoate"
+metal = "Mg2+"
+log_K = [1.27]
+
+[[complexe]]
+ligand = "éthanoate"
+metal = "Ca2+"
+log_K = [1.18]
+
+[[complexe]]
+ligand = "éthanoate"
+metal = "Ba2+"
+log_K = [1.07]
+
+[[complexe]]
+ligand = "éthanoate"
+metal = "Mn2+"
+log_K = [1.40]
+
+[[complexe]]
+ligand = "éthanoate"
+metal = "Fe2+"
+log_K = [1.40]
+
+[[complexe]]
+ligand = "éthanoate"
+metal = "Co2+"
+log_K = [1.46]
+
+[[complexe]]
+ligand = "éthanoate"
+metal = "Ni2+"
+log_K = [1.43]
+
+[[complexe]]
+ligand = "éthanoate"
+metal = "Cu2+"
+log_K = [2.22, 1.41]
+
+[[complexe]]
+ligand = "éthanoate"
+metal = "Ag+"
+log_K = [0.73, -0.09]
+
+[[complexe]]
+ligand = "éthanoate"
+metal = "Zn2+"
+log_K = [1.57]
+
+[[complexe]]
+ligand = "éthanoate"
+metal = "Cd2+"
+log_K = [1.93, 1.22, -0.89]
+
+[[complexe]]
+ligand = "éthanoate"
+metal = "Pb2+"
+log_K = [2.68, 1.40]
+
+# --- éthylènediamine -------------------------------------------------------------------
+
+[[complexe]]
+ligand = "éthylènediamine"
+metal = "Ni2+"
+log_K = [7.38, 6.18, 4.11]
+
+[[complexe]]
+ligand = "éthylènediamine"
+metal = "Cu2+"
+log_K = [10.48, 9.07]
+
+[[complexe]]
+ligand = "éthylènediamine"
+metal = "Ag+"
+log_K = [4.700, 3.00]
+note = "20 °C, force ionique 0,1 mol/L."
+
+[[complexe]]
+ligand = "éthylènediamine"
+metal = "Zn2+"
+log_K = [5.66, 4.98, 3.25]
+
+[[complexe]]
+ligand = "éthylènediamine"
+metal = "Cd2+"
+log_K = [5.41, 4.50, 2.78]
+
+# --- orthophénanthroline ---------------------------------------------------------------
+
+[[complexe]]
+ligand = "orthophénanthroline"
+metal = "Fe2+"
+depart = 3
+log_K = [20.7]
+
+[[complexe]]
+ligand = "orthophénanthroline"
+metal = "Mn2+"
+log_K = [4.0, 3.3, 3.0]
+note = "Force ionique 0,1 mol/L."
+
+[[complexe]]
+ligand = "orthophénanthroline"
+metal = "Cu2+"
+log_K = [7.08, 6.64, 6.08]
+note = "Force ionique 0,1 mol/L."
+
+[[complexe]]
+ligand = "orthophénanthroline"
+metal = "Ni2+"
+log_K = [8.6, 8.1, 7.6]
+
+[[complexe]]
+ligand = "orthophénanthroline"
+metal = "Fe3+"
+depart = 3
+log_K = [13.8]
+
+[[complexe]]
+ligand = "orthophénanthroline"
+metal = "Ag+"
+log_K = [5.02, 7.04]
+note = "Force ionique 0,1 mol/L."
+
+[[complexe]]
+ligand = "orthophénanthroline"
+metal = "Zn2+"
+log_K = [6.2, 5.9, 5.2]
+note = "log K2 et log K3 entre crochets dans la source : moins sûrs."

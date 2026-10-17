@@ -18,6 +18,10 @@
 -- Les fractions se calculent en échelle logarithmique (log-sum-exp) : la forme
 -- naïve x_j = x_0 k_j / h^j déborde pour un polyacide loin de ses pKa.
 --
+-- La même idée vaut pour l'oxydoréduction (le potentiel), la complexométrie (pL, le
+-- ligand libre) et la précipitation (pP, l'ion commun, pour chaque ensemble de solides
+-- présents) : voir l'en-tête de chaque section.
+--
 -- Copyright (c) 2026 antnardo — licence MIT (voir LICENSE).
 
 local M = {}
@@ -721,6 +725,526 @@ function M.equivalences_redox(t)
   return volumes
 end
 
+-- --- complexométrie ---------------------------------------------------------------
+--
+-- Le ligand libre joue le rôle du proton : à pL imposé (l' = 10^-pL, le ligand libre
+-- toutes formes protonées comprises, à pH tamponné), les fractions des complexes
+-- successifs d'un métal sont explicites, x_j ~ beta'_j l^j, beta'_j = beta_j alpha^j.
+-- Le bilan du ligand, R(pL) = sum_i C_i Y1_i + l - C_L, est linéaire dans les totaux
+-- d'une solution : V(pL) = -V0 R_becher / R_burette, comme en acide-base. pM s'en déduit,
+-- pM = -log T_M(V) + log sum_j beta'_j l^j.
+
+M.PL_MAX = 80
+
+--- log alpha, la part de la forme la plus basique d'une espèce de pKa donnés.
+local function log_alpha(pKa, pH, nom)
+  if not pKa or #pKa == 0 then return 0 end
+  if not pH then error(("titrages : %s a des acidités : préciser le pH du milieu"):format(nom)) end
+  local x = M.fractions(pKa, pH)
+  return math.log(x[#x], 10)
+end
+
+--- Les fractions x_0 … x_n des complexes (indices 0 … n) et log sum_j beta'_j l^j.
+--- lb[0] = 0, lb[j] = log beta'_j.
+local function fractions_lb(lb, pL)
+  local tmax, t = -math.huge, {}
+  for j = 0, #lb do
+    t[j] = lb[j] - j * pL
+    if t[j] > tmax then tmax = t[j] end
+  end
+  local S, x = 0, {}
+  for j = 0, #lb do
+    x[j] = 10 ^ (t[j] - tmax)
+    S = S + x[j]
+  end
+  for j = 0, #lb do x[j] = x[j] / S end
+  return x, tmax + math.log(S, 10)
+end
+
+--- Y1 et la variance sum_{j<k} x_j x_k (k - j)^2, écrite sans soustraction.
+local function moments_lb(lb, pL)
+  local x = fractions_lb(lb, pL)
+  local Y1, var = 0, 0
+  for j = 0, #lb do
+    Y1 = Y1 + j * x[j]
+    for k = j + 1, #lb do var = var + x[j] * x[k] * (k - j) ^ 2 end
+  end
+  return Y1, var
+end
+
+--- Les fractions du métal libre et de ses complexes (indices Lua 1 … n+1).
+function M.fractions_complexes(log_beta, pL)
+  local lb = { [0] = 0 }
+  for j, b in ipairs(log_beta) do lb[j] = b end
+  local x, r = fractions_lb(lb, pL), {}
+  for j = 0, #lb do r[j + 1] = x[j] end
+  return r
+end
+
+--- Une solution : { metaux = { {nom, C}, ... }, ligand = C }.
+function M.solution_complexation(metaux, ligand)
+  return { metaux = metaux or {}, ligand = ligand or 0 }
+end
+
+local function concentration(liste, nom)
+  for _, m in ipairs(liste) do if m[1] == nom then return m[2] end end
+  return 0
+end
+
+--- Un titrage complexométrique. complexes = { {metal, {log beta_1, …}, n}, … } (cumulés ;
+--- n, facultatif, le complexe ML_n qui marque l'équivalence, le dernier par défaut),
+--- pKa ceux du ligand, pH celui du tampon, metal celui qu'on suit.
+function M.titrage_complexation(becher, burette, V0, complexes, pKa, pH, metal)
+  if V0 <= 0 then error("titrages : le volume du bécher est positif") end
+  local la = log_alpha(pKa, pH, "le ligand")
+  local lb, ordre, stoechiometrie = {}, {}, {}
+  for _, c in ipairs(complexes) do
+    if lb[c[1]] then error(("titrages : %s : deux jeux de complexes"):format(c[1])) end
+    if #c[2] == 0 then error(("titrages : %s : aucune constante"):format(c[1])) end
+    local t = { [0] = 0 }
+    for j, b in ipairs(c[2]) do t[j] = b + j * la end
+    lb[c[1]] = t
+    ordre[#ordre + 1] = c[1]
+    if c[3] then
+      if c[3] < 1 or c[3] > #t then error(("titrages : %s : pas de complexe ML%d déclaré"):format(c[1], c[3])) end
+      stoechiometrie[c[1]] = c[3]
+    end
+  end
+  for _, s in ipairs({ becher, burette }) do
+    for _, m in ipairs(s.metaux) do
+      if not lb[m[1]] then error(("titrages : %s : aucun complexe déclaré"):format(m[1])) end
+    end
+  end
+  metal = metal or ordre[1]
+  if not lb[metal] then error(("titrages : %s : aucun complexe déclaré"):format(metal)) end
+  return { type = "complexation", becher = becher, burette = burette, V0 = V0, lb = lb, metal = metal,
+           stoechiometrie = stoechiometrie }
+end
+
+local function residu_c(t, s, pL)
+  local r = 10 ^ (-pL) - s.ligand
+  for _, m in ipairs(s.metaux) do r = r + m[2] * (moments_lb(t.lb[m[1]], pL)) end
+  return r
+end
+
+local function derivee_residu_c(t, s, pL)
+  local r = 10 ^ (-pL)
+  for _, m in ipairs(s.metaux) do
+    local _, var = moments_lb(t.lb[m[1]], pL)
+    r = r + m[2] * var
+  end
+  return -LN10 * r
+end
+
+local function volume_c(t, pL)
+  return -t.V0 * residu_c(t, t.becher, pL) / residu_c(t, t.burette, pL)
+end
+
+--- Le volume versé qui amène le ligand libre à ce pL, ou nil.
+function M.volume_complexation(t, pL)
+  local V = volume_c(t, pL)
+  if V ~= V or V < 0 or V == math.huge then return nil end
+  return V
+end
+
+--- dV/dpL = -(V0 N' + V D')/D.
+function M.derivee_volume_complexation(t, pL)
+  local D = residu_c(t, t.burette, pL)
+  local V = -t.V0 * residu_c(t, t.becher, pL) / D
+  return -(t.V0 * derivee_residu_c(t, t.becher, pL) + V * derivee_residu_c(t, t.burette, pL)) / D
+end
+
+--- Le pL après avoir versé V : V0 R_b + V R_bu décroît avec pL.
+function M.pL(t, V)
+  local haut = 0
+  for _, s in ipairs({ t.becher, t.burette }) do
+    haut = math.max(haut, s.ligand)
+    for _, m in ipairs(s.metaux) do haut = math.max(haut, m[2]) end
+  end
+  haut = math.log(haut + 1e-300, 10) + 1
+  return -dichotomie(function(u)
+    return t.V0 * residu_c(t, t.becher, -u) + V * residu_c(t, t.burette, -u)
+  end, -M.PL_MAX, haut)
+end
+
+local function totale_c(t, metal, V)
+  return (t.V0 * concentration(t.becher.metaux, metal) + V * concentration(t.burette.metaux, metal)) / (t.V0 + V)
+end
+
+local function pM_c(t, pL, V, metal)
+  local _, ls = fractions_lb(t.lb[metal], pL)
+  return -math.log(totale_c(t, metal, V), 10) + ls
+end
+
+--- pM du métal (par défaut, celui du titrage) après avoir versé V.
+function M.pM(t, V, metal)
+  return pM_c(t, M.pL(t, V), V, metal or t.metal)
+end
+
+--- dpM/dpL le long de la courbe : -(Cu - T)/((V0+V) T ln10) V' - Y1.
+local function derivee_pM_c(t, pL, metal)
+  local V = volume_c(t, pL)
+  local dV = M.derivee_volume_complexation(t, pL)
+  local T = totale_c(t, metal, V)
+  local Cu = concentration(t.burette.metaux, metal)
+  return -(Cu - T) / ((t.V0 + V) * T * LN10) * dV - (moments_lb(t.lb[metal], pL))
+end
+
+--- dpM/dV au point de la courbe de ce pL.
+function M.pente_complexation(t, pL, metal)
+  return derivee_pM_c(t, pL, metal or t.metal) / M.derivee_volume_complexation(t, pL)
+end
+
+--- La courbe { {V, pM}, … } à longueur d'arc constante, depuis 1e-9 Vmax : à volume nul,
+--- le bécher n'a pas de ligand libre.
+function M.courbe_complexation(t, Vmax, n, metal)
+  n, metal = n or 300, metal or t.metal
+  local p0, p1 = M.pL(t, 1e-9 * Vmax), M.pL(t, Vmax)
+  local m = 40 * n
+  local g, V, y = {}, {}, {}
+  local ymin, ymax = math.huge, -math.huge
+  for i = 1, m do
+    g[i] = p0 + (p1 - p0) * (i - 1) / (m - 1)
+    V[i] = M.volume_complexation(t, g[i]) or 0
+    y[i] = pM_c(t, g[i], V[i], metal)
+    if y[i] == y[i] and math.abs(y[i]) < math.huge then
+      ymin, ymax = math.min(ymin, y[i]), math.max(ymax, y[i])
+    end
+  end
+  local dy, s = math.max(ymax - ymin, 1e-12), { 0 }
+  for i = 2, m do
+    local a, b = (V[i] - V[i - 1]) / Vmax, (y[i] - y[i - 1]) / dy
+    if b ~= b then b = 0 end
+    s[i] = s[i - 1] + math.sqrt(a * a + b * b)
+  end
+  local points, k = {}, 2
+  for i = 1, n do
+    local cible = s[m] * (i - 1) / (n - 1)
+    while k < m and s[k] < cible do k = k + 1 end
+    local a = s[k] > s[k - 1] and (cible - s[k - 1]) / (s[k] - s[k - 1]) or 0
+    local p = g[k - 1] + a * (g[k] - g[k - 1])
+    local v = M.volume_complexation(t, p) or 0
+    points[i] = { v, pM_c(t, p, v, metal), p }
+  end
+  return points
+end
+
+--- Les points d'inflexion { {V, pM, pente}, … } : minima de |dV/dpM|, cherchés en pL
+--- depuis 1e-6 Vmax (avant, la courbe est plate à la précision de la machine).
+function M.sauts_complexation(t, Vmax, n, metal)
+  n, metal = n or 4000, metal or t.metal
+  local p0, p1 = M.pL(t, 1e-6 * Vmax), M.pL(t, Vmax)
+  local function f(p) return math.abs(M.derivee_volume_complexation(t, p) / derivee_pM_c(t, p, metal)) end
+  local g, d = {}, {}
+  for i = 1, n do
+    g[i] = p0 + (p1 - p0) * (i - 1) / (n - 1)
+    d[i] = f(g[i])
+  end
+  local resultat = {}
+  for i = 2, n - 1 do
+    if d[i] < d[i - 1] and d[i] <= d[i + 1] then
+      local p = minimum_lisse(f, g[i - 1], g[i + 1], 1e-6)
+      local V = M.volume_complexation(t, p)
+      if V and V > 0 and V < Vmax then
+        resultat[#resultat + 1] = { V, pM_c(t, p, V, metal), M.pente_complexation(t, p, metal) }
+      end
+    end
+  end
+  return resultat
+end
+
+local function n_de(t, metal) return t.stoechiometrie[metal] or #t.lb[metal] end
+
+--- Les équivalences : le ligand titre les métaux du bécher, rangés par log beta_n/n
+--- décroissant, chacun fixant n ligands ; ou un métal seul titre le ligand du bécher.
+function M.equivalences_complexation(t)
+  local b, u = t.becher, t.burette
+  if u.ligand > 0 and #u.metaux == 0 and b.ligand == 0 then
+    local ordre = {}
+    for i, m in ipairs(b.metaux) do ordre[i] = m end
+    local function stabilite(m) return t.lb[m[1]][n_de(t, m[1])] / n_de(t, m[1]) end
+    table.sort(ordre, function(x, y) return stabilite(x) > stabilite(y) end)
+    local volumes, cumul = {}, 0
+    for _, m in ipairs(ordre) do
+      cumul = cumul + n_de(t, m[1]) * m[2] * t.V0
+      volumes[#volumes + 1] = cumul / u.ligand
+    end
+    return volumes
+  end
+  if #u.metaux == 1 and u.ligand == 0 and b.ligand > 0 and #b.metaux == 0 then
+    local m = u.metaux[1]
+    return { t.V0 * b.ligand / (n_de(t, m[1]) * m[2]) }
+  end
+  error("titrages : équivalences définies pour un ligand qui titre des métaux, ou un métal seul qui titre le ligand")
+end
+
+-- --- précipitation -------------------------------------------------------------------
+--
+-- Un ion commun P (Ag+) forme avec des partenaires X_i des solides P_nu X_mu,
+-- Ks = a^nu x^mu, a = [P]. À pP imposé, un solide présent fixe son partenaire,
+-- x_sat = (Ks/a^nu)^(1/mu)/alpha (alpha : la forme la plus basique, à pH tamponné).
+-- Pour un ensemble S de solides présents, R_S = a + sum_{i in S} r_i (C_Xi - x_sat,i) - C_P,
+-- r = nu/mu, est linéaire dans les totaux : V = -V0 R_S,becher / R_S,burette. On essaie
+-- les 2^n ensembles et l'on garde celui qui est cohérent. Là où un solide apparaît ou
+-- disparaît, la courbe a un point anguleux : un événement, distinct des sauts.
+
+M.P_MAX = 60
+
+--- Une solution : { commun = C, partenaires = { {nom, C}, … } }.
+function M.solution_precipitation(commun, partenaires)
+  return { commun = commun or 0, partenaires = partenaires or {} }
+end
+
+--- Un titrage par précipitation. precipites = { {partenaire=, pKs=, nu=, mu=, pKa=}, … }.
+function M.titrage_precipitation(becher, burette, V0, precipites, pH)
+  if V0 <= 0 then error("titrages : le volume du bécher est positif") end
+  local P, vus = {}, {}
+  for i, p in ipairs(precipites) do
+    if vus[p.partenaire] then error("titrages : un partenaire ne forme qu'un précipité") end
+    vus[p.partenaire] = true
+    local nu, mu = p.nu or 1, p.mu or 1
+    if nu < 1 or mu < 1 then error(("titrages : %s : stœchiométrie positive"):format(p.partenaire)) end
+    P[i] = { partenaire = p.partenaire, pKs = p.pKs, nu = nu, mu = mu, r = nu / mu,
+             la = log_alpha(p.pKa, pH, p.partenaire) }
+  end
+  for _, s in ipairs({ becher, burette }) do
+    for _, x in ipairs(s.partenaires) do
+      if not vus[x[1]] then error(("titrages : %s : aucun précipité déclaré"):format(x[1])) end
+    end
+  end
+  return { type = "precipitation", becher = becher, burette = burette, V0 = V0, precipites = P }
+end
+
+local function x_sat(p, pP) return 10 ^ ((-p.pKs + p.nu * pP) / p.mu - p.la) end
+
+local function present(S, i) return (S >> (i - 1)) & 1 == 1 end
+
+local function residu_p(t, s, pP, S)
+  local r = 10 ^ (-pP) - s.commun
+  for i, p in ipairs(t.precipites) do
+    if present(S, i) then r = r + p.r * (concentration(s.partenaires, p.partenaire) - x_sat(p, pP)) end
+  end
+  return r
+end
+
+--- dR_S/dpP = -ln10 (a + sum_{i in S} r_i^2 x_sat,i), la même pour toute solution.
+local function derivee_residu_p(t, pP, S)
+  local r = 10 ^ (-pP)
+  for i, p in ipairs(t.precipites) do
+    if present(S, i) then r = r + p.r ^ 2 * x_sat(p, pP) end
+  end
+  return -LN10 * r
+end
+
+local function totale_p(t, nom, V)
+  return (t.V0 * concentration(t.becher.partenaires, nom) + V * concentration(t.burette.partenaires, nom)) / (t.V0 + V)
+end
+
+local function volume_S(t, pP, S)
+  return -t.V0 * residu_p(t, t.becher, pP, S) / residu_p(t, t.burette, pP, S)
+end
+
+local function coherent(t, pP, V, S)
+  if V ~= V or V < 0 or V == math.huge then return false end
+  for i, p in ipairs(t.precipites) do
+    local T, x = totale_p(t, p.partenaire, V), x_sat(p, pP)
+    local marge = 1e-12 * math.max(T, x)
+    if present(S, i) then
+      if T - x < -marge then return false end
+    elseif T - x > marge then
+      return false
+    end
+  end
+  return true
+end
+
+--- Le volume et l'ensemble des solides présents en ce pP ; nil et -1 hors d'atteinte.
+local function resoudre(t, pP)
+  for S = 0, (1 << #t.precipites) - 1 do
+    local V = volume_S(t, pP, S)
+    -- au départ, V vaut zéro à l'arrondi près, et peut sortir à -1e-16 : c'est zéro
+    if V < 0 and V > -1e-12 * t.V0 then V = 0 end
+    if coherent(t, pP, V, S) then return V, S end
+  end
+  return nil, -1
+end
+
+--- Le volume versé qui amène l'ion commun à ce pP, ou nil.
+function M.volume_precipitation(t, pP) return (resoudre(t, pP)) end
+
+--- Les partenaires dont le solide est présent au point de ce pP.
+function M.solides(t, pP)
+  local _, S = resoudre(t, pP)
+  local noms = {}
+  for i, p in ipairs(t.precipites) do
+    if S >= 0 and present(S, i) then noms[#noms + 1] = p.partenaire end
+  end
+  return noms
+end
+
+local function derivee_volume_S(t, pP, S)
+  local D = residu_p(t, t.burette, pP, S)
+  return -(t.V0 + volume_S(t, pP, S)) * derivee_residu_p(t, pP, S) / D
+end
+
+--- dV/dpP sur le morceau de courbe où tombe ce pP.
+function M.derivee_volume_precipitation(t, pP)
+  local _, S = resoudre(t, pP)
+  if S < 0 then return 0 / 0 end
+  return derivee_volume_S(t, pP, S)
+end
+
+function M.pente_precipitation(t, pP) return 1 / M.derivee_volume_precipitation(t, pP) end
+
+local function haut_p(t)
+  local h = 0
+  for _, s in ipairs({ t.becher, t.burette }) do
+    h = math.max(h, s.commun)
+    for _, x in ipairs(s.partenaires) do h = math.max(h, x[2]) end
+  end
+  return math.log(h + 1e-300, 10) + 1
+end
+
+--- Le pP de l'ion commun après avoir versé V : a + sum r max(0, T_X - x_sat) - T_P croît avec a.
+function M.pP(t, V)
+  local TP = (t.V0 * t.becher.commun + V * t.burette.commun) / (t.V0 + V)
+  local TX = {}
+  for i, p in ipairs(t.precipites) do TX[i] = totale_p(t, p.partenaire, V) end
+  return -dichotomie(function(u)
+    local r = 10 ^ u - TP
+    for i, p in ipairs(t.precipites) do r = r + p.r * math.max(0, TX[i] - x_sat(p, -u)) end
+    return r
+  end, -M.P_MAX, haut_p(t))
+end
+
+--- Le cologarithme d'un partenaire en solution, toutes formes protonées comprises.
+function M.p_partenaire(t, V, nom)
+  for _, p in ipairs(t.precipites) do
+    if p.partenaire == nom then
+      return -math.log(math.min(totale_p(t, nom, V), x_sat(p, M.pP(t, V))), 10)
+    end
+  end
+  error(("titrages : %s n'est pas un partenaire du titrage"):format(nom))
+end
+
+local function bornes_p(t, Vmax, depart)
+  local p0 = M.pP(t, 0)
+  if p0 > M.P_MAX - 1 then p0 = M.pP(t, depart * Vmax) end
+  return p0, M.pP(t, Vmax)
+end
+
+--- La courbe { {V, pP}, … } à longueur d'arc constante.
+function M.courbe_precipitation(t, Vmax, n)
+  n = n or 300
+  local p0, p1 = bornes_p(t, Vmax, 1e-6)
+  local m = 40 * n
+  local g, V, s = {}, {}, { 0 }
+  local dp = math.max(math.abs(p1 - p0), 1e-12)
+  for i = 1, m do
+    g[i] = p0 + (p1 - p0) * (i - 1) / (m - 1)
+    V[i] = M.volume_precipitation(t, g[i]) or 0
+  end
+  for i = 2, m do
+    local a, b = (V[i] - V[i - 1]) / Vmax, (g[i] - g[i - 1]) / dp
+    s[i] = s[i - 1] + math.sqrt(a * a + b * b)
+  end
+  local points, k = {}, 2
+  for i = 1, n do
+    local cible = s[m] * (i - 1) / (n - 1)
+    while k < m and s[k] < cible do k = k + 1 end
+    local a = s[k] > s[k - 1] and (cible - s[k - 1]) / (s[k] - s[k - 1]) or 0
+    local p = g[k - 1] + a * (g[k] - g[k - 1])
+    points[i] = { M.volume_precipitation(t, p) or 0, p }
+  end
+  return points
+end
+
+--- Les apparitions et disparitions de solides : { {V, pP, partenaire, apparition}, … }.
+function M.evenements(t, Vmax, n)
+  n = n or 4000
+  local p0, p1 = bornes_p(t, Vmax, 1e-9)
+  local g, S = {}, {}
+  for i = 1, n do
+    g[i] = p0 + (p1 - p0) * (i - 1) / (n - 1)
+    local _, s = resoudre(t, g[i])
+    S[i] = s
+  end
+  local resultat = {}
+  for k = 1, n - 1 do
+    local avant, apres = S[k], S[k + 1]
+    if avant ~= apres and avant >= 0 and apres >= 0 then
+      for i, p in ipairs(t.precipites) do
+        if present(avant ~ apres, i) then
+          local function sursaturation(q)
+            local V = resoudre(t, q)
+            return totale_p(t, p.partenaire, V or 0 / 0) - x_sat(p, q)
+          end
+          local q = changement(sursaturation, g[k], g[k + 1])
+          resultat[#resultat + 1] = { M.volume_precipitation(t, q), q, p.partenaire, present(apres, i) }
+        end
+      end
+    end
+  end
+  return resultat
+end
+
+--- Les points d'inflexion { {V, pP, pente}, … }, à l'intérieur des morceaux lisses.
+function M.sauts_precipitation(t, Vmax, n)
+  n = n or 4000
+  local p0, p1 = bornes_p(t, Vmax, 1e-6)
+  local g, S, d = {}, {}, {}
+  for i = 1, n do
+    g[i] = p0 + (p1 - p0) * (i - 1) / (n - 1)
+    local _, s = resoudre(t, g[i])
+    S[i] = s
+    d[i] = (s >= 0) and math.abs(derivee_volume_S(t, g[i], s)) or 0 / 0
+  end
+  local resultat = {}
+  for i = 2, n - 1 do
+    local s = S[i]
+    if s >= 0 and S[i - 1] == s and S[i + 1] == s and d[i] < d[i - 1] and d[i] <= d[i + 1] then
+      local q = minimum_lisse(function(x) return math.abs(derivee_volume_S(t, x, s)) end, g[i - 1], g[i + 1], 1e-6)
+      local V = volume_S(t, q, s)
+      if V == V and V > 0 and V < Vmax then
+        resultat[#resultat + 1] = { V, q, 1 / derivee_volume_S(t, q, s) }
+      end
+    end
+  end
+  return resultat
+end
+
+--- Les équivalences : l'ion commun titre les partenaires du bécher, du premier qui
+--- précipite au dernier ; ou un partenaire seul titre l'ion commun restant (Volhard).
+function M.equivalences_precipitation(t)
+  local b, u = t.becher, t.burette
+  if u.commun > 0 and #u.partenaires == 0 and b.commun == 0 then
+    local presents = {}
+    for _, p in ipairs(t.precipites) do
+      local C = concentration(b.partenaires, p.partenaire)
+      if C > 0 then
+        presents[#presents + 1] = { p = p, C = C, apparition = (p.mu * (math.log(C, 10) + p.la) + p.pKs) / p.nu }
+      end
+    end
+    table.sort(presents, function(x, y) return x.apparition > y.apparition end)
+    local volumes, cumul = {}, 0
+    for _, x in ipairs(presents) do
+      cumul = cumul + x.p.r * x.C * t.V0
+      volumes[#volumes + 1] = cumul / u.commun
+    end
+    return volumes
+  end
+  if #u.partenaires == 1 and u.commun == 0 and b.commun > 0 then
+    local nom, C = u.partenaires[1][1], u.partenaires[1][2]
+    local reste, r = b.commun, nil
+    for _, p in ipairs(t.precipites) do
+      reste = reste - p.r * concentration(b.partenaires, p.partenaire)
+      if p.partenaire == nom then r = p.r end
+    end
+    if reste > 0 then return { t.V0 * reste / (r * C) } end
+  end
+  error("titrages : équivalences définies pour l'ion commun qui titre des partenaires, ou un partenaire seul qui titre l'ion commun restant")
+end
+
 -- --- l'interface avec TeX -----------------------------------------------------
 --
 -- Le paquet .sty appelle ces fonctions. Elles ne touchent à tex que dans sortir(),
@@ -795,6 +1319,72 @@ function M.definir_redox(nom, spec)
   return t
 end
 
+--- Les réglages communs à tous les titrages : points, abscisse, volume maximal.
+local function reglages(t, spec, equivalences)
+  t.points = spec.points or 300
+  t.abscisse = spec.abscisse or "volume"
+  t.echelle = spec.echelle or 1
+  if spec.Vmax and spec.Vmax > 0 then
+    t.Vmax = spec.Vmax
+  else
+    local ok, eq = pcall(equivalences, t)
+    t.Vmax = (ok and #eq > 0) and (eq[#eq] + eq[1]) or 2 * t.V0
+  end
+end
+
+--- Enregistre un titrage complexométrique.
+function M.definir_complexation(nom, spec)
+  local function sol(d) return M.solution_complexation(d.metaux, d.ligand) end
+  local t = M.titrage_complexation(sol(spec.becher or {}), sol(spec.burette or {}), spec.V0 or 10,
+    spec.complexes or {}, spec.pKa, spec.pH, spec.suivi)
+  t.suivi = t.metal
+  reglages(t, spec, M.equivalences_complexation)
+  M.titrages[nom] = t
+  return t
+end
+
+--- Enregistre un titrage par précipitation.
+function M.definir_precipitation(nom, spec)
+  local function sol(d) return M.solution_precipitation(d.commun, d.partenaires) end
+  local t = M.titrage_precipitation(sol(spec.becher or {}), sol(spec.burette or {}), spec.V0 or 10,
+    spec.precipites or {}, spec.pH)
+  t.commun = spec.commun or "Ag+"
+  if spec.suivi and spec.suivi ~= t.commun then
+    M.p_partenaire(t, 0, spec.suivi) -- vérifie que c'est un partenaire
+    t.suivi = spec.suivi
+  end
+  reglages(t, spec, M.equivalences_precipitation)
+  M.titrages[nom] = t
+  return t
+end
+
+--- La grandeur mesurée après avoir versé V : pM du métal suivi, pP de l'ion commun, ou pX
+--- d'un partenaire. espece remplace celle du titrage.
+local function mesure(t, V, espece)
+  if t.type == "complexation" then return M.pM(t, V, espece or t.suivi) end
+  espece = espece or t.suivi
+  if espece and espece ~= t.commun then return M.p_partenaire(t, V, espece) end
+  return M.pP(t, V)
+end
+
+--- d pX/dV d'un partenaire : -nu/mu d pP/dV au contact de son solide, la dilution sinon.
+local function pente_partenaire(t, V, pP, nom)
+  for _, p in ipairs(t.precipites) do
+    if p.partenaire == nom then
+      local T = totale_p(t, nom, V)
+      if T >= x_sat(p, pP) then
+        return -(concentration(t.burette.partenaires, nom) - T) / ((t.V0 + V) * T * LN10)
+      end
+      return -p.nu / p.mu * M.pente_precipitation(t, pP)
+    end
+  end
+end
+
+local EQUIVALENCES = {
+  complexation = M.equivalences_complexation,
+  precipitation = M.equivalences_precipitation,
+}
+
 local function trouver(nom)
   local t = M.titrages[nom]
   if not t then error(("titrages : aucun titrage « %s » ; le définir par \\titragedefinir"):format(nom)) end
@@ -804,7 +1394,7 @@ end
 --- Le diviseur des volumes : la clé echelle, ou le premier volume équivalent (abscisse n).
 local function echelle(t)
   if t.abscisse ~= "n" then return t.echelle or 1 end
-  local eq = t.redox and M.equivalences_redox(t) or M.equivalences(t)
+  local eq = t.redox and M.equivalences_redox(t) or (EQUIVALENCES[t.type] or M.equivalences)(t)
   if #eq == 0 then error("titrages : abscisse n sans équivalence") end
   return eq[1]
 end
@@ -828,6 +1418,12 @@ function M.tex_courbe(nom, options)
   local e, liste = echelle(t), {}
   if t.redox then
     for i, c in ipairs(M.courbe_redox(t, t.Vmax, t.points)) do liste[i] = { c[1] / e, c[2] - t.ref } end
+  elseif t.type == "complexation" then
+    for i, c in ipairs(M.courbe_complexation(t, t.Vmax, t.points, t.suivi)) do liste[i] = { c[1] / e, c[2] } end
+  elseif t.type == "precipitation" then
+    for i, c in ipairs(M.courbe_precipitation(t, t.Vmax, t.points)) do
+      liste[i] = { c[1] / e, t.suivi and M.p_partenaire(t, c[1], t.suivi) or c[2] }
+    end
   else
     for i, c in ipairs(M.courbe(t, t.Vmax, t.points)) do liste[i] = { c[1] / e, c[2] } end
   end
@@ -839,7 +1435,7 @@ local FACTEURS = { ["S/m"] = 1, ["mS/cm"] = 10, ["mS/m"] = 1000 }
 --- \addplottitrageconductivite : sigma(V), à pas de volume constant.
 function M.tex_conductivite(nom, options)
   local t = trouver(nom)
-  if t.redox then error("titrages : la conductimétrie d'un titrage rédox n'est pas prise en charge") end
+  if t.redox or t.type then error("titrages : la conductimétrie n'est prise en charge qu'en acide-base") end
   local e, liste, f = echelle(t), {}, FACTEURS[t.unite] or 1
   local n = math.max(t.points // 2, 50)
   for i = 1, n do
@@ -859,6 +1455,19 @@ function M.tex_derivee(nom, options)
     for i, c in ipairs(M.courbe_redox(t, t.Vmax, t.points)) do liste[i] = { c[1] / e, M.pente_redox(t, c[1]) * e } end
     return addplot(options, liste, true)
   end
+  if t.type == "complexation" then
+    for i, c in ipairs(M.courbe_complexation(t, t.Vmax, t.points, t.suivi)) do
+      liste[i] = { c[1] / e, M.pente_complexation(t, c[3], t.suivi) * e }
+    end
+    return addplot(options, liste, true)
+  end
+  if t.type == "precipitation" then
+    for i, c in ipairs(M.courbe_precipitation(t, t.Vmax, t.points)) do
+      local d = t.suivi and pente_partenaire(t, c[1], c[2], t.suivi) or M.pente_precipitation(t, c[2])
+      liste[i] = { c[1] / e, d * e }
+    end
+    return addplot(options, liste, true)
+  end
   for i, c in ipairs(M.courbe(t, t.Vmax, t.points)) do
     liste[i] = { c[1] / e, M.pente(t, c[2]) * e }
   end
@@ -871,15 +1480,29 @@ function M.tex_sauts(nom, options)
   local e, liste = echelle(t), {}
   if t.redox then
     for i, s in ipairs(M.sauts_redox(t, t.Vmax)) do liste[i] = { s[1] / e, s[2] - t.ref } end
+  elseif t.type == "complexation" then
+    for i, s in ipairs(M.sauts_complexation(t, t.Vmax, nil, t.suivi)) do liste[i] = { s[1] / e, s[2] } end
+  elseif t.type == "precipitation" then
+    for i, s in ipairs(M.sauts_precipitation(t, t.Vmax)) do liste[i] = { s[1] / e, mesure(t, s[1]) } end
   else
     for i, s in ipairs(M.sauts(t, t.Vmax)) do liste[i] = { s[1] / e, s[2] } end
   end
   addplot("only marks," .. options, liste)
 end
 
+--- \addplottitrageevenements : les points anguleux d'un titrage par précipitation.
+function M.tex_evenements(nom, options)
+  local t = trouver(nom)
+  if t.type ~= "precipitation" then error("titrages : « " .. nom .. " » n'est pas un titrage par précipitation") end
+  local e, liste = echelle(t), {}
+  for i, v in ipairs(M.evenements(t, t.Vmax)) do liste[i] = { v[1] / e, mesure(t, v[1]) } end
+  addplot("only marks," .. options, liste)
+end
+
 --- \addplottitragetangentes : en pH ou en E (par rapport à la référence).
 function M.tex_tangentes(nom, V1, options)
   local t = trouver(nom)
+  if t.type then error("titrages : la méthode des tangentes n'est prise en charge qu'en pH-métrie et en potentiométrie") end
   local e = echelle(t)
   local r, y1, y2, y
   if t.redox then
@@ -928,11 +1551,49 @@ function M.volume_redox(t, E)
   return V
 end
 
+--- Le volume versé qui amène la grandeur mesurée à y, par dichotomie sur [0, Vmax] :
+--- pM et pP sont monotones le long d'un titrage ; nil hors de la courbe.
+local function volume_mesure(t, y, espece)
+  local function f(V) return mesure(t, V, espece) - y end
+  local a, b = f(0), f(t.Vmax)
+  if a ~= a or b ~= b or (a > 0) == (b > 0) then return nil end
+  return changement(f, 0, t.Vmax)
+end
+
+local function nombre_cp(t, e, quoi, arg, champ)
+  if quoi == "pM" then
+    return mesure(t, arg * e, champ ~= "" and champ or nil)
+  elseif quoi == "volume" then
+    return (volume_mesure(t, arg) or 0 / 0) / e
+  elseif quoi == "equivalence" then
+    return (EQUIVALENCES[t.type](t)[math.floor(arg)] or 0 / 0) / e
+  elseif quoi == "saut" then
+    local liste = (t.type == "complexation") and M.sauts_complexation(t, t.Vmax, nil, t.suivi)
+      or M.sauts_precipitation(t, t.Vmax)
+    local s = liste[math.floor(arg)]
+    if not s then error(("titrages : pas de saut n° %d"):format(arg)) end
+    if champ == "pente" and t.type == "precipitation" and t.suivi then
+      return pente_partenaire(t, s[1], s[2], t.suivi) * e
+    end
+    return ({ volume = s[1] / e, pM = mesure(t, s[1]), pente = s[3] * e })[champ]
+  elseif quoi == "evenement" then
+    if t.type ~= "precipitation" then error("titrages : les événements sont ceux d'un titrage par précipitation") end
+    local v = M.evenements(t, t.Vmax)[math.floor(arg)]
+    if not v then error(("titrages : pas d'événement n° %d"):format(arg)) end
+    return ({ volume = v[1] / e, pM = mesure(t, v[1]) })[champ]
+  end
+  error("titrages : « " .. quoi .. " » n'a pas de sens pour ce titrage ; lire la courbe par \\titragepM")
+end
+
 function M.tex_nombre(nom, quoi, arg, champ)
   local t = trouver(nom)
   local e = echelle(t)
   local x
-  if t.redox then
+  if t.type then
+    x = nombre_cp(t, e, quoi, arg, champ)
+  elseif quoi == "pM" or quoi == "evenement" then
+    error("titrages : « " .. nom .. " » se lit par \\titragepH ou \\titrageE")
+  elseif t.redox then
     if quoi == "E" or quoi == "pH" then
       if quoi == "pH" then error("titrages : un titrage rédox se lit par \\titrageE") end
       x = M.E_enh(t, arg * e) - t.ref

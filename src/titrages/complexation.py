@@ -339,7 +339,7 @@ class TitrageComplexometrique:
                 )
         return tuple(resultat)
 
-    def volumes_equivalents(self) -> tuple[float, ...]:
+    def volumes_equivalents(self, stoechiometrie: Mapping[str, int] | None = None) -> tuple[float, ...]:
         """Les équivalences stœchiométriques.
 
         Deux cas ont une définition simple. Le ligand titre les métaux du bécher : chacun
@@ -347,6 +347,10 @@ class TitrageComplexometrique:
         au moins stable, et le :math:`k`-ième volume apporte autant de ligand que les
         :math:`k` premiers métaux en demandent. Un métal seul titre le ligand du bécher :
         l'équivalence est celle où tout le ligand est fixé en :math:`\\mathrm{ML}_n`.
+
+        :math:`n` est par défaut le dernier complexe déclaré ; ``stoechiometrie`` le fixe
+        par métal quand ce n'est pas lui qui marque l'équivalence — :math:`\\mathrm{Ag(CN)_2^-}`
+        dans le dosage de Liebig, où :math:`\\mathrm{Ag(CN)_3^{2-}}` est déclaré mais peu stable.
 
         >>> t = TitrageComplexometrique(
         ...     SolutionComplexation({"Ca2+": 0.01, "Zn2+": 0.005}),
@@ -357,12 +361,20 @@ class TitrageComplexometrique:
         >>> [round(v, 9) for v in t.volumes_equivalents()]
         [10.0, 30.0]
         """
+        choix = dict(stoechiometrie or {})
+        for m, n in choix.items():
+            if m not in self._log_beta or not 1 <= n <= self._n(m) or not np.isfinite(self._log_beta[m][n]):
+                raise ValueError(f"{m} : pas de complexe ML{n} déclaré")
+
+        def n_de(m: str) -> int:
+            return choix.get(m, self._n(m))
+
         V0 = self.volume_becher
         if self.burette.ligand > 0 and not self.burette.metaux and self.becher.ligand == 0:
-            ordre = sorted(self.becher.metaux, key=lambda m: -self._stabilite(m))
+            ordre = sorted(self.becher.metaux, key=lambda m: -float(self._log_beta[m][n_de(m)]) / n_de(m))
             volumes, cumul = [], 0.0
             for m in ordre:
-                cumul += self._n(m) * self.becher.metaux[m] * V0
+                cumul += n_de(m) * self.becher.metaux[m] * V0
                 volumes.append(cumul / self.burette.ligand)
             return tuple(volumes)
         if (
@@ -372,13 +384,10 @@ class TitrageComplexometrique:
             and not self.becher.metaux
         ):
             ((m, C),) = self.burette.metaux.items()
-            return (V0 * self.becher.ligand / (self._n(m) * C),)
+            return (V0 * self.becher.ligand / (n_de(m) * C),)
         raise ValueError(
             "équivalences définies pour un ligand qui titre des métaux, ou un métal seul qui titre le ligand"
         )
 
     def _n(self, metal: str) -> int:
         return len(self._log_beta[metal]) - 1
-
-    def _stabilite(self, metal: str) -> float:
-        return float(self._log_beta[metal][-1]) / self._n(metal)
