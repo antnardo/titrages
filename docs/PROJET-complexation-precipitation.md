@@ -362,6 +362,10 @@ peu plus que le niveau 1, très en dessous des 2 500 à 4 000 lignes estimées l
 2. Python : les hydroxydes et la précipitation sans tampon.
 3. Lua et LaTeX, puis la documentation.
 
-Deux questions restent à trancher avant de commencer : l'interface (« pas de pH,
-pas de tampon » convient-il ?), et si l'on veut, dès l'étape 1, décrire le tampon
-comme une solution plutôt que par son seul pH.
+Le tampon se décrit des deux façons, dès l'étape 1 (décision du 18 octobre 2026) :
+par son seul pH, idéal, comme au niveau 1, ou comme le contenu d'une solution
+(NH₄Cl et NH₃ dans le bécher), dont le pH se calcule et peut bouger un peu. Le
+second n'est pas un troisième calcul : c'est le niveau 2, avec un couple
+acide-base de plus dans le bécher.
+
+Reste à trancher l'écriture de l'interface : comment dire « le pH se calcule ».
