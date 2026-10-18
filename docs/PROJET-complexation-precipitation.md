@@ -342,9 +342,9 @@ Python et Lua par `test_lua.py`, celui des documents LaTeX par `test_latex.py`.
 
 ### L'interface
 
-La plus simple : **pas de pH, pas de tampon.** Aujourd'hui, un ligand ou un
-partenaire qui a des pKa demande un pH, sans quoi c'est une erreur ; au niveau 2,
-l'absence de pH voudra dire que le pH se calcule. Les solutions gagnent ce qu'il
+**Pas de pH, pas de tampon** (voir la décision à la fin). Aujourd'hui, un ligand ou
+un partenaire qui a des pKa demande un pH, sans quoi c'est une erreur ; au niveau
+2, l'absence de pH voudra dire que le pH se calcule, avec un avertissement. Les solutions gagnent ce qu'il
 faut pour décrire l'acide-base — acide fort, base forte, couples (le tampon), et
 la forme sous laquelle on introduit le ligand — ; la courbe gagne une colonne pH.
 En LaTeX, de même : sans clé `pH`, le moteur Lua prend le niveau 2.
@@ -368,4 +368,17 @@ par son seul pH, idéal, comme au niveau 1, ou comme le contenu d'une solution
 second n'est pas un troisième calcul : c'est le niveau 2, avec un couple
 acide-base de plus dans le bécher.
 
-Reste à trancher l'écriture de l'interface : comment dire « le pH se calcule ».
+L'interface (décision du 18 octobre 2026) : **l'absence de pH veut dire que le pH
+se calcule**, à partir du contenu des solutions. Pour qu'un pH oublié ne passe pas
+inaperçu, ce choix s'annonce par un avertissement explicite chaque fois que le pH
+compte, c'est-à-dire dès qu'un ligand ou un partenaire a des pKa, ou qu'une solution
+contient de l'acide-base :
+
+- en Python, un `UserWarning` à la construction du titrage — « pH non précisé :
+  calculé à partir des solutions, sans tampon imposé ; préciser pH= pour un milieu
+  tamponné » —, qu'on fait taire par le module `warnings` quand c'est voulu ;
+- en LaTeX, un `\msg_warning:nnn` du paquet, au log et au terminal, avec le nom du
+  titrage.
+
+Sans acidité nulle part, le pH ne compte pas et rien ne s'affiche : c'est le
+niveau 1 tel qu'il est aujourd'hui.
