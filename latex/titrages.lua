@@ -28,6 +28,8 @@ local M = {}
 M.version = "0.1.4"
 M.titrages = {}
 
+local moteur_libre -- le moteur à pH calculé, défini après la précipitation
+
 local LN10 = math.log(10)
 local MARGE = 6          -- bornes de la dichotomie : [-6, pKe + 6]
 local ITERATIONS = 64
@@ -725,6 +727,8 @@ function M.equivalences_redox(t)
   return volumes
 end
 
+local etat_libre, courbe_libre, sauts_libre -- définis avec le moteur à pH calculé
+
 -- --- complexométrie ---------------------------------------------------------------
 --
 -- Le ligand libre joue le rôle du proton : à pL imposé (l' = 10^-pL, le ligand libre
@@ -782,8 +786,15 @@ function M.fractions_complexes(log_beta, pL)
 end
 
 --- Une solution : { metaux = { {nom, C}, ... }, ligand = C }.
-function M.solution_complexation(metaux, ligand)
-  return { metaux = metaux or {}, ligand = ligand or 0 }
+--- Une solution : { metaux = { {nom, C}, ... }, ligand = C } ; pour un pH calculé, protons
+--- (ceux du ligand introduit : 2 pour Na2H2Y) et ab (une solution acido-basique).
+function M.solution_complexation(metaux, ligand, protons, ab)
+  return { metaux = metaux or {}, ligand = ligand or 0, protons = protons or 0, ab = ab or M.solution({}, 0, 14) }
+end
+
+--- Si une solution apporte des protons ou en prend : son pH ne va pas de soi.
+local function a_de_l_acidobasique(s)
+  return (s.protons or 0) > 0 or #s.ab.especes > 0 or s.ab.b ~= 0
 end
 
 local function concentration(liste, nom)
@@ -796,7 +807,12 @@ end
 --- tampon, metal celui qu'on suit.
 function M.titrage_complexation(becher, burette, V0, complexes, pKa, pH, metal)
   if V0 <= 0 then error("titrages : le volume du bécher est positif") end
-  local la = log_alpha(pKa, pH, "le ligand")
+  pKa = pKa or {}
+  local libre = pH == nil and (#pKa > 0 or a_de_l_acidobasique(becher) or a_de_l_acidobasique(burette))
+  for _, s in ipairs({ becher, burette }) do
+    if s.protons > #pKa then error(("titrages : le ligand n'a que %d protons"):format(#pKa)) end
+  end
+  local la = libre and 0 or log_alpha(pKa, pH, "le ligand")
   local lb, ordre = {}, {}
   for _, c in ipairs(complexes) do
     if lb[c[1]] then error(("titrages : %s : deux jeux de complexes"):format(c[1])) end
@@ -813,7 +829,8 @@ function M.titrage_complexation(becher, burette, V0, complexes, pKa, pH, metal)
   end
   metal = metal or ordre[1]
   if not lb[metal] then error(("titrages : %s : aucun complexe déclaré"):format(metal)) end
-  return { type = "complexation", becher = becher, burette = burette, V0 = V0, lb = lb, metal = metal }
+  return { type = "complexation", becher = becher, burette = burette, V0 = V0, lb = lb, metal = metal,
+           ordre = ordre, pKa = pKa, pH = pH, libre = libre }
 end
 
 local function residu_c(t, s, pL)
@@ -873,6 +890,10 @@ end
 
 --- pM du métal (par défaut, celui du titrage) après avoir versé V.
 function M.pM(t, V, metal)
+  if t.libre then
+    local m = moteur_libre(t)
+    return m.pM(etat_libre(m, V), metal or t.metal)
+  end
   return pM_c(t, M.pL(t, V), V, metal or t.metal)
 end
 
@@ -894,6 +915,13 @@ end
 --- le bécher n'a pas de ligand libre.
 function M.courbe_complexation(t, Vmax, n, metal)
   n, metal = n or 300, metal or t.metal
+  if t.libre then
+    local m, liste = moteur_libre(t), {}
+    for i, e in ipairs(courbe_libre(m, Vmax, n, m.depart(metal, Vmax), function(x) return m.pM(x, metal) end)) do
+      liste[i] = { e.V, m.pM(e, metal), m.pL(e), m.pente(e, metal) }
+    end
+    return liste
+  end
   local p0, p1 = M.pL(t, 1e-9 * Vmax), M.pL(t, Vmax)
   local m = 40 * n
   local g, V, y = {}, {}, {}
@@ -919,7 +947,7 @@ function M.courbe_complexation(t, Vmax, n, metal)
     local a = s[k] > s[k - 1] and (cible - s[k - 1]) / (s[k] - s[k - 1]) or 0
     local p = g[k - 1] + a * (g[k] - g[k - 1])
     local v = M.volume_complexation(t, p) or 0
-    points[i] = { v, pM_c(t, p, v, metal), p }
+    points[i] = { v, pM_c(t, p, v, metal), p, M.pente_complexation(t, p, metal) }
   end
   return points
 end
@@ -927,7 +955,17 @@ end
 --- Les points d'inflexion { {V, pM, pente}, … } : minima de |dV/dpM|, cherchés en pL
 --- depuis 1e-6 Vmax (avant, la courbe est plate à la précision de la machine).
 function M.sauts_complexation(t, Vmax, n, metal)
-  n, metal = n or 4000, metal or t.metal
+  metal = metal or t.metal
+  if t.libre then
+    local m, liste = moteur_libre(t), {}
+    local function y(e) return m.pM(e, metal) end
+    local function d(e) return m.pente(e, metal) end
+    for i, s in ipairs(sauts_libre(m, Vmax, n or 400, m.depart(metal, Vmax), y, d)) do
+      liste[i] = { s[1], y(s[2]), d(s[2]) }
+    end
+    return liste
+  end
+  n = n or 4000
   local p0, p1 = M.pL(t, 1e-6 * Vmax), M.pL(t, Vmax)
   local function f(p) return math.abs(M.derivee_volume_complexation(t, p) / derivee_pM_c(t, p, metal)) end
   local g, d = {}, {}
@@ -1018,28 +1056,41 @@ end
 M.P_MAX = 60
 
 --- Une solution : { commun = C, partenaires = { {nom, C}, … } }.
-function M.solution_precipitation(commun, partenaires)
-  return { commun = commun or 0, partenaires = partenaires or {} }
+function M.solution_precipitation(commun, partenaires, ab)
+  for _, x in ipairs(partenaires or {}) do
+    if x[1] == "OH-" then error("titrages : les ions hydroxyde viennent de l'acide-base : une base forte") end
+  end
+  return { commun = commun or 0, partenaires = partenaires or {}, protons = 0, ab = ab or M.solution({}, 0, 14) }
 end
 
 --- Un titrage par précipitation. precipites = { {partenaire=, pKs=, nu=, mu=, pKa=}, … }.
 function M.titrage_precipitation(becher, burette, V0, precipites, pH)
   if V0 <= 0 then error("titrages : le volume du bécher est positif") end
+  local hydroxyde, acide = false, false
+  for _, p in ipairs(precipites) do
+    hydroxyde = hydroxyde or p.partenaire == "OH-"
+    acide = acide or (p.pKa and #p.pKa > 0)
+  end
+  local libre = pH == nil and (hydroxyde or acide or a_de_l_acidobasique(becher) or a_de_l_acidobasique(burette))
+  if hydroxyde and not libre then
+    error("titrages : un hydroxyde demande que le pH se calcule : pas de clé pH, et le tampon décrit comme une solution")
+  end
   local P, vus = {}, {}
   for i, p in ipairs(precipites) do
     if vus[p.partenaire] then error("titrages : un partenaire ne forme qu'un précipité") end
     vus[p.partenaire] = true
     local nu, mu = p.nu or 1, p.mu or 1
     if nu < 1 or mu < 1 then error(("titrages : %s : stœchiométrie positive"):format(p.partenaire)) end
-    P[i] = { partenaire = p.partenaire, pKs = p.pKs, nu = nu, mu = mu, r = nu / mu,
-             la = log_alpha(p.pKa, pH, p.partenaire) }
+    P[i] = { partenaire = p.partenaire, pKs = p.pKs, nu = nu, mu = mu, r = nu / mu, pKa = p.pKa or {},
+             hydroxyde = p.partenaire == "OH-", la = libre and 0 or log_alpha(p.pKa, pH, p.partenaire) }
   end
   for _, s in ipairs({ becher, burette }) do
     for _, x in ipairs(s.partenaires) do
       if not vus[x[1]] then error(("titrages : %s : aucun précipité déclaré"):format(x[1])) end
     end
   end
-  return { type = "precipitation", becher = becher, burette = burette, V0 = V0, precipites = P }
+  return { type = "precipitation", becher = becher, burette = burette, V0 = V0, precipites = P, pH = pH,
+           libre = libre }
 end
 
 local function x_sat(p, pP) return 10 ^ ((-p.pKs + p.nu * pP) / p.mu - p.la) end
@@ -1134,6 +1185,10 @@ end
 
 --- Le pP de l'ion commun après avoir versé V : a + sum r max(0, T_X - x_sat) - T_P croît avec a.
 function M.pP(t, V)
+  if t.libre then
+    local m = moteur_libre(t)
+    return m.p(etat_libre(m, V))
+  end
   local TP = (t.V0 * t.becher.commun + V * t.burette.commun) / (t.V0 + V)
   local TX = {}
   for i, p in ipairs(t.precipites) do TX[i] = totale_p(t, p.partenaire, V) end
@@ -1146,6 +1201,10 @@ end
 
 --- Le cologarithme d'un partenaire en solution, toutes formes protonées comprises.
 function M.p_partenaire(t, V, nom)
+  if t.libre then
+    local m = moteur_libre(t)
+    return m.p_partenaire(etat_libre(m, V), nom)
+  end
   for _, p in ipairs(t.precipites) do
     if p.partenaire == nom then
       return -math.log(math.min(totale_p(t, nom, V), x_sat(p, M.pP(t, V))), 10)
@@ -1161,8 +1220,20 @@ local function bornes_p(t, Vmax, depart)
 end
 
 --- La courbe { {V, pP}, … } à longueur d'arc constante.
-function M.courbe_precipitation(t, Vmax, n)
+--- { {V, y, dy/dV}, … }, y étant pP, ou pX du partenaire suivi.
+function M.courbe_precipitation(t, Vmax, n, suivi)
   n = n or 300
+  if t.libre then
+    local m, liste = moteur_libre(t), {}
+    for i, e in ipairs(courbe_libre(m, Vmax, n, m.depart(Vmax), m.p)) do
+      if suivi then
+        liste[i] = { e.V, m.p_partenaire(e, suivi), m.pente_partenaire(e, suivi) }
+      else
+        liste[i] = { e.V, m.p(e), m.pente(e) }
+      end
+    end
+    return liste
+  end
   local p0, p1 = bornes_p(t, Vmax, 1e-6)
   local m = 40 * n
   local g, V, s = {}, {}, { 0 }
@@ -1181,13 +1252,19 @@ function M.courbe_precipitation(t, Vmax, n)
     while k < m and s[k] < cible do k = k + 1 end
     local a = s[k] > s[k - 1] and (cible - s[k - 1]) / (s[k] - s[k - 1]) or 0
     local p = g[k - 1] + a * (g[k] - g[k - 1])
-    points[i] = { M.volume_precipitation(t, p) or 0, p }
+    local v = M.volume_precipitation(t, p) or 0
+    if suivi then
+      points[i] = { v, M.p_partenaire(t, v, suivi), M.pente_partenaire(t, v, suivi, p) }
+    else
+      points[i] = { v, p, M.pente_precipitation(t, p) }
+    end
   end
   return points
 end
 
 --- Les apparitions et disparitions de solides : { {V, pP, partenaire, apparition}, … }.
 function M.evenements(t, Vmax, n)
+  if t.libre then return moteur_libre(t).evenements(Vmax, n or 400) end
   n = n or 4000
   local p0, p1 = bornes_p(t, Vmax, 1e-9)
   local g, S = {}, {}
@@ -1217,6 +1294,13 @@ end
 
 --- Les points d'inflexion { {V, pP, pente}, … }, à l'intérieur des morceaux lisses.
 function M.sauts_precipitation(t, Vmax, n)
+  if t.libre then
+    local m, liste = moteur_libre(t), {}
+    for i, s in ipairs(sauts_libre(m, Vmax, n or 400, m.depart(Vmax), m.p, m.pente)) do
+      liste[i] = { s[1], m.p(s[2]), m.pente(s[2]) }
+    end
+    return liste
+  end
   n = n or 4000
   local p0, p1 = bornes_p(t, Vmax, 1e-6)
   local g, S, d = {}, {}, {}
@@ -1244,12 +1328,28 @@ end
 --- précipite au dernier ; ou un partenaire seul titre l'ion commun restant (Volhard).
 function M.equivalences_precipitation(t)
   local b, u = t.becher, t.burette
+  local hyd
+  for _, p in ipairs(t.precipites) do if p.hydroxyde then hyd = hyd or p end end
+  if hyd and u.ab.b > 0 and #u.ab.especes == 0 and u.commun == 0 and #u.partenaires == 0
+      and #b.partenaires == 0 and #b.ab.especes == 0 then
+    -- la base forte neutralise d'abord l'acide fort du bécher, puis précipite l'hydroxyde
+    local acide = math.max(-b.ab.b, 0) * t.V0
+    local volumes = {}
+    if acide > 0 then volumes[1] = acide / u.ab.b end
+    volumes[#volumes + 1] = (acide + hyd.mu / hyd.nu * b.commun * t.V0) / u.ab.b
+    return volumes
+  end
   if u.commun > 0 and #u.partenaires == 0 and b.commun == 0 then
     local presents = {}
     for _, p in ipairs(t.precipites) do
       local C = concentration(b.partenaires, p.partenaire)
       if C > 0 then
-        presents[#presents + 1] = { p = p, C = C, apparition = (p.mu * (math.log(C, 10) + p.la) + p.pKs) / p.nu }
+        local la = p.la
+        if t.libre and #p.pKa > 0 then -- au pH du bécher
+          local x = M.fractions(p.pKa, M.pH_du_melange(t, 0))
+          la = math.log(x[#x], 10)
+        end
+        presents[#presents + 1] = { p = p, C = C, apparition = (p.mu * (math.log(C, 10) + la) + p.pKs) / p.nu }
       end
     end
     table.sort(presents, function(x, y) return x.apparition > y.apparition end)
@@ -1270,6 +1370,463 @@ function M.equivalences_precipitation(t)
     if reste > 0 then return { t.V0 * reste / (r * C) } end
   end
   error("titrages : équivalences définies pour l'ion commun qui titre des partenaires, ou un partenaire seul qui titre l'ion commun restant")
+end
+
+-- --- le pH calculé (niveau 2) -------------------------------------------------------
+--
+-- Sans pH imposé, et dès que le pH compte, l'état du mélange à volume fixé tient en deux
+-- nombres : le pH et u = log de la concentration libre de la composante principale (le
+-- ligand basique, ou l'ion commun), plus l'ensemble S des solides présents. Les bilans
+-- en sont le gradient d'une fonction strictement convexe : l'équilibre est unique. La
+-- dichotomie imbriquée (pH dehors, u dedans) le trouve sans point de départ ; Newton, à
+-- jacobienne exacte et à S fixé, le suit d'un volume au suivant, et la dichotomie
+-- reprend là où il ne converge pas ou que S ne convient pas. La courbe est paramétrée
+-- par le volume, ses points ajoutés là où elle tourne. Le même algorithme que
+-- titrages.libre, titrages.complexation_libre et titrages.precipitation_libre en Python.
+
+local function melange(t, V, b, u) return (t.V0 * b + V * u) / (t.V0 + V) end
+local function borne2(x) return math.max(-2, math.min(2, x)) end
+
+--- Newton depuis (pH, u), à S fixé : arrêt quand le pas tombe sous 1e-13, ou cesse de
+--- décroître alors qu'il est déjà petit (un bilan mal conditionné près d'une équivalence).
+local function continuer(m, V, pH, u, S)
+  local precedent = math.huge
+  for _ = 1, 50 do
+    local dp, du = m.pas(V, pH, u, S)
+    dp, du = borne2(dp), borne2(du)
+    pH, u = pH + dp, u + du
+    local pas = math.max(math.abs(dp), math.abs(du))
+    if pas ~= pas then return pH, u, false end
+    if pas < 1e-13 or (pas < 1e-8 and pas >= precedent / 2) then return pH, u, true end
+    precedent = pas
+  end
+  return pH, u, false
+end
+
+--- L'état en V : Newton depuis l'état voisin, sinon la dichotomie.
+etat_libre = function(m, V, depart)
+  if depart then
+    local pH, u, ok = continuer(m, V, depart.pH, depart.u, depart.S)
+    if ok and m.coherent(V, pH, u, depart.S) then return { V = V, pH = pH, u = u, S = depart.S } end
+  end
+  local pH, u, S = m.dichotomie(V)
+  return { V = V, pH = pH, u = u, S = S }
+end
+
+local function fini(x) return x == x and x > -math.huge and x < math.huge end
+
+local function etendue(y)
+  local a, b = math.huge, -math.huge
+  for _, v in ipairs(y) do if fini(v) then a, b = math.min(a, v), math.max(b, v) end end
+  return math.max(b - a, 1e-12)
+end
+
+--- La courbe raffinée : continuation sur 200 volumes, puis des points ajoutés jusqu'à
+--- ce que chaque segment, en coordonnées normalisées, soit plus court que 1/n.
+local function raffiner(m, Vmax, n, depart, mesure)
+  local e, prec = {}, nil
+  for i = 1, 200 do
+    prec = etat_libre(m, depart + (Vmax - depart) * (i - 1) / 199, prec)
+    e[i] = prec
+  end
+  for _ = 1, 80 do
+    local y = {}
+    for i, x in ipairs(e) do y[i] = mesure(x) end
+    local h = etendue(y)
+    local nouveau, ajoute = { e[1] }, false
+    for i = 2, #e do
+      local a, b = e[i - 1], e[i]
+      local dx, dy = (b.V - a.V) / Vmax, (y[i] - y[i - 1]) / h
+      if math.sqrt(dx * dx + dy * dy) > 1 / n and b.V - a.V > 1e-13 * Vmax then
+        nouveau[#nouveau + 1] = etat_libre(m, (a.V + b.V) / 2, { pH = (a.pH + b.pH) / 2, u = (a.u + b.u) / 2, S = a.S })
+        ajoute = true
+      end
+      nouveau[#nouveau + 1] = b
+    end
+    e = nouveau
+    if not ajoute then break end
+  end
+  return e
+end
+
+--- n états à longueur d'arc constante.
+courbe_libre = function(m, Vmax, n, depart, mesure)
+  local e = raffiner(m, Vmax, n, depart, mesure)
+  local y = {}
+  for i, x in ipairs(e) do y[i] = mesure(x) end
+  local h, s = etendue(y), { 0 }
+  for i = 2, #e do
+    local dx, dy = (e[i].V - e[i - 1].V) / Vmax, (y[i] - y[i - 1]) / h
+    local l = math.sqrt(dx * dx + dy * dy)
+    s[i] = s[i - 1] + (l == l and l or 0)
+  end
+  local resultat, k = {}, 2
+  for i = 1, n do
+    local cible = s[#e] * (i - 1) / (n - 1)
+    while k < #e and s[k] < cible do k = k + 1 end
+    local a, b = e[k - 1], e[k]
+    local f = s[k] > s[k - 1] and (cible - s[k - 1]) / (s[k] - s[k - 1]) or 0
+    local voisin = { pH = a.pH + f * (b.pH - a.pH), u = a.u + f * (b.u - a.u), S = a.S }
+    resultat[i] = etat_libre(m, a.V + f * (b.V - a.V), voisin)
+  end
+  return resultat
+end
+
+--- Les points d'inflexion { {V, état}, … } : minima de |dV/dy| à l'intérieur des morceaux
+--- lisses, affinés par minimum_lisse avec un pas proportionnel à la grille raffinée.
+sauts_libre = function(m, Vmax, n, depart, mesure, pente)
+  local tout, e = raffiner(m, Vmax, n, depart, mesure), {}
+  for _, x in ipairs(tout) do if x.V >= 1e-6 * Vmax then e[#e + 1] = x end end
+  local d = {}
+  for i, x in ipairs(e) do d[i] = math.abs(1 / pente(x)) end
+  local resultat = {}
+  for i = 2, #e - 1 do
+    if e[i].S == e[i - 1].S and e[i].S == e[i + 1].S and d[i] < d[i - 1] and d[i] <= d[i + 1] then
+      local proche = e[i]
+      local function etat_en(V)
+        local pH, u = continuer(m, V, proche.pH, proche.u, proche.S)
+        return { V = V, pH = pH, u = u, S = proche.S }
+      end
+      local largeur = math.min(e[i + 1].V - e[i].V, e[i].V - e[i - 1].V)
+      local V = minimum_lisse(function(v) return math.abs(1 / pente(etat_en(v))) end, e[i - 1].V, e[i + 1].V, 1e-3 * largeur)
+      if V > 0 and V < Vmax then resultat[#resultat + 1] = { V, etat_en(V) } end
+    end
+  end
+  return resultat
+end
+
+--- Les log K_k de [H_k A] = K_k h^k [A], k = 0 … N : sommes des k plus grands pKa.
+local function log_K_protons(pKa)
+  local d = {}
+  for i, v in ipairs(pKa or {}) do d[i] = v end
+  table.sort(d, function(a, b) return a > b end)
+  local L, s = { [0] = 0 }, 0
+  for k = 1, #d do
+    s = s + d[k]
+    L[k] = s
+  end
+  return L
+end
+
+--- sum_k k^j K_k h^k 10^u, j = 0, 1, 2 : le ligand libre toutes formes, ses protons.
+local function sommes_protons(L, pH, u)
+  local s0, s1, s2 = 0, 0, 0
+  for k = 0, #L do
+    local x = 10 ^ (L[k] - k * pH + u)
+    s0, s1, s2 = s0 + x, s1 + k * x, s2 + k * k * x
+  end
+  return s0, s1, s2
+end
+
+--- log P, puis la moyenne, la moyenne des carrés et la variance des protons portés.
+local function moments_protons(L, pH)
+  local tmax, t = -math.huge, {}
+  for k = 0, #L do
+    t[k] = L[k] - k * pH
+    if t[k] > tmax then tmax = t[k] end
+  end
+  local S, x = 0, {}
+  for k = 0, #L do
+    x[k] = 10 ^ (t[k] - tmax)
+    S = S + x[k]
+  end
+  local m1, m2, var = 0, 0, 0
+  for k = 0, #L do
+    x[k] = x[k] / S
+    m1, m2 = m1 + k * x[k], m2 + k * k * x[k]
+  end
+  for j = 0, #L do
+    for k = j + 1, #L do var = var + x[j] * x[k] * (k - j) ^ 2 end
+  end
+  return tmax + math.log(S, 10), m1, m2, var
+end
+
+local function acidobasique(t, V, pH)
+  local b, u = t.becher.ab, t.burette.ab
+  return melange(t, V, M.residu(b, pH), M.residu(u, pH)), melange(t, V, M.tampon(b, pH), M.tampon(u, pH))
+end
+
+--- Le moteur de la complexométrie à pH calculé : bilans du ligand et des protons.
+local function moteur_complexation(t)
+  local L = log_K_protons(t.pKa)
+  local b, bu = t.becher, t.burette
+  local pKe = b.ab.pKe
+  local m = {}
+  local function metaux(V, u, s)
+    local Y, W = 0, 0
+    for _, nom in ipairs(t.ordre) do
+      local T = s and concentration(s.metaux, nom)
+        or melange(t, V, concentration(b.metaux, nom), concentration(bu.metaux, nom))
+      if T ~= 0 then
+        local y1, var = moments_lb(t.lb[nom], -u)
+        Y, W = Y + T * y1, W + T * var
+      end
+    end
+    return Y, W
+  end
+  local function g_L(V, pH, u)
+    local Y = metaux(V, u)
+    return Y + sommes_protons(L, pH, u) - melange(t, V, b.ligand, bu.ligand)
+  end
+  local function g_H(V, pH, u)
+    local _, lP1 = sommes_protons(L, pH, u)
+    return (acidobasique(t, V, pH)) + melange(t, V, b.protons * b.ligand, bu.protons * bu.ligand) - lP1
+  end
+  local function jacobien(V, pH, u)
+    local lP, lP1, lP2 = sommes_protons(L, pH, u)
+    local _, W = metaux(V, u)
+    local _, D = acidobasique(t, V, pH)
+    return D + LN10 * lP2, -LN10 * lP1, -LN10 * lP1, LN10 * (W + lP)
+  end
+  function m.pas(V, pH, u)
+    local gH, gL = g_H(V, pH, u), g_L(V, pH, u)
+    local a, c1, c2, d = jacobien(V, pH, u)
+    local det = a * d - c1 * c2
+    return -(d * gH - c1 * gL) / det, -(a * gL - c2 * gH) / det
+  end
+  function m.coherent() return true end
+  local haut = math.max(b.ligand, bu.ligand)
+  for _, s in ipairs({ b, bu }) do for _, x in ipairs(s.metaux) do haut = math.max(haut, x[2]) end end
+  haut = math.log(haut + 1e-300, 10) + 1
+  local bas = -M.PL_MAX - L[#L] - #L * MARGE
+  local function u_de(V, pH)
+    return dichotomie(function(u) return g_L(V, pH, u) end, bas, haut)
+  end
+  function m.dichotomie(V)
+    local pH = dichotomie(function(p) return g_H(V, p, u_de(V, p)) end, -MARGE, pKe + MARGE)
+    return pH, u_de(V, pH), 0
+  end
+  local function total(metal, V)
+    return melange(t, V, concentration(b.metaux, metal), concentration(bu.metaux, metal))
+  end
+  function m.derivees(e)
+    local V, pH, u = e.V, e.pH, e.u
+    local a, c1, c2, d = jacobien(V, pH, u)
+    local lP, lP1 = sommes_protons(L, pH, u)
+    local Y = metaux(V, u, bu)
+    local eH = (M.residu(bu.ab, pH) + bu.protons * bu.ligand - lP1) / (t.V0 + V)
+    local eL = (Y + lP - bu.ligand) / (t.V0 + V)
+    local det = a * d - c1 * c2
+    return -(d * eH - c1 * eL) / det, -(a * eL - c2 * eH) / det
+  end
+  function m.pM(e, metal)
+    local _, ls = fractions_lb(t.lb[metal], -e.u)
+    return -math.log(total(metal, e.V), 10) + ls
+  end
+  function m.pente(e, metal)
+    local _, du = m.derivees(e)
+    local T, Cu = total(metal, e.V), concentration(bu.metaux, metal)
+    return -(Cu - T) / ((t.V0 + e.V) * T * LN10) + (moments_lb(t.lb[metal], -e.u)) * du
+  end
+  function m.pL(e) return -math.log((sommes_protons(L, e.pH, e.u)), 10) end
+  function m.depart(metal, Vmax) return concentration(b.metaux, metal) > 0 and 0 or 1e-9 * Vmax end
+  return m
+end
+
+--- Le moteur de la précipitation à pH calculé : bilans de l'ion commun et des protons ;
+--- un hydroxyde (partenaire "OH-") borne l'ion commun au pH du moment.
+local function moteur_precipitation(t)
+  local b, bu = t.becher, t.burette
+  local pKe = b.ab.pKe
+  local P, L = t.precipites, {}
+  for i, p in ipairs(P) do L[i] = log_K_protons(p.pKa) end
+  local m = {}
+  local function total(i, V)
+    local x = P[i].partenaire
+    return melange(t, V, concentration(b.partenaires, x), concentration(bu.partenaires, x))
+  end
+  local function xs(i, pH, u)
+    return 10 ^ ((-P[i].pKs - P[i].nu * u) / P[i].mu + (moments_protons(L[i], pH)))
+  end
+  local function usat(i, pH) return (-P[i].pKs - P[i].mu * (pH - pKe)) / P[i].nu end
+  local function hydroxyde_present(S)
+    for i, p in ipairs(P) do if p.hydroxyde and present(S, i) then return i end end
+  end
+  local function bilans(V, pH, u, S, s)
+    local commun = s and s.commun or melange(t, V, b.commun, bu.commun)
+    local gP, gH = 10 ^ u - commun, s and M.residu(s.ab, pH) or (acidobasique(t, V, pH))
+    for i, p in ipairs(P) do
+      if not p.hydroxyde then
+        local T = s and concentration(s.partenaires, p.partenaire) or total(i, V)
+        local x = present(S, i) and xs(i, pH, u) or T
+        local _, moy = moments_protons(L[i], pH)
+        gP, gH = gP + p.r * (T - x), gH - x * moy
+      end
+    end
+    return gH, gP
+  end
+  local function jacobien(V, pH, u, S)
+    local _, D = acidobasique(t, V, pH)
+    local a11, a12, a22 = D, 0, LN10 * 10 ^ u
+    for i, p in ipairs(P) do
+      if not p.hydroxyde then
+        local _, moy, carre, var = moments_protons(L[i], pH)
+        if present(S, i) then
+          local x = xs(i, pH, u)
+          a11, a12, a22 = a11 + LN10 * x * carre, a12 + LN10 * p.r * x * moy, a22 + LN10 * p.r * p.r * x
+        else
+          a11 = a11 + LN10 * total(i, V) * var
+        end
+      end
+    end
+    return a11, a12, a22
+  end
+  function m.pas(V, pH, u, S)
+    local k = hydroxyde_present(S)
+    if k then
+      local c, us = P[k].mu / P[k].nu, usat(k, pH)
+      local gH, gP = bilans(V, pH, us, S)
+      local a11, a12, a22 = jacobien(V, pH, us, S)
+      local dp = -(gH - c * gP) / (a11 - 2 * c * a12 + c * c * a22)
+      return dp, us - c * dp - u
+    end
+    local gH, gP = bilans(V, pH, u, S)
+    local a11, a12, a22 = jacobien(V, pH, u, S)
+    local det = a11 * a22 - a12 * a12
+    return -(a22 * gH - a12 * gP) / det, -(a11 * gP - a12 * gH) / det
+  end
+  function m.coherent(V, pH, u, S)
+    if pH ~= pH or u ~= u then return false end
+    for i, p in ipairs(P) do
+      if not p.hydroxyde then
+        local T, x = total(i, V), xs(i, pH, u)
+        local marge = 1e-12 * math.max(T, x)
+        if present(S, i) then
+          if T - x < -marge then return false end
+        elseif T - x > marge then
+          return false
+        end
+      end
+    end
+    local k = hydroxyde_present(S)
+    local _, gP = bilans(V, pH, u, S)
+    local TP = melange(t, V, b.commun, bu.commun)
+    for i, p in ipairs(P) do
+      if p.hydroxyde then
+        local ecart = u - usat(i, pH)
+        if i == k then
+          if math.abs(ecart) >= 1e-9 or -gP < -1e-12 * TP then return false end
+        elseif ecart > 1e-12 then
+          return false
+        end
+      end
+    end
+    return true
+  end
+  local haut = math.max(b.commun, bu.commun)
+  for _, s in ipairs({ b, bu }) do for _, x in ipairs(s.partenaires) do haut = math.max(haut, x[2]) end end
+  haut = math.log(haut + 1e-300, 10) + 1
+  local function u_de(V, pH)
+    local T, TP = {}, melange(t, V, b.commun, bu.commun)
+    for i, p in ipairs(P) do if not p.hydroxyde then T[i] = total(i, V) end end
+    local function g(u)
+      local r = 10 ^ u - TP
+      for i, p in ipairs(P) do
+        if not p.hydroxyde then r = r + p.r * math.max(0, T[i] - xs(i, pH, u)) end
+      end
+      return r
+    end
+    local u = dichotomie(g, -M.P_MAX, haut)
+    local limite, k = math.huge, nil
+    for i, p in ipairs(P) do
+      if p.hydroxyde and usat(i, pH) < limite then limite, k = usat(i, pH), i end
+    end
+    local exces, S = 0, 0
+    if u > limite then
+      u = limite
+      exces = -g(u)
+      S = S | (1 << (k - 1))
+    end
+    for i, p in ipairs(P) do
+      if not p.hydroxyde and T[i] > xs(i, pH, u) then S = S | (1 << (i - 1)) end
+    end
+    return u, exces, S, k
+  end
+  function m.dichotomie(V)
+    local pH = dichotomie(function(p)
+      local u, exces, S, k = u_de(V, p)
+      local gH = bilans(V, p, u, S)
+      if exces ~= 0 then gH = gH + P[k].mu / P[k].nu * exces end
+      return gH
+    end, -MARGE, pKe + MARGE)
+    local u, _, S = u_de(V, pH)
+    return pH, u, S
+  end
+  function m.derivees(e)
+    local V, pH, u, S = e.V, e.pH, e.u, e.S
+    local a11, a12, a22 = jacobien(V, pH, u, S)
+    local eH, eP = bilans(V, pH, u, S, bu)
+    eH, eP = eH / (t.V0 + V), eP / (t.V0 + V)
+    local k = hydroxyde_present(S)
+    if k then
+      local c = P[k].mu / P[k].nu
+      local dp = -(eH - c * eP) / (a11 - 2 * c * a12 + c * c * a22)
+      return dp, -c * dp
+    end
+    local det = a11 * a22 - a12 * a12
+    return -(a22 * eH - a12 * eP) / det, -(a11 * eP - a12 * eH) / det
+  end
+  function m.p(e) return -e.u end
+  function m.pente(e)
+    local _, du = m.derivees(e)
+    return -du
+  end
+  local function indice(nom)
+    for i, p in ipairs(P) do if p.partenaire == nom then return i end end
+    error(("titrages : %s n'est pas un partenaire du titrage"):format(nom))
+  end
+  function m.p_partenaire(e, nom)
+    local i = indice(nom)
+    return -math.log(present(e.S, i) and xs(i, e.pH, e.u) or total(i, e.V), 10)
+  end
+  function m.pente_partenaire(e, nom)
+    local i = indice(nom)
+    if present(e.S, i) then
+      local dp, du = m.derivees(e)
+      local _, moy = moments_protons(L[i], e.pH)
+      return P[i].nu / P[i].mu * du + moy * dp
+    end
+    local T = total(i, e.V)
+    return -(concentration(bu.partenaires, nom) - T) / ((t.V0 + e.V) * T * LN10)
+  end
+  function m.depart(Vmax, fraction) return b.commun > 0 and 0 or (fraction or 1e-6) * Vmax end
+  local function sursaturation(i, e)
+    if not P[i].hydroxyde then return total(i, e.V) - xs(i, e.pH, e.u) end
+    if present(e.S, i) then
+      local _, gP = bilans(e.V, e.pH, e.u, e.S)
+      return -gP
+    end
+    return e.u - usat(i, e.pH)
+  end
+  function m.evenements(Vmax, n)
+    local e = raffiner(m, Vmax, n, m.depart(Vmax, 1e-9), m.p)
+    local resultat = {}
+    for k = 1, #e - 1 do
+      local avant, apres = e[k].S, e[k + 1].S
+      if avant ~= apres then
+        local g = e[k]
+        local function prolonge(V)
+          local pH, u = continuer(m, V, g.pH, g.u, g.S)
+          return { V = V, pH = pH, u = u, S = g.S }
+        end
+        for i, p in ipairs(P) do
+          if ((avant ~ apres) >> (i - 1)) & 1 == 1 then
+            local V = changement(function(v) return sursaturation(i, prolonge(v)) end, e[k].V, e[k + 1].V)
+            resultat[#resultat + 1] = { V, -prolonge(V).u, p.partenaire, present(apres, i) }
+          end
+        end
+      end
+    end
+    return resultat
+  end
+  return m
+end
+
+moteur_libre = function(t)
+  if not t.moteur then
+    t.moteur = (t.type == "complexation" and moteur_complexation or moteur_precipitation)(t)
+  end
+  return t.moteur
 end
 
 -- --- l'interface avec TeX -----------------------------------------------------
@@ -1359,9 +1916,17 @@ local function reglages(t, spec, equivalences)
   end
 end
 
+--- La partie acido-basique d'une solution, telle que le .sty la décrit.
+local function solution_ab(d)
+  d = d or {}
+  local especes = {}
+  for _, e in ipairs(d.especes or {}) do especes[#especes + 1] = M.espece(e.pKa, e.C, e.q) end
+  return M.solution(especes, (d.base or 0) - (d.acide or 0), 14)
+end
+
 --- Enregistre un titrage complexométrique.
 function M.definir_complexation(nom, spec)
-  local function sol(d) return M.solution_complexation(d.metaux, d.ligand) end
+  local function sol(d) return M.solution_complexation(d.metaux, d.ligand, d.protons, solution_ab(d.ab)) end
   local t = M.titrage_complexation(sol(spec.becher or {}), sol(spec.burette or {}), spec.V0 or 10,
     spec.complexes or {}, spec.pKa, spec.pH, spec.suivi)
   t.suivi = t.metal
@@ -1372,7 +1937,7 @@ end
 
 --- Enregistre un titrage par précipitation.
 function M.definir_precipitation(nom, spec)
-  local function sol(d) return M.solution_precipitation(d.commun, d.partenaires) end
+  local function sol(d) return M.solution_precipitation(d.commun, d.partenaires, solution_ab(d.ab)) end
   local t = M.titrage_precipitation(sol(spec.becher or {}), sol(spec.burette or {}), spec.V0 or 10,
     spec.precipites or {}, spec.pH)
   t.commun = spec.commun or "Ag+"
@@ -1395,7 +1960,13 @@ local function mesure(t, V, espece)
 end
 
 --- d pX/dV d'un partenaire : -nu/mu d pP/dV au contact de son solide, la dilution sinon.
-local function pente_partenaire(t, V, pP, nom)
+--- pP, facultatif, évite de le recalculer.
+function M.pente_partenaire(t, V, nom, pP)
+  if t.libre then
+    local m = moteur_libre(t)
+    return m.pente_partenaire(etat_libre(m, V), nom)
+  end
+  pP = pP or M.pP(t, V)
   for _, p in ipairs(t.precipites) do
     if p.partenaire == nom then
       local T = totale_p(t, nom, V)
@@ -1448,9 +2019,7 @@ function M.tex_courbe(nom, options)
   elseif t.type == "complexation" then
     for i, c in ipairs(M.courbe_complexation(t, t.Vmax, t.points, t.suivi)) do liste[i] = { c[1] / e, c[2] } end
   elseif t.type == "precipitation" then
-    for i, c in ipairs(M.courbe_precipitation(t, t.Vmax, t.points)) do
-      liste[i] = { c[1] / e, t.suivi and M.p_partenaire(t, c[1], t.suivi) or c[2] }
-    end
+    for i, c in ipairs(M.courbe_precipitation(t, t.Vmax, t.points, t.suivi)) do liste[i] = { c[1] / e, c[2] } end
   else
     for i, c in ipairs(M.courbe(t, t.Vmax, t.points)) do liste[i] = { c[1] / e, c[2] } end
   end
@@ -1483,16 +2052,11 @@ function M.tex_derivee(nom, options)
     return addplot(options, liste, true)
   end
   if t.type == "complexation" then
-    for i, c in ipairs(M.courbe_complexation(t, t.Vmax, t.points, t.suivi)) do
-      liste[i] = { c[1] / e, M.pente_complexation(t, c[3], t.suivi) * e }
-    end
+    for i, c in ipairs(M.courbe_complexation(t, t.Vmax, t.points, t.suivi)) do liste[i] = { c[1] / e, c[4] * e } end
     return addplot(options, liste, true)
   end
   if t.type == "precipitation" then
-    for i, c in ipairs(M.courbe_precipitation(t, t.Vmax, t.points)) do
-      local d = t.suivi and pente_partenaire(t, c[1], c[2], t.suivi) or M.pente_precipitation(t, c[2])
-      liste[i] = { c[1] / e, d * e }
-    end
+    for i, c in ipairs(M.courbe_precipitation(t, t.Vmax, t.points, t.suivi)) do liste[i] = { c[1] / e, c[3] * e } end
     return addplot(options, liste, true)
   end
   for i, c in ipairs(M.courbe(t, t.Vmax, t.points)) do
@@ -1587,8 +2151,20 @@ local function volume_mesure(t, y, espece)
   return changement(f, 0, t.Vmax)
 end
 
+--- Le pH après avoir versé V : celui du tampon, ou celui qu'on calcule.
+function M.pH_du_melange(t, V)
+  if t.libre then
+    local m = moteur_libre(t)
+    return etat_libre(m, V).pH
+  end
+  if not t.pH then error("titrages : ni pH imposé, ni acide-base dans les solutions : le pH n'a pas d'objet") end
+  return t.pH
+end
+
 local function nombre_cp(t, e, quoi, arg, champ)
-  if quoi == "pM" then
+  if quoi == "pH" then
+    return M.pH_du_melange(t, arg * e)
+  elseif quoi == "pM" then
     return mesure(t, arg * e, champ ~= "" and champ or nil)
   elseif quoi == "volume" then
     return (volume_mesure(t, arg) or 0 / 0) / e
@@ -1600,7 +2176,7 @@ local function nombre_cp(t, e, quoi, arg, champ)
     local s = liste[math.floor(arg)]
     if not s then error(("titrages : pas de saut n° %d"):format(arg)) end
     if champ == "pente" and t.type == "precipitation" and t.suivi then
-      return pente_partenaire(t, s[1], s[2], t.suivi) * e
+      return M.pente_partenaire(t, s[1], t.suivi) * e
     end
     return ({ volume = s[1] / e, pM = mesure(t, s[1]), pente = s[3] * e })[champ]
   elseif quoi == "evenement" then

@@ -349,3 +349,227 @@ io.write('{{"p":' .. liste(p) .. ',"pente":' .. liste(pente) .. ',"sauts":' .. t
     for (V, p, _, _), e in zip(lua["evenements"], evenements, strict=True):
         assert (V, p) == pytest.approx((e.volume, e.p), rel=1e-9, abs=1e-12)
     assert lua["equivalences"] == pytest.approx(list(t.volumes_equivalents()), rel=1e-12)
+
+
+# --- le pH calculé (niveau 2) ----------------------------------------------------------
+
+_LIBRE_EXPORT = (
+    _EXPORT
+    + """
+local function etats(t, volumes, mesure)
+  local pH, y = {}, {}
+  for i, V in ipairs(volumes) do pH[i], y[i] = T.pH_du_melange(t, V), mesure(t, V) end
+  return liste(pH), liste(y)
+end
+"""
+)
+
+EDTA_LUA = "{0.0,1.5,2.0,2.66,6.16,10.24}"
+TAMPON_LUA = "T.solution({T.espece({9.25},0.1,0), T.espece({9.25},0.1,1)},0,14)"
+
+COMPLEXATION_LIBRE = {
+    "Ca par Na2H2Y": (
+        'T.solution_complexation({{"Ca2+",0.01}})',
+        "T.solution_complexation({}, 0.01, 2)",
+        '{{"Ca2+",{10.7}}}',
+        EDTA_LUA,
+    ),
+    "Ca, tampon en solution": (
+        f'T.solution_complexation({{{{"Ca2+",0.01}}}}, 0, 0, {TAMPON_LUA})',
+        f"T.solution_complexation({{}}, 0.01, 2, {TAMPON_LUA})",
+        '{{"Ca2+",{10.7}}}',
+        EDTA_LUA,
+    ),
+    "Cu par NH3": (
+        'T.solution_complexation({{"Cu2+",0.01}})',
+        "T.solution_complexation({}, 0.1)",
+        '{{"Cu2+",{4.04,7.47,10.27,11.75}}}',
+        "{9.244}",
+    ),
+    "Liebig": (
+        "T.solution_complexation({}, 0.1)",
+        'T.solution_complexation({{"Ag+",0.05}})',
+        '{{"Ag+",{-math.huge,20.48,21.40}}}',
+        "{9.21}",
+    ),
+}
+
+
+def _complexation_libre_python(nom: str):
+    import warnings
+
+    from titrages import Complexe, Ligand, Solution, SolutionComplexation, TitrageComplexometrique, couple
+
+    edta = Ligand("Y4-", (0.0, 1.5, 2.0, 2.66, 6.16, 10.24))
+    ca = Complexe("Ca2+", (10.7,))
+    nh = couple("NH3")
+    tampon = Solution().avec(nh.forme(0), 0.1).avec(nh.forme(1), 0.1)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        if nom == "Ca par Na2H2Y":
+            return TitrageComplexometrique(
+                SolutionComplexation({"Ca2+": 0.01}),
+                SolutionComplexation(ligand=0.01, protons_ligand=2),
+                20,
+                [ca],
+                edta,
+            )
+        if nom == "Ca, tampon en solution":
+            return TitrageComplexometrique(
+                SolutionComplexation({"Ca2+": 0.01}, acidobasique=tampon),
+                SolutionComplexation(ligand=0.01, protons_ligand=2, acidobasique=tampon),
+                20,
+                [ca],
+                edta,
+            )
+        if nom == "Cu par NH3":
+            return TitrageComplexometrique(
+                SolutionComplexation({"Cu2+": 0.01}),
+                SolutionComplexation(ligand=0.1),
+                20,
+                [Complexe("Cu2+", (4.04, 7.47, 10.27, 11.75))],
+                Ligand("NH3", (9.244,)),
+            )
+        return TitrageComplexometrique(
+            SolutionComplexation(ligand=0.1),
+            SolutionComplexation({"Ag+": 0.05}),
+            20,
+            [Complexe("Ag+", (-float("inf"), 20.48, 21.40))],
+            Ligand("CN-", (9.21,)),
+        )
+
+
+LIBRE_VOLUMES = [0.5, 5.0, 10.0, 15.0, 19.9, 20.0, 20.1, 25.0, 39.0]
+
+
+@pytest.mark.parametrize("nom", COMPLEXATION_LIBRE)
+def test_complexation_libre_memes_nombres(nom, tmp_path):
+    becher, burette, complexes, pKa = COMPLEXATION_LIBRE[nom]
+    lua = _executer(
+        _LIBRE_EXPORT
+        + f"""
+local t = T.titrage_complexation({becher}, {burette}, 20, {complexes}, {pKa})
+local pH, pM = etats(t, {{{", ".join(map(str, LIBRE_VOLUMES))}}}, function(t, V) return T.pM(t, V) end)
+io.write('{{"libre":' .. tostring(t.libre) .. ',"pH":' .. pH .. ',"pM":' .. pM
+  .. ',"sauts":' .. triplets(T.sauts_complexation(t, 40)) .. '}}')
+""",
+        tmp_path,
+    )
+    t = _complexation_libre_python(nom)
+    assert lua["libre"] is True
+    assert lua["pH"] == pytest.approx(t.pH_du_melange(LIBRE_VOLUMES).tolist(), abs=1e-9)
+    assert lua["pM"] == pytest.approx(t.pM(LIBRE_VOLUMES).tolist(), abs=1e-9)
+    sauts = t.sauts(40)
+    assert len(lua["sauts"]) == len(sauts)
+    for (V, pM, pente), s in zip(lua["sauts"], sauts, strict=True):
+        assert (V, pM, pente) == pytest.approx((s.volume, s.pM, s.pente), rel=1e-8)
+
+
+PRECIPITATION_LIBRE = {
+    "Mohr sans tampon": (
+        'T.solution_precipitation(0, {{"Cl-",0.05},{"CrO4^2-",0.005}})',
+        "T.solution_precipitation(0.05)",
+        '{{partenaire="Cl-",pKs=9.74},{partenaire="CrO4^2-",pKs=11.92,nu=2,pKa={-0.2,6.51}}}',
+        30,
+        [0.5, 5.0, 10.0, 19.9, 20.0, 20.1, 25.0],
+    ),
+    "Mohr en milieu acide": (
+        'T.solution_precipitation(0, {{"Cl-",0.05},{"CrO4^2-",0.005}}, T.solution({}, -0.001, 14))',
+        "T.solution_precipitation(0.05)",
+        '{{partenaire="Cl-",pKs=9.74},{partenaire="CrO4^2-",pKs=11.92,nu=2,pKa={-0.2,6.51}}}',
+        30,
+        [0.5, 5.0, 10.0, 19.9, 20.0, 20.1, 25.0],
+    ),
+    "Volhard en milieu nitrique": (
+        'T.solution_precipitation(0.1, {{"Cl-",0.05}}, T.solution({}, -0.1, 14))',
+        'T.solution_precipitation(0, {{"SCN-",0.1}})',
+        '{{partenaire="Cl-",pKs=9.74},{partenaire="SCN-",pKs=11.97,pKa={0.9}}}',
+        25,
+        [0.5, 5.0, 9.9, 10.0, 10.1, 15.0, 24.0],
+    ),
+    "Mg(OH)2 après un acide": (
+        "T.solution_precipitation(0.01, {}, T.solution({}, -0.002, 14))",
+        "T.solution_precipitation(0, {}, T.solution({}, 0.1, 14))",
+        '{{partenaire="OH-",pKs=11.15,nu=1,mu=2}}',
+        8,
+        [0.1, 0.39, 0.4, 0.41, 2.0, 4.39, 4.4, 4.41, 6.0],
+    ),
+    "Ag2O": (
+        "T.solution_precipitation(0.01)",
+        "T.solution_precipitation(0, {}, T.solution({}, 0.1, 14))",
+        '{{partenaire="OH-",pKs=15.42,nu=2,mu=2}}',
+        4,
+        [0.1, 1.0, 1.9, 2.0, 2.1, 3.0],
+    ),
+}
+
+
+def _precipitation_libre_python(nom: str):
+    import warnings
+
+    from titrages import Precipite, Solution, SolutionPrecipitation, TitrageParPrecipitation
+
+    cl, cro4 = Precipite("Cl-", 9.74), Precipite("CrO4^2-", 11.92, nu=2, pKa=(-0.2, 6.51))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        if nom.startswith("Mohr"):
+            acide = Solution(acide_fort=0.001) if "acide" in nom else Solution()
+            return TitrageParPrecipitation(
+                SolutionPrecipitation(partenaires={"Cl-": 0.05, "CrO4^2-": 0.005}, acidobasique=acide),
+                SolutionPrecipitation(commun=0.05),
+                20,
+                [cl, cro4],
+            )
+        if nom.startswith("Volhard"):
+            return TitrageParPrecipitation(
+                SolutionPrecipitation(
+                    commun=0.1, partenaires={"Cl-": 0.05}, acidobasique=Solution(acide_fort=0.1)
+                ),
+                SolutionPrecipitation(partenaires={"SCN-": 0.1}),
+                20,
+                [cl, Precipite("SCN-", 11.97, pKa=(0.9,))],
+            )
+        soude = SolutionPrecipitation(acidobasique=Solution(base_forte=0.1))
+        if nom.startswith("Mg"):
+            return TitrageParPrecipitation(
+                SolutionPrecipitation(commun=0.01, acidobasique=Solution(acide_fort=0.002)),
+                soude,
+                20,
+                [Precipite("OH-", 11.15, mu=2)],
+            )
+        return TitrageParPrecipitation(
+            SolutionPrecipitation(commun=0.01), soude, 20, [Precipite("OH-", 15.42, nu=2, mu=2)]
+        )
+
+
+@pytest.mark.parametrize("nom", PRECIPITATION_LIBRE)
+def test_precipitation_libre_memes_nombres(nom, tmp_path):
+    becher, burette, precipites, Vmax, volumes = PRECIPITATION_LIBRE[nom]
+    lua = _executer(
+        _LIBRE_EXPORT
+        + f"""
+local t = T.titrage_precipitation({becher}, {burette}, 20, {precipites})
+local pH, p = etats(t, {{{", ".join(map(str, volumes))}}}, T.pP)
+local ev = {{}}
+for i, e in ipairs(T.evenements(t, {Vmax})) do
+  ev[i] = string.format('[%.17g,%.17g,"%s",%s]', e[1], e[2], e[3], tostring(e[4]))
+end
+io.write('{{"libre":' .. tostring(t.libre) .. ',"pH":' .. pH .. ',"p":' .. p
+  .. ',"sauts":' .. triplets(T.sauts_precipitation(t, {Vmax}))
+  .. ',"evenements":[' .. table.concat(ev, ",") .. '],"equivalences":' .. liste(T.equivalences_precipitation(t)) .. '}}')
+""",
+        tmp_path,
+    )
+    t = _precipitation_libre_python(nom)
+    assert lua["libre"] is True
+    assert lua["pH"] == pytest.approx(t.pH_du_melange(volumes).tolist(), abs=1e-9)
+    assert lua["p"] == pytest.approx(t.p(volumes).tolist(), abs=1e-9)
+    sauts = t.sauts(Vmax)
+    assert len(lua["sauts"]) == len(sauts)
+    for (V, p, pente), s in zip(lua["sauts"], sauts, strict=True):
+        assert (V, p, pente) == pytest.approx((s.volume, s.p, s.pente), rel=1e-8)
+    evenements = t.evenements(Vmax)
+    assert [(x, a) for _, _, x, a in lua["evenements"]] == [(e.partenaire, e.apparition) for e in evenements]
+    for (V, p, _, _), e in zip(lua["evenements"], evenements, strict=True):
+        assert (V, p) == pytest.approx((e.volume, e.p), rel=1e-9, abs=1e-12)
+    assert lua["equivalences"] == pytest.approx(list(t.volumes_equivalents()), rel=1e-12)

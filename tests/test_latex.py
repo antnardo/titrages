@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from titrages import Titrage, TitrageRedox, solution, solution_redox
+from titrages import Couple, Titrage, TitrageRedox, solution, solution_redox
 
 LATEX = Path(__file__).parent.parent / "latex"
 DOCUMENT = LATEX / "tests" / "titrages-test-nombres.tex"
@@ -145,6 +145,7 @@ def _titrages_cp() -> dict:
             Ligand("CN-", (9.21,)),
             12,
         ),
+        **_titrages_libres(),
         "mohr": TitrageParPrecipitation(
             SolutionPrecipitation(partenaires={"Cl-": 0.05, "CrO4^2-": 0.005}),
             SolutionPrecipitation(commun=0.05),
@@ -161,9 +162,73 @@ def _titrages_cp() -> dict:
     }
 
 
+def _titrages_libres() -> dict:
+    """Les titrages à pH calculé du document, écrits avec le paquet Python."""
+    import warnings
+
+    from titrages import (
+        Complexe,
+        Ligand,
+        Precipite,
+        Solution,
+        SolutionComplexation,
+        SolutionPrecipitation,
+        TitrageComplexometrique,
+        TitrageParPrecipitation,
+    )
+
+    edta = Ligand("Y4-", (0, 1.5, 2, 2.66, 6.16, 10.24))
+    ca = Complexe("Ca2+", (10.7,))
+    nh = Couple("tampon", (9.25,))  # pKa = 9.25 dans le document
+    tampon = Solution().avec(nh.forme(0), 0.1).avec(nh.forme(1), 0.1)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        return {
+            "libre": TitrageComplexometrique(
+                SolutionComplexation({"Ca2+": 0.01}),
+                SolutionComplexation(ligand=0.01, protons_ligand=2),
+                20,
+                [ca],
+                edta,
+            ),
+            "tampon": TitrageComplexometrique(
+                SolutionComplexation({"Ca2+": 0.01}, acidobasique=tampon),
+                SolutionComplexation(ligand=0.01, protons_ligand=2, acidobasique=tampon),
+                20,
+                [ca],
+                edta,
+            ),
+            "magnesium": TitrageParPrecipitation(
+                SolutionPrecipitation(commun=0.01),
+                SolutionPrecipitation(acidobasique=Solution(base_forte=0.1)),
+                20,
+                [Precipite("OH-", 11.15, mu=2, commun="Mg2+")],
+            ),
+            "mohracide": TitrageParPrecipitation(
+                SolutionPrecipitation(
+                    partenaires={"Cl-": 0.05, "CrO4^2-": 0.005}, acidobasique=Solution(acide_fort=0.001)
+                ),
+                SolutionPrecipitation(commun=0.05),
+                20,
+                [Precipite("Cl-", 9.74), Precipite("CrO4^2-", 11.92, nu=2, pKa=(-0.2, 6.51))],
+            ),
+        }
+
+
 # Le titrage de Volhard est suivi par pSCN (clé suivi) ; les autres par leur grandeur.
 SUIVI_CP = {"volhard": "SCN-"}
-VOLUME_MAX_CP = {"edta": 40, "competition": 40, "cuivre": 20, "liebig": 40, "mohr": 30, "volhard": 25}
+VOLUME_MAX_CP = {
+    "edta": 40,
+    "competition": 40,
+    "cuivre": 20,
+    "liebig": 40,
+    "mohr": 30,
+    "volhard": 25,
+    "libre": 40,
+    "tampon": 40,
+    "magnesium": 8,
+    "mohracide": 30,
+}
 
 
 def _mesure_cp(t, nom: str, V: float, espece: str | None = None) -> float:
@@ -201,7 +266,9 @@ def test_complexation_precipitation_memes_nombres_que_python(nombres_cp):
     for nom, grandeur, argument, valeur in nombres_cp:
         t, x, a = titrages[nom], float(valeur), float(argument)
         Vmax = VOLUME_MAX_CP[nom]
-        if grandeur == "pM":
+        if grandeur == "pH":
+            attendu = float(t.pH_du_melange(a))
+        elif grandeur == "pM":
             attendu = _mesure_cp(t, nom, a)
         elif grandeur.startswith("pM"):  # pM<espèce> : une autre espèce que celle suivie
             attendu = _mesure_cp(t, nom, a, grandeur[2:])

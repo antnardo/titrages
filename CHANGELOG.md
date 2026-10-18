@@ -44,6 +44,11 @@ LaTeX partagent un numéro de version.
   `TitrageParPrecipitation.pH_du_melange`, colonne `pH` de `CourbePrecipitation` ;
   équivalences d'une base forte qui précipite un hydroxyde. Quinze hydroxydes et
   oxydes dans la base. Le moteur commun aux deux familles est `titrages.libre`.
+- Le paquet LaTeX : complexométrie et précipitation à pH calculé, hydroxydes compris.
+  Sans la clé `pH`, et dès que le pH compte, le pH se calcule, avec un avertissement
+  du paquet ; clés de solution `protons ligand`, `acide fort`, `base forte`,
+  `espece` ; partenaire `OH-` pour un hydroxyde ; `\titragepH` lit le pH de ces
+  titrages. Moteur Lua confronté au moteur Python (`test_lua.py`, `test_latex.py`).
 - `fractions_complexes` vit dans `titrages.equilibre`, avec `log_somme_complexes` et
   `moments_complexes`.
 - Sections « La complexométrie » et « La précipitation » de `docs/DOC.md` et de la

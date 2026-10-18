@@ -200,6 +200,20 @@ couplés non tamponnés, qui sortent largement du programme.
   Ag₂O), accord à 10⁻⁹ ; les deux limites (partenaire sans acidité, tampon
   concentré).
 
+### Fait le 18 octobre 2026 : niveau 2, étape 3 (Lua et LaTeX)
+
+- `titrages.lua` : le moteur à pH calculé, générique (continuation par Newton,
+  dichotomie en reprise, courbe raffinée, sauts), et ses deux moteurs, complexation
+  et précipitation avec hydroxydes. Les fonctions du niveau 1 basculent seules sur
+  lui quand le pH se calcule. En Lua, la dichotomie imbriquée coûte quelques dizaines
+  de millisecondes par point : la courbe se construit par continuation, la dichotomie
+  ne sert qu'en reprise.
+- `titrages.sty` : clés de solution `protons ligand`, `acide fort`, `base forte`,
+  `espece` ; avertissement `pH-calcule` ; `\titragepH` pour ces titrages.
+- Tests : `test_lua.py` (neuf cas, pH, pM ou pP, sauts, événements, équivalences, à
+  10⁻⁹ et 10⁻⁸ près), `test_latex.py` (quatre titrages du document de test),
+  `test_titrages.lua`. Documentation l3doc : § 3.6 et § 10.
+
 ### Décisions
 
 - Pas de base côté LaTeX (18 octobre 2026) : les constantes s'y écrivent, comme les
@@ -209,8 +223,9 @@ couplés non tamponnés, qui sortent largement du programme.
 
 1. Le moteur pgf n'a pas les deux familles : leur courbe n'est pas une expression
    unique (pM se déduit de pL et du volume ; l'ensemble des solides change).
-2. Le niveau 2, le pH non tamponné : étapes 1 et 2 faites en Python
-   (complexométrie, précipitation, hydroxydes) ; reste l'étape 3, Lua et LaTeX.
+2. Le niveau 2, le pH non tamponné, est fait (Python, Lua, LaTeX). Restent hors du
+   projet : deux ligands à la fois (un tampon qui complexe aussi le métal, un
+   indicateur métallochrome), et complexation et précipitation dans un même titrage.
 
 ## Niveau 2 : étude (18 octobre 2026)
 

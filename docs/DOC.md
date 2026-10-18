@@ -445,5 +445,6 @@ colonnes de la courbe suffit.
 
 Voir `latex/titrages-doc.pdf`. Son moteur Lua implémente le même algorithme, la
 complexométrie et la précipitation comprises (`\titragecomplexationdefinir`,
-`\titrageprecipitationdefinir`) ; `tests/test_lua.py` confronte les deux, et
+`\titrageprecipitationdefinir`), à pH imposé ou calculé, hydroxydes compris : sans la
+clé `pH`, le pH se calcule, et un avertissement du paquet le dit ; `tests/test_lua.py` confronte les deux, et
 `tests/test_latex.py` les nombres que rendent les documents.

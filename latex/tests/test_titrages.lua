@@ -133,5 +133,20 @@ proche("Mohr : deux événements", #ev, 2, 0)
 proche("Mohr : le chromate apparaît", ev[2][1], 20.0113792425, 1e-8)
 proche("Mohr : équivalence du chromate", T.equivalences_precipitation(mohr)[2], 24, 1e-12)
 
+-- le pH calculé (niveau 2)
+local libre = T.titrage_complexation(T.solution_complexation({ { "Ca2+", 0.01 } }),
+  T.solution_complexation({}, 0.01, 2), 20, { { "Ca2+", { 10.7 } } }, edta)
+proche("sans tampon : le pH se calcule", libre.libre and 1 or 0, 1, 0)
+proche("sans tampon : pH à 10 mL", T.pH_du_melange(libre, 10), 3.5113151725, 1e-9)
+proche("sans tampon : pas de saut", #T.sauts_complexation(libre, 40), 0, 0)
+local mg = T.titrage_precipitation(T.solution_precipitation(0.01),
+  T.solution_precipitation(0, {}, T.solution({}, 0.1, 14)), 20, { { partenaire = "OH-", pKs = 11.15, mu = 2 } })
+proche("Mg(OH)2 : pH à l'équivalence", T.pH_du_melange(mg, 4), 10.383676690, 1e-8)
+proche("Mg(OH)2 : équivalence", T.equivalences_precipitation(mg)[1], 4, 1e-12)
+proche("Mg(OH)2 : l'hydroxyde apparaît", T.evenements(mg, 8)[1][1], 0.0053234997, 1e-9)
+local ok = pcall(T.titrage_precipitation, T.solution_precipitation(0.01), T.solution_precipitation(), 20,
+  { { partenaire = "OH-", pKs = 11.15, mu = 2 } }, 10)
+proche("hydroxyde à pH imposé : erreur", ok and 0 or 1, 1, 0)
+
 print(("%d/%d vérifications passées"):format(total - echecs, total))
 os.exit(echecs == 0 and 0 or 1)

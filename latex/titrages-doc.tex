@@ -237,6 +237,18 @@ positive, chaque absent non sursaturé. La courbe a des points anguleux là où 
 apparaît ou disparaît : ce sont des \emph{événements}, distincts des points
 d'inflexion, qu'on ne cherche qu'à l'intérieur des morceaux lisses.
 
+\subsection{Le pH calculé}\label{sec:principe-pH}
+
+Sans pH imposé, et dès que le pH compte, l'état du mélange à volume fixé tient en deux
+nombres : le pH et le logarithme de la concentration libre de la composante principale
+— le ligand sous sa forme la plus basique, ou l'ion commun —, plus l'ensemble des
+solides présents. Le bilan de cette composante et celui des protons les fixent. Ils sont
+le gradient d'une fonction strictement convexe : l'équilibre est unique, et deux
+dichotomies imbriquées, le pH à l'extérieur, le trouvent sans point de départ. Newton,
+à jacobienne exacte, le suit d'un volume au suivant ; les dérivées sont exactes, par le
+théorème des fonctions implicites. Le volume n'est plus explicite : la courbe est
+paramétrée par le volume lui-même, et ses points s'ajoutent là où elle tourne.
+
 \subsection{La précision}\label{sec:precision}
 
 Les fractions se calculent en échelle logarithmique : la forme naïve
@@ -663,11 +675,12 @@ Le permanganate est
 \cs{titragecomplexationdefinir}\marg{nom}\marg{clés}
 \end{syntax}
 Enregistre le titrage complexométrique \meta{nom} (moteur \texttt{lua}). Le milieu est
-tamponné au pH de la clé \cle{pH}.
+tamponné au pH de la clé \cle{pH} ; sans elle, et dès que le ligand a des pKa ou qu'une
+solution apporte de l'acide-base, le pH se calcule (§\,\ref{sec:pH-calcule}).
 \end{function}
 
 {\raggedright Les commandes qui s'y appliquent sont \cs{addplottitrage},
-\cs{addplottitragederivee}, \cs{addplottitragesauts}, \cs{titragepM},
+\cs{addplottitragederivee}, \cs{addplottitragesauts}, \cs{titragepM}, \cs{titragepH},
 \cs{titragevolume}, \cs{titrageequivalence} et \cs{titragesaut}. La courbe est
 $\mathrm{pM}=f(V)$ du métal suivi.\par}
 
@@ -676,7 +689,7 @@ $\mathrm{pM}=f(V)$ du métal suivi.\par}
 \begin{cles}
 \cle{volume}, \cle{becher}, \cle{burette}, \cle{volume max}, \cle{points},
   \cle{abscisse}, \cle{echelle} & & comme pour un titrage acide-base \\
-\cle{pH} & & le pH du tampon ; obligatoire si le ligand a des pKa \\
+\cle{pH} & & le pH du tampon ; sans lui, le pH se calcule \\
 \defcle{ligand pKa}{ligand pKa} & & les pKa des formes protonées du ligand : celles de
   l'EDTA, \cle{\{0, 1.5, 2, 2.66, 6.16, 10.24\}} \\
 \defcle{complexe}{complexe} & & les complexes d'un métal, répétable : une liste de clés
@@ -695,7 +708,7 @@ Les clés d'un \cle{complexe} :
 
 Une solution a deux clés : \defcle{metal solution}{metal}, répétable, qui prend le
 nom et la concentration, \cle{\{Ca2+, 0.01\}}, et \defcle{ligand}{ligand}, la
-concentration du ligand.
+concentration du ligand ; et, pour un pH calculé, celles de §\,\ref{sec:pH-calcule}.
 
 \begin{exemple}
 \titragecomplexationdefinir{calcium}{
@@ -748,16 +761,16 @@ Enregistre le titrage par précipitation \meta{nom} (moteur \texttt{lua}).
 
 {\raggedright Les commandes qui s'y appliquent sont \cs{addplottitrage},
 \cs{addplottitragederivee}, \cs{addplottitragesauts}, \cs{addplottitrageevenements},
-\cs{titragepM}, \cs{titragevolume}, \cs{titrageequivalence}, \cs{titragesaut} et
-\cs{titrageevenement}. La courbe est $\mathrm{pP}=f(V)$ de l'ion commun, ou pX d'un
-partenaire (clé \cle{suivi}).\par}
+\cs{titragepM}, \cs{titragepH}, \cs{titragevolume}, \cs{titrageequivalence},
+\cs{titragesaut} et \cs{titrageevenement}. La courbe est $\mathrm{pP}=f(V)$ de l'ion
+commun, ou pX d'un partenaire (clé \cle{suivi}).\par}
 
 \subsection{Les clés du titrage}
 
 \begin{cles}
 \cle{volume}, \cle{becher}, \cle{burette}, \cle{volume max}, \cle{points},
   \cle{abscisse}, \cle{echelle} & & comme pour un titrage acide-base \\
-\cle{pH} & & le pH du tampon ; obligatoire si un partenaire a des pKa \\
+\cle{pH} & & le pH du tampon ; sans lui, le pH se calcule \\
 \defcle{ion commun}{ion commun} & \cle{Ag+} & le nom de l'ion commun \\
 \defcle{precipite}{precipite} & & un solide possible, répétable : une liste de clés
   (ci-dessous) \\
@@ -769,7 +782,7 @@ Les clés d'un \cle{precipite} $\mathrm P_\nu\mathrm X_\mu$, $K_s=[\mathrm P]^\n
 
 \begin{cles}
 \defcle{partenaire}{partenaire} & & le nom du partenaire X : \cle{Cl-},
-  \cle{CrO4\^{}2-} \\
+  \cle{CrO4\^{}2-} ; \cle{OH-} pour un hydroxyde (§\,\ref{sec:pH-calcule}) \\
 \defcle{pKs}{pKs} & & le produit de solubilité \\
 \defcle{nu}{nu} & 1 & ions communs par formule \\
 \defcle{mu}{mu} & 1 & partenaires par formule \\
@@ -777,7 +790,8 @@ Les clés d'un \cle{precipite} $\mathrm P_\nu\mathrm X_\mu$, $K_s=[\mathrm P]^\n
   sa forme la plus basique précipite \\
 \end{cles}
 
-Une solution a deux clés : \defcle{partenaire solution}{partenaire}, répétable,
+Une solution a deux clés — et, pour un pH calculé, celles de §\,\ref{sec:pH-calcule} :
+\defcle{partenaire solution}{partenaire}, répétable,
 \cle{\{Cl-, 0.05\}}, et \defcle{commun}{commun}, la concentration de l'ion commun.
 
 \begin{function}{\addplottitrageevenements}
@@ -818,6 +832,74 @@ le début, le chlorure d'argent se redissout à
 \end{exemple}
 
 % =============================================================================
+\section{Le pH calculé}\label{sec:pH-calcule}
+
+Sans la clé \cle{pH}, et dès que le pH compte — un ligand ou un partenaire qui a des
+pKa, un hydroxyde, une solution qui apporte de l'acide-base —, le pH d'un titrage
+complexométrique ou par précipitation se calcule à partir du contenu des solutions
+(§\,\ref{sec:principe-pH}). Le paquet le dit par un avertissement, au terminal et au
+log, avec le nom du titrage : un pH oublié change la chimie. Avec la clé \cle{pH}, le
+milieu est un tampon idéal, et l'acide-base des solutions ne compte pas.
+
+\cs{titragepH}\marg{nom}\marg{V} lit le pH, imposé ou calculé.
+
+\subsection{Les clés d'une solution}
+
+\begin{cles}
+\defcle{protons ligand}{protons ligand} & 0 & les protons du ligand tel qu'on
+  l'introduit : 2 pour \ce{Na2H2Y}, l'EDTA qu'on pèse \\
+\cle{acide fort}, \cle{base forte} & 0 & comme pour un titrage acide-base : la soude
+  qui précipite un hydroxyde est une \cle{base forte} \\
+\cle{espece} & & une espèce acido-basique, répétable, avec les clés d'une espèce
+  (§\,\ref{sec:solution}) : un tampon décrit comme une solution \\
+\end{cles}
+
+Un partenaire de précipitation s'introduit sous sa forme la plus basique (\ce{NaCl},
+\ce{K2CrO4}). Un \emph{hydroxyde} $\mathrm P_\nu(\mathrm{OH})_\mu$ est un
+\cle{precipite} de partenaire \cle{OH-} : il borne l'ion commun au pH du moment, et sa
+quantité libère des protons. Il demande que le pH se calcule : à pH imposé, rien ne
+fixerait sa quantité. Son équivalence, quand une base forte le précipite, vient après
+celle de l'acide fort du bécher.
+
+\begin{exemple}
+\titragecomplexationdefinir{sanstampon}{
+  volume = 20, ligand pKa = {0, 1.5, 2, 2.66, 6.16, 10.24},
+  complexe = {metal = Ca2+, log beta = 10.7},
+  becher = {metal = {Ca2+, 0.01}},
+  burette = {ligand = 0.01, protons ligand = 2}, volume max = 40,
+}
+\titragecomplexationdefinir{ammoniacal}{
+  volume = 20, ligand pKa = {0, 1.5, 2, 2.66, 6.16, 10.24},
+  complexe = {metal = Ca2+, log beta = 10.7},
+  becher = {metal = {Ca2+, 0.01}, espece = {pKa = 9.25, C = 0.1},
+            espece = {pKa = 9.25, C = 0.1, forme = 1}},
+  burette = {ligand = 0.01, protons ligand = 2, espece = {pKa = 9.25, C = 0.1},
+             espece = {pKa = 9.25, C = 0.1, forme = 1}},
+  volume max = 40,
+}
+\titrageprecipitationdefinir{magnesium}{
+  volume = 20, ion commun = Mg2+,
+  precipite = {partenaire = OH-, pKs = 11.15, mu = 2},
+  becher = {commun = 0.01, acide fort = 0.002},
+  burette = {base forte = 0.1}, volume max = 8,
+}
+\begin{tikzpicture}
+\begin{axis}[width=9cm, height=6cm, xlabel={$V$ (mL)}, ylabel={pCa}, grid=both]
+  \addplottitrage[thick]{sanstampon}
+  \addplottitrage[thick]{ammoniacal}
+  \addplottitragesauts[black, mark=*]{ammoniacal}
+\end{axis}
+\end{tikzpicture}
+
+Sans tampon, l'EDTA libère ses protons : pH \num{\titragepH{sanstampon}{10}} à
+\qty{10}{mL}, et plus de saut. Le tampon ammoniacal décrit comme une solution dérive
+de \num{\titragepH{ammoniacal}{0}} à \num{\titragepH{ammoniacal}{20}} et garde le
+saut, à \qty{\titragesaut{ammoniacal}{1}}{mL}. Mg(OH)$_2$ : équivalences
+\num{\titrageequivalence{magnesium}{1}} et \num{\titrageequivalence{magnesium}{2}}~mL,
+pH \num{\titragepH{magnesium}{4.4}} à la seconde.
+\end{exemple}
+
+% =============================================================================
 \section{Les nombres}\label{sec:nombres}
 
 Ces commandes sont \emph{développables} : elles s'emploient dans
@@ -835,7 +917,8 @@ demandent le moteur \texttt{lua}.
 \begin{syntax}
 \cs{titragepH}\marg{nom}\marg{V}
 \end{syntax}
-Le pH après avoir versé le volume \meta{V}, exprimé dans l'unité de l'abscisse.
+Le pH après avoir versé le volume \meta{V}, exprimé dans l'unité de l'abscisse. Pour un
+titrage complexométrique ou par précipitation, celui du tampon, ou celui qu'on calcule.
 \end{function}
 
 \begin{function}[EXP]{\titragepHinitial}
@@ -991,7 +1074,7 @@ courbes pH, $\sigma$, $E$ & oui & oui \\
 couples rédox dimériques & oui & non \\
 fractions & oui & oui \\
 dérivée, points d'inflexion, tangentes & oui & non \\
-complexométrie, précipitation & oui & non \\
+complexométrie, précipitation (pH imposé ou calculé) & oui & non \\
 nombres : pH, $E$, $\sigma$, $V$ (§\,\ref{sec:nombres}) & oui & oui (\paquet{l3fp}) \\
 nombres : équivalences, sauts, tangentes & oui & non \\
 \cle{abscisse = n} & oui & non (\cle{echelle} = $V_\text{éq}$) \\
@@ -1046,6 +1129,8 @@ evenements(t, Vmax) & les points anguleux, $\{V, \mathrm{pP}, \text{partenaire},
   \text{apparition}\}$ \\
 courbe\_precipitation, sauts\_precipitation, equivalences\_precipitation & les analogues
   pour la précipitation \\
+pH\_du\_melange(t, V) & le pH, imposé ou calculé (complexométrie, précipitation) \\
+pente\_partenaire(t, V, X) & $\mathrm d\,\mathrm{pX}/\mathrm dV$ d'un partenaire \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -1106,12 +1191,18 @@ un couple dimérique n'a qu'une étape & une seule valeur dans \cle{E0} \\
 la burette n'apporte aucun électron & \cle{forme} de l'espèce titrante \\
 référence inconnue & \cle{reference} \\
 un titrage rédox se lit par \cs{titrageE} & et réciproquement \\
-\meta{X} a des acidités : préciser le pH du milieu & la clé \cle{pH} \\
 \meta{M} : aucun complexe déclaré & une clé \cle{complexe} pour chaque métal \\
 \meta{X} : aucun précipité déclaré & une clé \cle{precipite} pour chaque partenaire \\
 équivalences définies pour … & le titrage n'est pas de ceux qu'énumère
   \cs{titrageequivalence} \\
 pas d'événement n° \meta{k} & la courbe a moins de $k$ points anguleux \\
+\meta{nom} : pH non précisé, calculé à partir des solutions & avertissement : c'est
+  voulu, ou la clé \cle{pH} manque \\
+un hydroxyde demande que le pH se calcule & retirer la clé \cle{pH} ; décrire le
+  tampon comme une solution \\
+les ions hydroxyde viennent de l'acide-base & une \cle{base forte}, pas un
+  \cle{partenaire} \\
+le ligand n'a que \meta{n} protons & \cle{protons ligand} \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -1125,10 +1216,9 @@ molaires sont les valeurs limites, qui surestiment $\sigma$ dès quelques
 \cle{pente nernst} ; les pKa, $E^\circ$ et $\lambda^\circ$ sont ceux qu'on donne.
 Les couples rédox qui échangent des protons sont pris à pH fixé ; un métal ou un
 gaz (\ce{Ag}, \ce{H2}) n'est pas un couple de solution. La complexation et la
-précipitation sont prises en milieu tamponné : un pH qui varie au cours du titrage
-— un ligand basique sans tampon, un hydroxyde qui précipite — demanderait un solveur
-à plusieurs inconnues. Elles ne se combinent pas entre elles, ni avec l'acide-base ou
-le rédox dans un même titrage.
+précipitation se prennent à pH imposé ou calculé ; un seul ligand à la fois (un tampon
+ammoniacal qui complexerait aussi le métal en serait un second), et la complexation et
+la précipitation ne se combinent pas dans un même titrage.
 
 \section{Avec Python}
 
@@ -1163,7 +1253,8 @@ moteur \texttt{pgf} ne saurait pas calculer. Il s'installe par
   fonctions de tracé Python, exemples sous licence CC BY-NC-SA 4.0.
 \item[En préparation] La complexométrie (\cs{titragecomplexationdefinir}, \cs{titragepM})
   et la précipitation (\cs{titrageprecipitationdefinir},
-  \cs{addplottitrageevenements}, \cs{titrageevenement}).
+  \cs{addplottitrageevenements}, \cs{titrageevenement}), à pH imposé ou calculé ; les
+  hydroxydes.
 \end{description}
 
 \section{Licence}

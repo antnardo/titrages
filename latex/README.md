@@ -4,9 +4,10 @@ Le paquet trace les courbes pH = f(V), σ = f(V) et E = f(V) du titrage d'un bé
 quelconque par une burette quelconque — acides et bases forts ou faibles,
 polyacides, mélanges, titrant faible, couples rédox à plusieurs étapes ou
 dimériques — avec la dilution, sans aucune approximation ; et, sous LuaLaTeX,
-pM = f(V) d'un titrage complexométrique en milieu tamponné et pAg = f(V) d'un
-titrage par précipitation (Mohr, Charpentier-Volhard), avec les points anguleux où
-un solide apparaît ou disparaît.
+pM = f(V) d'un titrage complexométrique et pAg = f(V) d'un titrage par précipitation
+(Mohr, Charpentier-Volhard, hydroxydes), avec les points anguleux où un solide
+apparaît ou disparaît — en milieu tamponné, ou avec un pH qui se calcule à partir des
+solutions.
 
 La méthode : à pH imposé, tout est explicite, et le volume versé est une fonction
 directe du pH, V(pH) = -V0 R_bécher(pH) / R_burette(pH), où R est le résidu de

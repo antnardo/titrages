@@ -69,6 +69,11 @@
   { «~#1~»~est~un~titrage~rédox~:~pas~de~conductimétrie. }
 \msg_new:nnn { titrages } { lecture }
   { «~#1~»~se~lit~par~#2. }
+\msg_new:nnn { titrages } { pH-calcule }
+  {
+    «~#1~»~:~pH~non~précisé,~calculé~à~partir~des~solutions,~sans~tampon~imposé~;~
+    préciser~la~clé~pH~pour~un~milieu~tamponné.
+  }
 
 % --- variables ----------------------------------------------------------------
 
@@ -724,22 +729,50 @@
 
 % Une solution : metal = {Ca2+, 0.01} (répétable) et ligand = …, ou
 % partenaire = {Cl-, 0.05} (répétable) et commun = ….
+% Pour un pH calculé, une solution dit aussi son acide-base : espece (un couple, les
+% clés d'une espèce acido-basique), acide fort, base forte, et protons ligand, la forme
+% sous laquelle on introduit le ligand (2 pour Na2H2Y). Une espèce acido-basique se
+% décrit dans un groupe : son code réutilise les variables du ligand (les pKa).
+\int_new:N \l__titrages_protons_int
+\tl_new:N \g__titrages_especes_ab_tl
 \keys_define:nn { titrages / cp / solution }
   {
     metal      .code:n = { \tl_put_right:Nx \l__titrages_especes_tl { \__titrages_couple_lua:n { #1 } } } ,
     partenaire .code:n = { \tl_put_right:Nx \l__titrages_especes_tl { \__titrages_couple_lua:n { #1 } } } ,
     ligand     .code:n = { \fp_set:Nn \l__titrages_ligand_fp { #1 } } ,
     commun     .code:n = { \fp_set:Nn \l__titrages_ligand_fp { #1 } } ,
+    protons~ligand .code:n = { \int_set:Nn \l__titrages_protons_int { #1 } } ,
+    acide~fort .code:n = { \fp_add:Nn \l__titrages_acide_fp { #1 } } ,
+    base~forte .code:n = { \fp_add:Nn \l__titrages_base_fp { #1 } } ,
+    espece     .code:n =
+      {
+        \group_begin:
+          \tl_set:Nn \l__titrages_charge_tl { 0 }
+          \tl_set:Nn \l__titrages_sigma_tl { 0 }
+          \__titrages_espece:n { #1 }
+          \tl_gset_eq:NN \g__titrages_especes_ab_tl \l__titrages_lua_tl
+        \group_end:
+        \tl_set_eq:NN \l__titrages_lua_tl \g__titrages_especes_ab_tl
+      } ,
   }
 
 % #1 becher ou burette, #2 les clés, #3 metaux ou partenaires, #4 ligand ou commun
 \cs_new_protected:Npn \__titrages_solution_cp:nnnn #1 #2 #3 #4
   {
     \tl_clear:N \l__titrages_especes_tl
+    \tl_clear:N \l__titrages_lua_tl
     \fp_zero:N \l__titrages_ligand_fp
+    \fp_zero:N \l__titrages_acide_fp
+    \fp_zero:N \l__titrages_base_fp
+    \int_zero:N \l__titrages_protons_int
     \keys_set:nn { titrages / cp / solution } { #2 }
     \tl_set:cx { l__titrages_ #1 _cp_tl }
-      { { #3 = { \l__titrages_especes_tl } , #4 = \fp_use:N \l__titrages_ligand_fp } }
+      {
+        { #3 = { \l__titrages_especes_tl } , #4 = \fp_use:N \l__titrages_ligand_fp ,
+          protons = \int_use:N \l__titrages_protons_int ,
+          ab = { especes = { \l__titrages_lua_tl } , acide = \fp_use:N \l__titrages_acide_fp ,
+                 base = \fp_use:N \l__titrages_base_fp } }
+      }
   }
 
 \keys_define:nn { titrages / cp / complexe }
@@ -854,6 +887,10 @@
                 #4
               })
             }
+          % sans pH, et dès que le pH compte, le pH se calcule : on le dit
+          \str_if_eq:eeT
+            { \lua_now:e { tex.sprint(titrages.titrages["\lua_escape:e { #2 }"].libre~and~"1"~or~"0") } } { 1 }
+            { \msg_warning:nnn { titrages } { pH-calcule } { #2 } }
         }
     \group_end:
   }
