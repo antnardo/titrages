@@ -225,8 +225,9 @@ class TestEquivalences:
 
 
 class TestErreurs:
-    def test_ligand_acide_sans_pH(self):
-        with pytest.raises(ValueError, match="pH"):
+    def test_ligand_acide_sans_pH_le_pH_se_calcule(self):
+        # ce n'est plus une erreur : le pH se calcule (niveau 2), et un avertissement le dit
+        with pytest.warns(UserWarning, match="pH non précisé"):
             TitrageComplexometrique(
                 SolutionComplexation({"Ca2+": 0.01}), SolutionComplexation(ligand=0.01), 20, [CA], EDTA
             )

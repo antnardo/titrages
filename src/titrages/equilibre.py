@@ -39,9 +39,12 @@ __all__ = [
     "delta",
     "ecart_moyen",
     "fractions",
+    "fractions_complexes",
     "log_k",
+    "log_somme_complexes",
     "minimum_lisse",
     "moments",
+    "moments_complexes",
     "racine_croissante",
     "somme_h_w",
     "sortie",
@@ -224,3 +227,55 @@ def minimum_lisse(f: Callable[[float], float], a: float, b: float, pas: float, i
         else:
             a = m
     return float((a + b) / 2)
+
+
+# --- les complexes successifs d'un métal ----------------------------------------------
+#
+# Le ligand libre joue le rôle du proton : à pL imposé, les fractions des complexes
+# ML_j sont celles d'un polyacide, x_j ∝ β_j l^j. ``log_beta`` porte β_0 = 1 en tête
+# pour log_somme_complexes et moments_complexes, pas pour fractions_complexes.
+
+
+def _log_poids_complexes(log_beta: Tableau, pL: npt.ArrayLike) -> Tableau:
+    """Les :math:`\\log(\\beta'_j l^j)`, de forme ``(n + 1, *pL.shape)``, :math:`\\beta'_0 = 1`."""
+    p = np.asarray(pL, dtype=np.float64)
+    forme = (-1,) + (1,) * p.ndim
+    j = np.arange(len(log_beta), dtype=np.float64).reshape(forme)
+    return np.asarray(log_beta.reshape(forme) - j * p, dtype=np.float64)
+
+
+def fractions_complexes(log_beta: npt.ArrayLike, pL: npt.ArrayLike) -> Tableau:
+    """Les fractions du métal libre (0), de ML (1), … , de forme ``(n + 1, *pL.shape)``.
+
+    ``log_beta`` sont les constantes globales :math:`\\log\\beta_1, \\dots,
+    \\log\\beta_n` ; le calcul est en échelle logarithmique, comme celui des polyacides.
+
+    >>> x = fractions_complexes([10.7], [9.7, 10.7, 11.7])
+    >>> [round(float(v), 3) for v in x[1]]
+    [0.909, 0.5, 0.091]
+    """
+    lb = np.concatenate(([0.0], np.asarray(log_beta, dtype=np.float64)))
+    t = _log_poids_complexes(lb, pL)
+    t = t - t.max(axis=0)
+    e = np.power(10.0, t)
+    return np.asarray(e / e.sum(axis=0), dtype=np.float64)
+
+
+def log_somme_complexes(log_beta: Tableau, pL: npt.ArrayLike) -> Tableau:
+    """:math:`\\log\\sum_j \\beta'_j l^j = -\\log x_0`, sans débordement."""
+    t = _log_poids_complexes(log_beta, pL)
+    haut = t.max(axis=0)
+    return np.asarray(haut + np.log10(np.power(10.0, t - haut).sum(axis=0)), dtype=np.float64)
+
+
+def moments_complexes(log_beta: Tableau, pL: npt.ArrayLike) -> tuple[Tableau, Tableau]:
+    """:math:`Y_1` et la variance :math:`\\sum_{j<k} x_jx_k(k-j)^2`, écrite sans soustraction."""
+    lb = log_beta[1:]
+    x = fractions_complexes(lb, pL)
+    j = np.arange(x.shape[0], dtype=np.float64).reshape((-1,) + (1,) * (x.ndim - 1))
+    Y1 = (j * x).sum(axis=0)
+    var = np.zeros(x.shape[1:], dtype=np.float64)
+    for a in range(x.shape[0]):
+        for b in range(a + 1, x.shape[0]):
+            var = var + x[a] * x[b] * (b - a) ** 2
+    return np.asarray(Y1, dtype=np.float64), var

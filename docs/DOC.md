@@ -249,6 +249,54 @@ seule la seconde a un saut, comme la troisième acidité de l'acide phosphorique
 `fractions_complexes(log_beta, pL)` donne les fractions de $\mathrm{M}, \mathrm{ML},
 \dots, \mathrm{ML}_n$.
 
+### Sans pH, le pH se calcule
+
+Sans `pH=`, et dès que le pH compte — un ligand qui a des pKa, ou une solution qui
+apporte de l'acide-base —, le pH se calcule à partir du contenu des solutions, et un
+`UserWarning` le rappelle : un pH oublié change la chimie. Une `SolutionComplexation`
+dit alors la forme sous laquelle on introduit le ligand (`protons_ligand=2` pour
+Na₂H₂Y, l'EDTA qu'on pèse) et le reste de son acide-base (`acidobasique`, une
+`Solution` : acides et bases forts, et un tampon décrit comme un couple). À pH imposé,
+ni l'un ni l'autre ne compte : le tampon idéal absorbe tout.
+
+Les inconnues sont, à volume fixé, le pH et le ligand libre ; le bilan du ligand et
+celui des protons les fixent, et leur unicité vient de la convexité des équilibres :
+deux dichotomies imbriquées les trouvent, un Newton à jacobienne exacte affine autour
+d'un point connu. La courbe est paramétrée par le volume, ses points ajoutés là où elle
+tourne ; ses dérivées sont exactes (fonctions implicites).
+
+```pycon
+>>> import warnings
+>>> from titrages import Solution, complexe, couple, ligand
+>>> with warnings.catch_warnings():
+...     warnings.simplefilter("ignore")
+...     sans = TitrageComplexometrique(
+...         SolutionComplexation({"Ca2+": 0.01}),
+...         SolutionComplexation(ligand=0.01, protons_ligand=2), 20,
+...         [complexe("Ca2+", "EDTA")], ligand("EDTA"),
+...     )
+...     nh = couple("NH3")
+...     tampon = Solution().avec(nh.forme(0), 0.1).avec(nh.forme(1), 0.1)
+...     avec = TitrageComplexometrique(
+...         SolutionComplexation({"Ca2+": 0.01}, acidobasique=tampon),
+...         SolutionComplexation(ligand=0.01, protons_ligand=2, acidobasique=tampon), 20,
+...         [complexe("Ca2+", "EDTA")], ligand("EDTA"),
+...     )
+>>> round(float(sans.pH_du_melange(10)), 2), sans.sauts(40)
+(3.51, ())
+>>> [round(float(x), 2) for x in avec.pH_du_melange([0, 20, 40])], [round(s.volume, 4) for s in avec.sauts(40)]
+([9.25, 9.16, 9.16], [20.0])
+
+```
+
+Sans tampon, l'EDTA libère ses protons en se fixant : le pH tombe à 3,5, la constante
+conditionnelle s'effondre, et le saut disparaît — ce que le tampon évite. Un tampon
+ammoniacal à 0,1 mol/L dérive de 9,25 à 9,16 et garde le saut.
+
+`pH_du_melange(V)` rend le pH, imposé ou calculé ; la courbe porte une colonne `pH`.
+`volume`, `derivee_volume` et `pente`, paramétrés par pL, n'ont plus de sens à pH
+calculé, et le disent.
+
 ## La précipitation
 
 Un `Precipite` $\mathrm{P}_\nu\mathrm{X}_\mu$ lie l'**ion commun** P (`ion_commun`,

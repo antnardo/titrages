@@ -35,11 +35,11 @@ from titrages.base import (
 from titrages.complexation import (
     SolutionComplexation,
     TitrageComplexometrique,
-    fractions_complexes,
 )
 from titrages.equilibre import (
     concentration_pour_pH,
     fractions,
+    fractions_complexes,
     moments,
 )
 from titrages.export import vers_pgfplots

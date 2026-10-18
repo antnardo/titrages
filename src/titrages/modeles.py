@@ -511,14 +511,16 @@ class Complexe:
 class CourbeComplexometrique:
     """Une courbe de titrage complexométrique : :math:`\\mathrm{pM}` selon le volume.
 
-    ``pL`` est le paramètre de la courbe — le cologarithme du ligand libre, toutes formes
-    protonées comprises —, ``pente`` est :math:`\\mathrm{d\\,pM}/\\mathrm{d}V`.
+    ``pL`` est le cologarithme du ligand libre, toutes formes protonées comprises — le
+    paramètre de la courbe à pH imposé —, ``pente`` est :math:`\\mathrm{d\\,pM}/\\mathrm{d}V`,
+    ``pH`` celui du tampon, ou celui qu'on calcule (``nan`` s'il n'a pas d'objet).
     """
 
     volume: Tableau = field(repr=False)
     pM: Tableau = field(repr=False)
     pL: Tableau = field(repr=False)
     pente: Tableau = field(repr=False)
+    pH: Tableau = field(repr=False)
 
     def __len__(self) -> int:
         return len(self.volume)

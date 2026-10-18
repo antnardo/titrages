@@ -23,26 +23,41 @@ qu'on mesure : celui-ci s'en déduit point par point,
 cela vaut pour des complexes successifs comme pour plusieurs métaux en compétition
 pour le même ligand.
 
-**Le milieu est tamponné.** Si le ligand a des acidités (l'EDTA en a six), seule sa
-forme la plus basique complexe ; à pH fixé, sa fraction :math:`\\alpha` est une
-constante, et l'on travaille sur le ligand libre **toutes formes protonées
-comprises**, :math:`l' = l/\\alpha`, avec les constantes conditionnelles
-:math:`\\beta'_j = \\beta_j\\alpha^j`. Un pH qui bouge au fil du titrage — un ligand
-basique en milieu non tamponné — sort de ce cadre : il faudrait un solveur.
+**Le milieu est tamponné** quand on donne ``pH``. Si le ligand a des acidités (l'EDTA
+en a six), seule sa forme la plus basique complexe ; à pH fixé, sa fraction
+:math:`\\alpha` est une constante, et l'on travaille sur le ligand libre **toutes
+formes protonées comprises**, :math:`l' = l/\\alpha`, avec les constantes
+conditionnelles :math:`\\beta'_j = \\beta_j\\alpha^j`.
+
+**Sans pH, le pH se calcule** à partir du contenu des solutions — la forme sous
+laquelle on introduit le ligand, les acides et bases forts, un tampon décrit comme un
+couple —, et le titrage le dit par un avertissement : c'est le moteur de
+:mod:`titrages.complexation_libre`, par dichotomies imbriquées à volume fixé.
 """
 
 import itertools
 import math
+import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
 import numpy.typing as npt
 
-from titrages.equilibre import LN10, fractions, minimum_lisse, racine_croissante, sortie
+from titrages.complexation_libre import ComplexationLibre, Etat
+from titrages.equilibre import (
+    LN10,
+    fractions,
+    log_somme_complexes,
+    minimum_lisse,
+    moments_complexes,
+    racine_croissante,
+    sortie,
+)
 from titrages.modeles import Complexe, CourbeComplexometrique, Ligand, SautComplexometrique
+from titrages.solution import Solution
 
-__all__ = ["SolutionComplexation", "TitrageComplexometrique", "fractions_complexes"]
+__all__ = ["SolutionComplexation", "TitrageComplexometrique"]
 
 Tableau = npt.NDArray[np.float64]
 Valeur = float | Tableau
@@ -61,54 +76,14 @@ def _log_alpha(ligand: Ligand, pH: float | None) -> float:
     return float(np.log10(fractions(ligand.pKa, pH)[-1]))
 
 
-def _log_poids(log_beta: Tableau, pL: npt.ArrayLike) -> Tableau:
-    """Les :math:`\\log(\\beta'_j l^j)`, de forme ``(n + 1, *pL.shape)``, :math:`\\beta'_0 = 1`."""
-    p = np.asarray(pL, dtype=np.float64)
-    forme = (-1,) + (1,) * p.ndim
-    j = np.arange(len(log_beta), dtype=np.float64).reshape(forme)
-    return np.asarray(log_beta.reshape(forme) - j * p, dtype=np.float64)
-
-
-def fractions_complexes(log_beta: npt.ArrayLike, pL: npt.ArrayLike) -> Tableau:
-    """Les fractions du métal libre (0), de ML (1), … , de forme ``(n + 1, *pL.shape)``.
-
-    ``log_beta`` sont les constantes globales :math:`\\log\\beta_1, \\dots,
-    \\log\\beta_n` ; le calcul est en échelle logarithmique, comme celui des polyacides.
-
-    >>> x = fractions_complexes([10.7], [9.7, 10.7, 11.7])
-    >>> [round(float(v), 3) for v in x[1]]
-    [0.909, 0.5, 0.091]
-    """
-    lb = np.concatenate(([0.0], np.asarray(log_beta, dtype=np.float64)))
-    t = _log_poids(lb, pL)
-    t = t - t.max(axis=0)
-    e = np.power(10.0, t)
-    return np.asarray(e / e.sum(axis=0), dtype=np.float64)
-
-
-def _log_somme(log_beta: Tableau, pL: npt.ArrayLike) -> Tableau:
-    """:math:`\\log\\sum_j \\beta'_j l^j = -\\log x_0`, sans débordement."""
-    t = _log_poids(log_beta, pL)
-    haut = t.max(axis=0)
-    return np.asarray(haut + np.log10(np.power(10.0, t - haut).sum(axis=0)), dtype=np.float64)
-
-
-def _moments(log_beta: Tableau, pL: npt.ArrayLike) -> tuple[Tableau, Tableau]:
-    """:math:`Y_1` et la variance :math:`\\sum_{j<k} x_jx_k(k-j)^2`, écrite sans soustraction."""
-    lb = log_beta[1:]
-    x = fractions_complexes(lb, pL)
-    j = np.arange(x.shape[0], dtype=np.float64).reshape((-1,) + (1,) * (x.ndim - 1))
-    Y1 = (j * x).sum(axis=0)
-    var = np.zeros(x.shape[1:], dtype=np.float64)
-    for a in range(x.shape[0]):
-        for b in range(a + 1, x.shape[0]):
-            var = var + x[a] * x[b] * (b - a) ** 2
-    return np.asarray(Y1, dtype=np.float64), var
-
-
 @dataclass(frozen=True, slots=True)
 class SolutionComplexation:
     """Une solution telle qu'on la prépare : des métaux et du ligand, en mol/L.
+
+    Pour un titrage dont le pH se calcule, ``protons_ligand`` dit la forme sous laquelle on
+    introduit le ligand — 2 pour Na₂H₂Y, l'EDTA qu'on pèse —, et ``acidobasique`` le reste
+    de l'acide-base : acides et bases forts, et un tampon décrit comme un couple. À pH
+    imposé, ni l'un ni l'autre ne compte : le tampon idéal absorbe tout.
 
     >>> SolutionComplexation({"Ca2+": 0.01}).concentration("Ca2+")
     0.01
@@ -116,11 +91,21 @@ class SolutionComplexation:
 
     metaux: Mapping[str, float] = field(default_factory=dict)
     ligand: float = 0.0
+    protons_ligand: int = 0
+    acidobasique: Solution = field(default_factory=Solution)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "metaux", {m: float(c) for m, c in self.metaux.items()})
         if self.ligand < 0 or any(c < 0 for c in self.metaux.values()):
             raise ValueError("une concentration est positive")
+        if self.protons_ligand < 0:
+            raise ValueError("protons_ligand est un nombre de protons, positif")
+
+    @property
+    def a_de_l_acidobasique(self) -> bool:
+        """Si la solution apporte des protons ou en prend : son pH ne va pas de soi."""
+        a = self.acidobasique
+        return bool(self.protons_ligand or a.composants or a.acide_fort or a.base_forte)
 
     def concentration(self, metal: str) -> float:
         return self.metaux.get(metal, 0.0)
@@ -131,8 +116,14 @@ class TitrageComplexometrique:
     """Le titrage complexométrique de ``volume_becher`` du ``becher`` par la ``burette``.
 
     ``complexes`` donne, pour chaque métal, ses complexes avec le ligand ; ``pH`` est
-    celui du tampon, nécessaire dès que le ligand a des acidités. ``metal`` est celui dont
-    on suit le pM — par défaut, celui du premier complexe.
+    celui du tampon. ``metal`` est celui dont on suit le pM — par défaut, celui du premier
+    complexe.
+
+    **Sans pH**, et dès que le pH compte — un ligand qui a des acidités, ou une solution
+    qui en apporte —, le pH se calcule à partir des solutions, et un ``UserWarning`` le
+    rappelle : un pH oublié change la chimie. La courbe est alors paramétrée par le
+    volume ; :meth:`volume`, :meth:`derivee_volume` et :meth:`pente`, qui le sont par pL,
+    n'ont plus de sens.
 
     >>> edta = Ligand("Y4-", (0.0, 1.5, 2.0, 2.66, 6.16, 10.24))
     >>> t = TitrageComplexometrique(
@@ -155,13 +146,24 @@ class TitrageComplexometrique:
     pH: float | None = None
     metal: str | None = None
     _log_beta: dict[str, Tableau] = field(init=False, repr=False, compare=False)
+    _libre: ComplexationLibre | None = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self.volume_becher <= 0:
             raise ValueError("le volume du bécher est positif")
         complexes = tuple(self.complexes)
         object.__setattr__(self, "complexes", complexes)
-        la = _log_alpha(self.ligand, self.pH)
+        libre = self.pH is None and (
+            bool(self.ligand.pKa) or self.becher.a_de_l_acidobasique or self.burette.a_de_l_acidobasique
+        )
+        if libre:
+            warnings.warn(
+                "pH non précisé : calculé à partir des solutions, sans tampon imposé ; "
+                "préciser pH= pour un milieu tamponné",
+                UserWarning,
+                stacklevel=3,
+            )
+        la = 0.0 if libre else _log_alpha(self.ligand, self.pH)
         tables = {}
         for c in complexes:
             if c.metal in tables:
@@ -177,6 +179,20 @@ class TitrageComplexometrique:
             object.__setattr__(self, "metal", complexes[0].metal)
         elif self.metal not in tables:
             raise ValueError(f"{self.metal} : aucun complexe déclaré")
+        moteur = (
+            ComplexationLibre(self.becher, self.burette, self.volume_becher, tables, self.ligand.pKa)
+            if libre
+            else None
+        )
+        object.__setattr__(self, "_libre", moteur)
+
+    def _parametre_pL(self) -> None:
+        if self._libre is not None:
+            raise ValueError("à pH calculé, la courbe est paramétrée par le volume, et non par pL")
+
+    def _etat(self, volume: npt.ArrayLike) -> Etat:
+        assert self._libre is not None
+        return self._libre.etat(np.asarray(volume, dtype=np.float64).ravel())
 
     # --- le sens direct : V(pL) --------------------------------------------------------
 
@@ -184,7 +200,7 @@ class TitrageComplexometrique:
         p = np.asarray(pL, dtype=np.float64)
         total = np.power(10.0, -p) - s.ligand
         for m, C in s.metaux.items():
-            total = total + C * _moments(self._log_beta[m], p)[0]
+            total = total + C * moments_complexes(self._log_beta[m], p)[0]
         return np.asarray(total, dtype=np.float64)
 
     def _derivee_residu(self, s: SolutionComplexation, pL: npt.ArrayLike) -> Tableau:
@@ -192,11 +208,12 @@ class TitrageComplexometrique:
         p = np.asarray(pL, dtype=np.float64)
         total = np.power(10.0, -p)
         for m, C in s.metaux.items():
-            total = total + C * _moments(self._log_beta[m], p)[1]
+            total = total + C * moments_complexes(self._log_beta[m], p)[1]
         return np.asarray(-LN10 * total, dtype=np.float64)
 
     def volume(self, pL: npt.ArrayLike) -> Valeur:
         """Le volume versé qui amène le ligand libre à ce pL ; ``nan`` si aucun n'y amène."""
+        self._parametre_pL()
         N = self._residu(self.becher, pL)
         D = self._residu(self.burette, pL)
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -205,6 +222,7 @@ class TitrageComplexometrique:
 
     def derivee_volume(self, pL: npt.ArrayLike) -> Valeur:
         """:math:`\\mathrm{d}V/\\mathrm{d\\,pL} = -(V_0 N' + V D')/D`, somme de termes de même signe."""
+        self._parametre_pL()
         D = self._residu(self.burette, pL)
         with np.errstate(divide="ignore", invalid="ignore"):
             V = -self.volume_becher * self._residu(self.becher, pL) / D
@@ -229,6 +247,8 @@ class TitrageComplexometrique:
         V = np.asarray(volume, dtype=np.float64)
         if np.any(V < 0):
             raise ValueError("un volume versé est positif")
+        if self._libre is not None:
+            return sortie(self._libre.pL(self._etat(V)).reshape(V.shape))
         V0 = self.volume_becher
         concentrations = [self.becher.ligand, self.burette.ligand]
         concentrations += [*self.becher.metaux.values(), *self.burette.metaux.values()]
@@ -246,12 +266,24 @@ class TitrageComplexometrique:
 
     def _pM(self, pL: Tableau, V: Tableau, metal: str) -> Tableau:
         with np.errstate(divide="ignore"):
-            return -np.log10(self._totale(metal, V)) + _log_somme(self._log_beta[metal], pL)
+            return -np.log10(self._totale(metal, V)) + log_somme_complexes(self._log_beta[metal], pL)
 
     def pM(self, volume: npt.ArrayLike, metal: str | None = None) -> Valeur:
         """Le pM du métal libre après avoir versé ``volume``."""
         V = np.asarray(volume, dtype=np.float64)
-        return sortie(self._pM(np.asarray(self.pL(V)), V, metal or str(self.metal)))
+        m = metal or str(self.metal)
+        if self._libre is not None:
+            return sortie(self._libre.pM(self._etat(V), m).reshape(V.shape))
+        return sortie(self._pM(np.asarray(self.pL(V)), V, m))
+
+    def pH_du_melange(self, volume: npt.ArrayLike) -> Valeur:
+        """Le pH après avoir versé ``volume`` : celui du tampon, ou celui qu'on calcule."""
+        V = np.asarray(volume, dtype=np.float64)
+        if self._libre is not None:
+            return sortie(self._etat(V).pH.reshape(V.shape))
+        if self.pH is None:
+            raise ValueError("ni pH imposé, ni acide-base dans les solutions : le pH n'a pas d'objet")
+        return sortie(np.full(V.shape, float(self.pH)))
 
     def _derivee_pM(self, pL: Tableau, metal: str) -> Tableau:
         """:math:`\\mathrm{d\\,pM}/\\mathrm{d\\,pL}` le long de la courbe.
@@ -263,12 +295,13 @@ class TitrageComplexometrique:
         dV = np.asarray(self.derivee_volume(pL))
         T = self._totale(metal, V)
         Cu = self.burette.concentration(metal)
-        Y1 = _moments(self._log_beta[metal], pL)[0]
+        Y1 = moments_complexes(self._log_beta[metal], pL)[0]
         with np.errstate(divide="ignore", invalid="ignore"):
             return -(Cu - T) / ((self.volume_becher + V) * T * LN10) * dV - Y1
 
     def pente(self, pL: npt.ArrayLike, metal: str | None = None) -> Valeur:
         """:math:`\\mathrm{d\\,pM}/\\mathrm{d}V` au point de la courbe de ce pL."""
+        self._parametre_pL()
         p = np.asarray(pL, dtype=np.float64)
         with np.errstate(divide="ignore", invalid="ignore"):
             return sortie(self._derivee_pM(p, metal or str(self.metal)) / np.asarray(self.derivee_volume(p)))
@@ -287,9 +320,17 @@ class TitrageComplexometrique:
         """La courbe de 0 à ``volume_max``, en ``points`` points exacts, à longueur d'arc constante.
 
         Le premier point est pris à un milliardième de ``volume_max`` : à volume nul, le
-        bécher n'a pas de ligand libre, et pL est infini.
+        bécher n'a pas de ligand libre, et pL est infini. À pH calculé, la courbe part de
+        zéro si le métal suivi est au bécher, et ses points sont ajoutés là où elle tourne.
         """
         m = metal or str(self.metal)
+        if volume_max <= 0:
+            raise ValueError("volume_max est positif")
+        if self._libre is not None:
+            e = self._libre.courbe(volume_max, points, m)
+            return CourbeComplexometrique(
+                e.volume, self._libre.pM(e, m), self._libre.pL(e), self._libre.pente(e, m), e.pH
+            )
         pL0, pL1 = self._bornes(volume_max)
         grille = np.linspace(pL0, pL1, 40 * points)
         V = np.nan_to_num(np.asarray(self.volume(grille)), nan=0.0)
@@ -300,7 +341,11 @@ class TitrageComplexometrique:
         pL = np.interp(np.linspace(0.0, s[-1], points), s, grille)
         volumes = np.nan_to_num(np.asarray(self.volume(pL)), nan=0.0)
         return CourbeComplexometrique(
-            volumes, self._pM(pL, volumes, m), np.asarray(pL, dtype=np.float64), np.asarray(self.pente(pL, m))
+            volumes,
+            self._pM(pL, volumes, m),
+            np.asarray(pL, dtype=np.float64),
+            np.asarray(self.pente(pL, m)),
+            np.full(points, np.nan if self.pH is None else float(self.pH)),
         )
 
     # --- les équivalences --------------------------------------------------------------
@@ -314,9 +359,15 @@ class TitrageComplexometrique:
         paramètre de la courbe — et affinés à la précision de la machine
         (:func:`~titrages.equilibre.minimum_lisse`). La recherche part d'un millionième de
         ``volume_max`` : avant, la courbe est plate à la précision de la machine, et ses
-        minima n'y seraient que du bruit.
+        minima n'y seraient que du bruit. À pH calculé, ils se cherchent en :math:`V`.
         """
         m = metal or str(self.metal)
+        if self._libre is not None:
+            libre = self._libre
+            return tuple(
+                SautComplexometrique(V, float(libre.pM(e, m)[0]), float(libre.pente(e, m)[0]))
+                for V, e in libre.sauts(volume_max, points, m)
+            )
         pL0, pL1 = self._bornes(volume_max, depart=1e-6)
 
         def f(p: npt.ArrayLike) -> Tableau:

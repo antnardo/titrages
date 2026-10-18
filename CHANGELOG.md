@@ -32,6 +32,15 @@ LaTeX partagent un numéro de version.
   `\addplottitrageevenements`, `\titragepM`, `\titrageevenement`, sous le moteur
   lua ; `\addplottitrage`, `\addplottitragederivee`, `\addplottitragesauts`,
   `\titragevolume`, `\titrageequivalence` et `\titragesaut` s'y appliquent.
+- La complexométrie à pH calculé : sans `pH=`, et dès que le pH compte, le pH se
+  calcule à partir des solutions, avec un `UserWarning`. `SolutionComplexation`
+  gagne `protons_ligand` (Na₂H₂Y) et `acidobasique` (une `Solution` : acides et bases
+  forts, tampon) ; `TitrageComplexometrique.pH_du_melange`, colonne `pH` de
+  `CourbeComplexometrique`. Dichotomies imbriquées à volume fixé, unicité par
+  convexité, dérivées exactes ; confronté à une référence mpmath qui écrit
+  l'électroneutralité. Python seulement pour l'instant.
+- `fractions_complexes` vit dans `titrages.equilibre`, avec `log_somme_complexes` et
+  `moments_complexes`.
 - Sections « La complexométrie » et « La précipitation » de `docs/DOC.md` et de la
   documentation LaTeX.
 

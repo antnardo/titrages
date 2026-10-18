@@ -10,6 +10,7 @@ MODULES = [
     "titrages",
     "titrages.base",
     "titrages.complexation",
+    "titrages.complexation_libre",
     "titrages.equilibre",
     "titrages.modeles",
     "titrages.precipitation",

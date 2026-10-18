@@ -170,6 +170,22 @@ couplés non tamponnés, qui sortent largement du programme.
   étape : les complexes qui prédominent tour à tour, sommets de l'enveloppe concave
   des log β. Dans le dosage de Liebig, Ag(CN)₃²⁻ puis Ag(CN)₂⁻.
 
+### Fait le 18 octobre 2026 : niveau 2, étape 1 (Python)
+
+- `complexation_libre.py` : le moteur à pH calculé, dichotomies imbriquées à volume
+  fixé et Newton à jacobienne exacte pour affiner autour d'un point connu (ajout de
+  points à la courbe, recherche des sauts). Près d'une équivalence, le bilan du
+  ligand ne fixe log l qu'à quelques 10⁻¹³ près : le critère d'arrêt de Newton s'y
+  adapte.
+- Interface : sans `pH=`, le pH se calcule, avec un `UserWarning` ;
+  `protons_ligand` et `acidobasique` sur `SolutionComplexation`.
+- Tests : la référence mpmath écrit l'électroneutralité avec les contre-ions, et non
+  le bilan des protons ; accord à 10⁻⁹ sur le pH et le pM, cinq cas (Ca par Na₂H₂Y
+  avec et sans tampon, Zn avec acide fort, Cu par NH₃, Liebig avec HCN). Les deux
+  limites : ligand sans acidité (même pM qu'au niveau 1 à 10⁻¹²) et tampon de plus
+  en plus concentré (l'écart au pH imposé décroît d'un facteur 5 au moins par
+  décade).
+
 ### Décisions
 
 - Pas de base côté LaTeX (18 octobre 2026) : les constantes s'y écrivent, comme les
@@ -179,7 +195,8 @@ couplés non tamponnés, qui sortent largement du programme.
 
 1. Le moteur pgf n'a pas les deux familles : leur courbe n'est pas une expression
    unique (pM se déduit de pL et du volume ; l'ensemble des solides change).
-2. Le niveau 2, le pH non tamponné : étudié ci-dessous, pas commencé.
+2. Le niveau 2, le pH non tamponné : étape 1 faite (complexométrie, Python) ;
+   restent les hydroxydes et la précipitation sans tampon, puis Lua et LaTeX.
 
 ## Niveau 2 : étude (18 octobre 2026)
 
