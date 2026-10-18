@@ -89,7 +89,7 @@ class TestPrecipites:
 
     def test_formules_uniques(self):
         noms = [p.nom for p in precipites()]
-        assert len(noms) == len(set(noms)) == 41
+        assert len(noms) == len(set(noms)) == 56
 
     def test_ion_commun_deduit(self):
         t = TitrageParPrecipitation(

@@ -152,8 +152,9 @@ class TestEquivalences:
 
 
 class TestErreurs:
-    def test_partenaire_acide_sans_pH(self):
-        with pytest.raises(ValueError, match="pH"):
+    def test_partenaire_acide_sans_pH_le_pH_se_calcule(self):
+        # ce n'est plus une erreur : le pH se calcule (niveau 2), et un avertissement le dit
+        with pytest.warns(UserWarning, match="pH non précisé"):
             TitrageParPrecipitation(
                 SolutionPrecipitation(partenaires={"CrO4^2-": 0.01}),
                 SolutionPrecipitation(commun=0.1),

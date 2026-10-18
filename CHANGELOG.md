@@ -39,6 +39,11 @@ LaTeX partagent un numéro de version.
   `CourbeComplexometrique`. Dichotomies imbriquées à volume fixé, unicité par
   convexité, dérivées exactes ; confronté à une référence mpmath qui écrit
   l'électroneutralité. Python seulement pour l'instant.
+- La précipitation à pH calculé, hydroxydes compris : un précipité de partenaire
+  `"OH-"` (Mg(OH)₂, Ag₂O…) ; `SolutionPrecipitation.acidobasique` ;
+  `TitrageParPrecipitation.pH_du_melange`, colonne `pH` de `CourbePrecipitation` ;
+  équivalences d'une base forte qui précipite un hydroxyde. Quinze hydroxydes et
+  oxydes dans la base. Le moteur commun aux deux familles est `titrages.libre`.
 - `fractions_complexes` vit dans `titrages.equilibre`, avec `log_somme_complexes` et
   `moments_complexes`.
 - Sections « La complexométrie » et « La précipitation » de `docs/DOC.md` et de la

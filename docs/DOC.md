@@ -329,13 +329,53 @@ La méthode de Mohr : le chromate d'argent apparaît 11 µL après l'équivalenc
 | `p_partenaire(V, partenaire)` | pX du partenaire |
 | `solides(pP)` | les partenaires dont le solide est présent |
 | `pente(pP)`, `derivee_volume(pP)` | $\mathrm{d}\mathrm{pP}/\mathrm{d}V$ et son inverse, sur l'ensemble de solides du point |
-| `courbe(volume_max, points)` | une `CourbePrecipitation` (`volume`, `p`, `pente`, `solides`) |
+| `courbe(volume_max, points)` | une `CourbePrecipitation` (`volume`, `p`, `pente`, `solides`, `pH`) |
 | `evenements(volume_max, points)` | les apparitions et disparitions de solides, affinées |
 | `sauts(volume_max, points)` | des `SautPrecipitation`, dans les morceaux lisses |
-| `volumes_equivalents()` | ion commun titrant : les partenaires dans l'ordre où ils précipitent ; partenaire titrant : l'ion commun restant (Charpentier-Volhard) |
+| `volumes_equivalents()` | ion commun titrant : les partenaires dans l'ordre où ils précipitent ; partenaire titrant : l'ion commun restant (Charpentier-Volhard) ; base forte titrant un hydroxyde : l'acide fort du bécher, puis $(\mu/\nu)\,C_P V_0/C_b$ |
 
-Le pH n'est pas couplé : il est tamponné, et la protonation du ligand ou du partenaire
-n'entre que par $\alpha$. Un pH libre demanderait un solveur à plusieurs inconnues.
+### Sans pH, le pH se calcule ; les hydroxydes
+
+À pH imposé, la protonation d'un partenaire n'entre que par $\alpha$. Sans `pH=`, et dès
+que le pH compte — un partenaire qui a des pKa, un hydroxyde, une solution qui apporte
+de l'acide-base (`acidobasique`, une `Solution`) —, le pH se calcule, avec un
+`UserWarning`, comme en complexométrie. Un partenaire s'introduit sous sa forme la plus
+basique (NaCl, K₂CrO₄) ; un acide fort s'y ajoute par `acidobasique`.
+
+Un **hydroxyde** est un précipité de partenaire `"OH-"` : $K_s = a^\nu[\mathrm{OH^-}]^\mu$.
+Il borne l'ion commun au pH du moment, et sa quantité libère des protons ; la soude qui
+le précipite est une base forte de la burette. Il demande que le pH se calcule : à pH
+imposé, rien ne fixerait sa quantité. La base en a quinze, d'après la même table
+(`precipite("hydroxyde de magnésium")`, `precipite("Ag2O")`).
+
+```pycon
+>>> from titrages import Solution, precipite
+>>> with warnings.catch_warnings():
+...     warnings.simplefilter("ignore")
+...     mg = TitrageParPrecipitation(
+...         SolutionPrecipitation(commun=0.01),
+...         SolutionPrecipitation(acidobasique=Solution(base_forte=0.1)), 20,
+...         [precipite("Mg(OH)2")],
+...     )
+...     mohr = TitrageParPrecipitation(
+...         SolutionPrecipitation(
+...             partenaires={"Cl-": 0.05, "CrO4^2-": 0.005}, acidobasique=Solution(acide_fort=0.001)
+...         ),
+...         SolutionPrecipitation(commun=0.05), 20, [precipite("AgCl"), precipite("Ag2CrO4")],
+...     )
+>>> [round(float(x), 2) for x in mg.pH_du_melange([0, 2, 4, 6])], mg.volumes_equivalents()
+([7.0, 9.6, 10.38, 11.89], (4.0,))
+>>> round(float(mohr.pH_du_melange(0)), 2), [(e.partenaire, round(e.volume, 4)) for e in mohr.evenements(30)]
+(7.11, [('Cl-', 0.0), ('CrO4^2-', 20.0137)])
+
+```
+
+Mg(OH)₂ commence à précipiter à la première goutte (l'événement `"OH-"`, à 5 µL) ; avec
+un peu d'acide nitrique, le chromate, en partie protoné, n'apparaît qu'à 20,0137 mL,
+contre 20,0110 sans acide. Le moteur, dans `precipitation_libre`, partage avec celui de
+la complexométrie la résolution et la courbe (`titrages.libre`) : dichotomies imbriquées
+sur le pH et l'ion commun, Newton à ensemble de solides fixé, apparitions et
+disparitions affinées par dichotomie en volume.
 
 ## Fonctions d'équilibre
 

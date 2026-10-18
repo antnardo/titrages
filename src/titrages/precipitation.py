@@ -37,6 +37,7 @@ sa forme la plus basique ; à pH fixé, sa fraction :math:`\\alpha` est une cons
 """
 
 import math
+import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import partial
@@ -45,7 +46,10 @@ import numpy as np
 import numpy.typing as npt
 
 from titrages.equilibre import LN10, changement_de_signe, fractions, minimum_lisse, racine_croissante, sortie
+from titrages.libre import Etat
 from titrages.modeles import CourbePrecipitation, Evenement, Precipite, SautPrecipitation
+from titrages.precipitation_libre import PrecipitationLibre
+from titrages.solution import Solution
 
 __all__ = ["SolutionPrecipitation", "TitrageParPrecipitation"]
 
@@ -60,17 +64,30 @@ P_MAX = 60.0
 class SolutionPrecipitation:
     """Une solution telle qu'on la prépare : l'ion commun et des partenaires, en mol/L.
 
+    Un partenaire s'introduit sous sa forme la plus basique (NaCl, K₂CrO₄, KSCN).
+    ``acidobasique`` porte le reste de l'acide-base — acides et bases forts, un tampon
+    décrit comme un couple — pour un titrage dont le pH se calcule ; à pH imposé, il ne
+    compte pas. La soude qui précipite un hydroxyde y est une base forte.
+
     >>> SolutionPrecipitation(partenaires={"Cl-": 0.05}).concentration("Cl-")
     0.05
     """
 
     commun: float = 0.0
     partenaires: Mapping[str, float] = field(default_factory=dict)
+    acidobasique: Solution = field(default_factory=Solution)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "partenaires", {x: float(c) for x, c in self.partenaires.items()})
         if self.commun < 0 or any(c < 0 for c in self.partenaires.values()):
             raise ValueError("une concentration est positive")
+        if "OH-" in self.partenaires:
+            raise ValueError("les ions hydroxyde viennent de l'acide-base : une base forte dans acidobasique")
+
+    @property
+    def a_de_l_acidobasique(self) -> bool:
+        a = self.acidobasique
+        return bool(a.composants or a.acide_fort or a.base_forte)
 
     def concentration(self, partenaire: str) -> float:
         return self.partenaires.get(partenaire, 0.0)
@@ -80,9 +97,16 @@ class SolutionPrecipitation:
 class TitrageParPrecipitation:
     """Le titrage de ``volume_becher`` du ``becher`` par la ``burette``, suivi par pP.
 
-    ``precipites`` donne les solides possibles ; ``pH`` est celui du tampon, nécessaire
-    dès qu'un partenaire a des acidités. ``ion_commun`` ne sert qu'à nommer : par défaut,
-    celui que déclarent les précipités, ou Ag⁺.
+    ``precipites`` donne les solides possibles ; ``pH`` est celui du tampon.
+    ``ion_commun`` ne sert qu'à nommer : par défaut, celui que déclarent les précipités,
+    ou Ag⁺. Un hydroxyde est un précipité de partenaire ``"OH-"``.
+
+    **Sans pH**, et dès que le pH compte — un partenaire qui a des acidités, un hydroxyde,
+    ou une solution qui apporte de l'acide-base —, le pH se calcule à partir des
+    solutions, et un ``UserWarning`` le rappelle. La courbe est alors paramétrée par le
+    volume ; :meth:`volume`, :meth:`solides`, :meth:`derivee_volume` et :meth:`pente`,
+    qui le sont par pP, n'ont plus de sens. Un hydroxyde demande que le pH se calcule :
+    à pH imposé, sa quantité n'est fixée par rien.
 
     >>> t = TitrageParPrecipitation(
     ...     SolutionPrecipitation(partenaires={"Cl-": 0.1}),
@@ -101,6 +125,7 @@ class TitrageParPrecipitation:
     pH: float | None = None
     ion_commun: str | None = None
     _log_alpha: Tableau = field(init=False, repr=False, compare=False)
+    _libre: PrecipitationLibre | None = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self.volume_becher <= 0:
@@ -119,15 +144,42 @@ class TitrageParPrecipitation:
             for x in s.partenaires:
                 if x not in noms:
                     raise ValueError(f"{x} : aucun précipité déclaré")
-        alpha = []
-        for p in precipites:
-            if not p.pKa:
-                alpha.append(0.0)
-            elif self.pH is None:
-                raise ValueError(f"{p.partenaire} a des acidités : préciser le pH du milieu")
-            else:
-                alpha.append(float(np.log10(fractions(p.pKa, self.pH)[-1])))
+        hydroxyde = any(p.partenaire == "OH-" for p in precipites)
+        libre = self.pH is None and (
+            hydroxyde
+            or any(p.pKa for p in precipites)
+            or self.becher.a_de_l_acidobasique
+            or self.burette.a_de_l_acidobasique
+        )
+        if hydroxyde and not libre:
+            raise ValueError(
+                "un hydroxyde demande que le pH se calcule : ne pas donner pH=, "
+                "et décrire le tampon comme une solution (acidobasique)"
+            )
+        if libre:
+            warnings.warn(
+                "pH non précisé : calculé à partir des solutions, sans tampon imposé ; "
+                "préciser pH= pour un milieu tamponné",
+                UserWarning,
+                stacklevel=3,
+            )
+        alpha = [
+            0.0 if libre or not p.pKa else float(np.log10(fractions(p.pKa, float(self.pH or 0))[-1]))
+            for p in precipites
+        ]
         object.__setattr__(self, "_log_alpha", np.asarray(alpha, dtype=np.float64))
+        moteur = (
+            PrecipitationLibre(self.becher, self.burette, self.volume_becher, precipites) if libre else None
+        )
+        object.__setattr__(self, "_libre", moteur)
+
+    def _parametre_pP(self) -> None:
+        if self._libre is not None:
+            raise ValueError("à pH calculé, la courbe est paramétrée par le volume, et non par pP")
+
+    def _etat(self, volume: npt.ArrayLike) -> Etat:
+        assert self._libre is not None
+        return self._libre.etat(np.asarray(volume, dtype=np.float64).ravel())
 
     # --- les briques ---------------------------------------------------------------------
 
@@ -203,10 +255,12 @@ class TitrageParPrecipitation:
 
     def volume(self, pP: npt.ArrayLike) -> Valeur:
         """Le volume versé qui amène l'ion commun à ce pP ; ``nan`` si aucun n'y amène."""
+        self._parametre_pP()
         return sortie(self._resoudre(pP)[0])
 
     def solides(self, pP: float) -> tuple[str, ...]:
         """Les partenaires dont le solide est présent au point de la courbe de ce pP."""
+        self._parametre_pP()
         S = int(self._resoudre(np.asarray(pP))[1])
         return tuple(p.partenaire for i, p in enumerate(self.precipites) if S >= 0 and S >> i & 1)
 
@@ -223,6 +277,7 @@ class TitrageParPrecipitation:
         Les deux résidus ont la même dérivée — elle ne dépend que de :math:`a` et des
         solides présents —, d'où :math:`V' = -(V_0 + V)\\,R'_S/R_{S,\\text{burette}}`.
         """
+        self._parametre_pP()
         p = np.asarray(pP, dtype=np.float64)
         _, S_ = self._resoudre(p)
         dV = np.full(p.shape, np.nan)
@@ -232,6 +287,7 @@ class TitrageParPrecipitation:
 
     def pente(self, pP: npt.ArrayLike) -> Valeur:
         """:math:`\\mathrm{d\\,pP}/\\mathrm{d}V` au point de la courbe de ce pP."""
+        self._parametre_pP()
         with np.errstate(divide="ignore", invalid="ignore"):
             return sortie(1 / np.asarray(self.derivee_volume(pP)))
 
@@ -246,6 +302,8 @@ class TitrageParPrecipitation:
         V = np.asarray(volume, dtype=np.float64)
         if np.any(V < 0):
             raise ValueError("un volume versé est positif")
+        if self._libre is not None:
+            return sortie(self._libre.p(self._etat(V)).reshape(V.shape))
         V0 = self.volume_becher
         T_P = (V0 * self.becher.commun + V * self.burette.commun) / (V0 + V)
         T_X = [self._totale(p.partenaire, V) for p in self.precipites]
@@ -265,10 +323,21 @@ class TitrageParPrecipitation:
     def p_partenaire(self, volume: npt.ArrayLike, partenaire: str) -> Valeur:
         """Le cologarithme du partenaire en solution, toutes formes protonées comprises."""
         V = np.asarray(volume, dtype=np.float64)
+        if self._libre is not None:
+            return sortie(self._libre.p_partenaire(self._etat(V), partenaire).reshape(V.shape))
         i = [p.partenaire for p in self.precipites].index(partenaire)
         x = np.minimum(self._totale(partenaire, V), self._x_sat(i, np.asarray(self.p(V))))
         with np.errstate(divide="ignore"):
             return sortie(-np.log10(x))
+
+    def pH_du_melange(self, volume: npt.ArrayLike) -> Valeur:
+        """Le pH après avoir versé ``volume`` : celui du tampon, ou celui qu'on calcule."""
+        V = np.asarray(volume, dtype=np.float64)
+        if self._libre is not None:
+            return sortie(self._etat(V).pH.reshape(V.shape))
+        if self.pH is None:
+            raise ValueError("ni pH imposé, ni acide-base dans les solutions : le pH n'a pas d'objet")
+        return sortie(np.full(V.shape, float(self.pH)))
 
     # --- la courbe -----------------------------------------------------------------------
 
@@ -286,8 +355,14 @@ class TitrageParPrecipitation:
         """La courbe de 0 à ``volume_max``, en ``points`` points exacts, à longueur d'arc constante.
 
         Sans ion commun dans le bécher, elle part d'un millionième de ``volume_max`` :
-        à volume nul, pP est infini.
+        à volume nul, pP est infini. À pH calculé, ses points s'ajoutent là où elle tourne.
         """
+        if self._libre is not None:
+            if volume_max <= 0:
+                raise ValueError("volume_max est positif")
+            libre = self._libre
+            e = libre.courbe(volume_max, points, libre.depart(volume_max), libre.p)
+            return CourbePrecipitation(e.volume, libre.p(e), libre.pente(e), libre.solides(e), e.pH)
         p0, p1 = self._bornes(volume_max, 1e-6)
         grille = np.linspace(p0, p1, 40 * points)
         V = np.nan_to_num(self._resoudre(grille)[0], nan=0.0)
@@ -303,6 +378,7 @@ class TitrageParPrecipitation:
             np.asarray(pP, dtype=np.float64),
             np.asarray(self.pente(pP)),
             noms,
+            np.full(points, np.nan if self.pH is None else float(self.pH)),
         )
 
     def evenements(self, volume_max: float, points: int = 4000) -> tuple[Evenement, ...]:
@@ -310,7 +386,10 @@ class TitrageParPrecipitation:
 
         Chacune est le point où la quantité de solide s'annule,
         :math:`T_{\\mathrm{X}}(V) = x_\\text{sat}(a)`, trouvé par dichotomie sur la courbe.
+        À pH calculé, c'est une dichotomie en volume ; un hydroxyde a pour partenaire ``"OH-"``.
         """
+        if self._libre is not None:
+            return self._libre.evenements(volume_max, max(points // 10, 100))
         p0, p1 = self._bornes(volume_max, 1e-9)
         grille = np.linspace(p0, p1, points)
         _, S_ = self._resoudre(grille)
@@ -340,6 +419,14 @@ class TitrageParPrecipitation:
         morceau lisse — les mêmes solides de part et d'autre —, affinés à la précision de la
         machine. Un point anguleux n'est pas un saut : :meth:`evenements` les donne.
         """
+        if self._libre is not None:
+            libre = self._libre
+            return tuple(
+                SautPrecipitation(V, float(libre.p(e)[0]), float(libre.pente(e)[0]))
+                for V, e in libre.sauts(
+                    volume_max, max(points // 10, 100), libre.depart(volume_max), libre.p, libre.pente
+                )
+            )
         p0, p1 = self._bornes(volume_max, 1e-6)
         grille = np.linspace(p0, p1, points)
         _, S_ = self._resoudre(grille)
@@ -379,6 +466,23 @@ class TitrageParPrecipitation:
         (10.0, 20.0)
         """
         V0 = self.volume_becher
+        hydroxydes = [i for i, p in enumerate(self.precipites) if p.partenaire == "OH-"]
+        b, u = self.becher.acidobasique, self.burette.acidobasique
+        if (
+            hydroxydes
+            and u.exces_base > 0
+            and not u.composants
+            and self.burette.commun == 0
+            and not self.burette.partenaires
+            and not self.becher.partenaires
+            and not b.composants
+        ):
+            # la base forte neutralise d'abord l'acide fort du bécher, puis précipite l'hydroxyde
+            p = self.precipites[hydroxydes[0]]
+            acide = max(-b.exces_base, 0.0) * V0
+            volumes = [acide / u.exces_base] if acide > 0 else []
+            volumes.append((acide + p.mu / p.nu * self.becher.commun * V0) / u.exces_base)
+            return tuple(volumes)
         if self.burette.commun > 0 and not self.burette.partenaires and self.becher.commun == 0:
             presents = [
                 i for i, p in enumerate(self.precipites) if self.becher.concentration(p.partenaire) > 0
@@ -406,4 +510,7 @@ class TitrageParPrecipitation:
         """Le pP où le solide ``i`` apparaîtrait dans le bécher : :math:`x_\\text{sat} = C`."""
         p = self.precipites[i]
         C = self.becher.concentration(p.partenaire)
-        return float((p.mu * (math.log10(C) + self._log_alpha[i]) + p.pKs) / p.nu)
+        log_alpha = self._log_alpha[i]
+        if self._libre is not None and p.pKa:  # au pH du bécher
+            log_alpha = float(np.log10(fractions(p.pKa, float(self.pH_du_melange(0.0)))[-1]))
+        return float((p.mu * (math.log10(C) + log_alpha) + p.pKs) / p.nu)

@@ -186,6 +186,20 @@ couplés non tamponnés, qui sortent largement du programme.
   en plus concentré (l'écart au pH imposé décroît d'un facteur 5 au moins par
   décade).
 
+### Fait le 18 octobre 2026 : niveau 2, étape 2 (Python)
+
+- `libre.py` : ce que partagent les deux moteurs à pH calculé — l'état à volume fixé
+  (pH, u, ensemble S des solides), Newton à S fixé avec reprise par la dichotomie, la
+  courbe raffinée, les sauts dans les morceaux lisses.
+- `precipitation_libre.py` : l'ion commun et le pH, partenaires éliminés, hydroxydes
+  comme bornes de l'ion commun dont la quantité libère des protons ; événements
+  affinés par dichotomie en volume sur le prolongement du morceau qui précède.
+- Quinze hydroxydes et oxydes dans la base (Harvey, § 16.10).
+- Tests : référence mpmath par l'électroneutralité, six cas (Mohr sans tampon et en
+  milieu nitrique, Charpentier-Volhard en milieu nitrique, Mg(OH)₂ avec et sans acide,
+  Ag₂O), accord à 10⁻⁹ ; les deux limites (partenaire sans acidité, tampon
+  concentré).
+
 ### Décisions
 
 - Pas de base côté LaTeX (18 octobre 2026) : les constantes s'y écrivent, comme les
@@ -195,8 +209,8 @@ couplés non tamponnés, qui sortent largement du programme.
 
 1. Le moteur pgf n'a pas les deux familles : leur courbe n'est pas une expression
    unique (pM se déduit de pL et du volume ; l'ensemble des solides change).
-2. Le niveau 2, le pH non tamponné : étape 1 faite (complexométrie, Python) ;
-   restent les hydroxydes et la précipitation sans tampon, puis Lua et LaTeX.
+2. Le niveau 2, le pH non tamponné : étapes 1 et 2 faites en Python
+   (complexométrie, précipitation, hydroxydes) ; reste l'étape 3, Lua et LaTeX.
 
 ## Niveau 2 : étude (18 octobre 2026)
 

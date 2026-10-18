@@ -9,6 +9,10 @@
 # `pKa` sont ceux des formes protonées du partenaire : à pH fixé, seule sa forme la plus
 # basique précipite (pKa1 de l'acide chromique à 20 °C ; la première acidité de l'acide
 # sulfurique est forte, seule la seconde figure).
+#
+# Un hydroxyde a pour partenaire OH- : Ks = [P]^nu [OH-]^mu. Un oxyde s'écrit comme la
+# table l'écrit, avec l'eau : Ag2O + H2O = 2 Ag+ + 2 OH-, d'où nu = mu = 2. Ces
+# précipités demandent un titrage dont le pH se calcule.
 
 [[precipite]]
 formule = "AgCl"
@@ -352,3 +356,132 @@ commun = "Mg2+"
 partenaire = "CO3^2-"
 pKs = 7.46
 pKa = [6.352, 10.329]
+
+# --- hydroxydes et oxydes ----------------------------------------------------------
+
+[[precipite]]
+formule = "Mg(OH)2"
+noms = ["hydroxyde de magnésium"]
+commun = "Mg2+"
+partenaire = "OH-"
+mu = 2
+pKs = 11.15
+
+[[precipite]]
+formule = "Ca(OH)2"
+noms = ["hydroxyde de calcium"]
+commun = "Ca2+"
+partenaire = "OH-"
+mu = 2
+pKs = 5.19
+
+[[precipite]]
+formule = "Mn(OH)2"
+noms = ["hydroxyde de manganèse(II)"]
+commun = "Mn2+"
+partenaire = "OH-"
+mu = 2
+pKs = 12.8
+
+[[precipite]]
+formule = "Fe(OH)2"
+noms = ["hydroxyde de fer(II)"]
+commun = "Fe2+"
+partenaire = "OH-"
+mu = 2
+pKs = 15.1
+
+[[precipite]]
+formule = "Co(OH)2"
+noms = ["hydroxyde de cobalt(II)"]
+commun = "Co2+"
+partenaire = "OH-"
+mu = 2
+pKs = 14.9
+
+[[precipite]]
+formule = "Ni(OH)2"
+noms = ["hydroxyde de nickel(II)"]
+commun = "Ni2+"
+partenaire = "OH-"
+mu = 2
+pKs = 15.2
+
+[[precipite]]
+formule = "Cu(OH)2"
+noms = ["hydroxyde de cuivre(II)"]
+commun = "Cu2+"
+partenaire = "OH-"
+mu = 2
+pKs = 19.32
+
+[[precipite]]
+formule = "Fe(OH)3"
+noms = ["hydroxyde de fer(III)"]
+commun = "Fe3+"
+partenaire = "OH-"
+mu = 3
+pKs = 38.8
+
+[[precipite]]
+formule = "Zn(OH)2"
+noms = ["hydroxyde de zinc"]
+commun = "Zn2+"
+partenaire = "OH-"
+mu = 2
+pKs = 15.52
+note = "Forme amorphe."
+
+[[precipite]]
+formule = "Cd(OH)2"
+noms = ["hydroxyde de cadmium"]
+commun = "Cd2+"
+partenaire = "OH-"
+mu = 2
+pKs = 14.35
+note = "Forme β."
+
+[[precipite]]
+formule = "Al(OH)3"
+noms = ["hydroxyde d'aluminium"]
+commun = "Al3+"
+partenaire = "OH-"
+mu = 3
+pKs = 33.5
+note = "Forme α."
+
+[[precipite]]
+formule = "La(OH)3"
+noms = ["hydroxyde de lanthane"]
+commun = "La3+"
+partenaire = "OH-"
+mu = 3
+pKs = 20.7
+
+[[precipite]]
+formule = "Ag2O"
+noms = ["oxyde d'argent"]
+commun = "Ag+"
+partenaire = "OH-"
+nu = 2
+mu = 2
+pKs = 15.42
+note = "Ag2O + H2O = 2 Ag+ + 2 OH-."
+
+[[precipite]]
+formule = "HgO"
+noms = ["oxyde de mercure(II)"]
+commun = "Hg2+"
+partenaire = "OH-"
+mu = 2
+pKs = 25.44
+note = "Forme rouge ; HgO + H2O = Hg2+ + 2 OH-."
+
+[[precipite]]
+formule = "PbO"
+noms = ["oxyde de plomb(II)"]
+commun = "Pb2+"
+partenaire = "OH-"
+mu = 2
+pKs = 15.1
+note = "Forme jaune ; PbO + H2O = Pb2+ + 2 OH-."

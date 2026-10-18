@@ -40,11 +40,12 @@ import math
 import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import partial
 
 import numpy as np
 import numpy.typing as npt
 
-from titrages.complexation_libre import ComplexationLibre, Etat
+from titrages.complexation_libre import ComplexationLibre
 from titrages.equilibre import (
     LN10,
     fractions,
@@ -54,6 +55,7 @@ from titrages.equilibre import (
     racine_croissante,
     sortie,
 )
+from titrages.libre import Etat
 from titrages.modeles import Complexe, CourbeComplexometrique, Ligand, SautComplexometrique
 from titrages.solution import Solution
 
@@ -327,10 +329,9 @@ class TitrageComplexometrique:
         if volume_max <= 0:
             raise ValueError("volume_max est positif")
         if self._libre is not None:
-            e = self._libre.courbe(volume_max, points, m)
-            return CourbeComplexometrique(
-                e.volume, self._libre.pM(e, m), self._libre.pL(e), self._libre.pente(e, m), e.pH
-            )
+            libre = self._libre
+            e = libre.courbe(volume_max, points, libre.depart(m, volume_max), partial(libre.pM, metal=m))
+            return CourbeComplexometrique(e.volume, libre.pM(e, m), libre.pL(e), libre.pente(e, m), e.pH)
         pL0, pL1 = self._bornes(volume_max)
         grille = np.linspace(pL0, pL1, 40 * points)
         V = np.nan_to_num(np.asarray(self.volume(grille)), nan=0.0)
@@ -366,7 +367,13 @@ class TitrageComplexometrique:
             libre = self._libre
             return tuple(
                 SautComplexometrique(V, float(libre.pM(e, m)[0]), float(libre.pente(e, m)[0]))
-                for V, e in libre.sauts(volume_max, points, m)
+                for V, e in libre.sauts(
+                    volume_max,
+                    points,
+                    libre.depart(m, volume_max),
+                    partial(libre.pM, metal=m),
+                    partial(libre.pente, metal=m),
+                )
             )
         pL0, pL1 = self._bornes(volume_max, depart=1e-6)
 

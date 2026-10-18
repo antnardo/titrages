@@ -571,13 +571,14 @@ class CourbePrecipitation:
 
     ``solides`` dit, en chaque point, les partenaires dont le solide est présent ;
     ``pente`` est :math:`\\mathrm{d\\,pP}/\\mathrm{d}V`, qui saute là où un solide apparaît
-    ou disparaît.
+    ou disparaît ; ``pH`` celui du tampon, ou celui qu'on calcule (``nan`` sans objet).
     """
 
     volume: Tableau = field(repr=False)
     p: Tableau = field(repr=False)
     pente: Tableau = field(repr=False)
     solides: tuple[tuple[str, ...], ...] = field(repr=False)
+    pH: Tableau = field(repr=False)
 
     def __len__(self) -> int:
         return len(self.volume)

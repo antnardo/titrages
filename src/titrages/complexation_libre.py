@@ -43,10 +43,10 @@ from titrages.equilibre import (
     LN10,
     MARGE_PH,
     log_somme_complexes,
-    minimum_lisse,
     moments_complexes,
     racine_croissante,
 )
+from titrages.libre import Etat, MoteurLibre
 
 if TYPE_CHECKING:
     from titrages.complexation import SolutionComplexation
@@ -56,20 +56,10 @@ __all__ = ["ComplexationLibre"]
 Tableau = npt.NDArray[np.float64]
 
 PL_MAX = 80.0
-NEWTON = 50
 
 
-@dataclass(frozen=True, slots=True)
-class Etat:
-    """L'équilibre du mélange en chaque volume : le pH et :math:`u = \\log l`."""
-
-    volume: Tableau
-    pH: Tableau
-    u: Tableau
-
-
-@dataclass(frozen=True, slots=True)
-class ComplexationLibre:
+@dataclass(frozen=True)
+class ComplexationLibre(MoteurLibre):
     """Le moteur du titrage complexométrique dont le pH se calcule.
 
     ``log_beta`` porte, pour chaque métal, :math:`(0, \\log\\beta_1, \\dots)` **sans**
@@ -183,48 +173,13 @@ class ComplexationLibre:
             racine_croissante(g, np.full(V.shape, -MARGE_PH), np.full(V.shape, self._pKe + MARGE_PH)),
             dtype=np.float64,
         )
-        return Etat(V, pH, self._u_de(V, pH))
+        return Etat.sans_solide(V, pH, self._u_de(V, pH))
 
-    def _newton(self, V: Tableau, pH: Tableau, u: Tableau) -> tuple[Tableau, Tableau, npt.NDArray[np.bool_]]:
-        """Newton depuis ``(pH, u)`` ; rend aussi où il a convergé.
-
-        Il a convergé quand le pas tombe sous 10⁻¹³, ou quand il cesse de décroître
-        alors qu'il est déjà petit : près d'une équivalence, le bilan du ligand est mal
-        conditionné, et :math:`u` ne se fixe qu'à quelques 10⁻¹³ près, pour Newton comme
-        pour la dichotomie.
-        """
-        pH, u = pH.copy(), u.copy()
-        converge = np.zeros(V.shape, dtype=bool)
-        precedent = np.full(V.shape, np.inf)
-        for _ in range(NEWTON):
-            gH, gL = self._bilans(V, pH, u)
-            a, b, c, d = self._jacobien(V, pH, u)
-            det = a * d - b * c
-            dp, du = -(d * gH - b * gL) / det, -(a * gL - c * gH) / det
-            # pas bornés : un Newton qui part de loin ne sort pas du domaine
-            dp, du = np.clip(dp, -2.0, 2.0), np.clip(du, -2.0, 2.0)
-            libres = ~converge
-            pH, u = np.where(libres, pH + dp, pH), np.where(libres, u + du, u)
-            pas = np.maximum(np.abs(dp), np.abs(du))
-            converge |= (pas < 1e-13) | ((pas < 1e-8) & (pas >= precedent / 2))
-            precedent = pas
-            if np.all(converge):
-                break
-        return pH, u, converge & np.isfinite(pH) & np.isfinite(u)
-
-    def etat(self, volume: npt.ArrayLike, depart: Etat | None = None) -> Etat:
-        """L'équilibre en chaque volume. Avec ``depart``, Newton depuis cet état, puis la
-        dichotomie là où il n'a pas convergé ; sans, la dichotomie partout."""
-        V = np.atleast_1d(np.asarray(volume, dtype=np.float64))
-        if np.any(V < 0):
-            raise ValueError("un volume versé est positif")
-        if depart is None:
-            return self._dichotomie(V)
-        pH, u, ok = self._newton(V, depart.pH, depart.u)
-        if not np.all(ok):
-            reprise = self._dichotomie(V[~ok])
-            pH[~ok], u[~ok] = reprise.pH, reprise.u
-        return Etat(V, pH, u)
+    def _pas_newton(self, e: Etat) -> tuple[Tableau, Tableau]:
+        gH, gL = self._bilans(e.volume, e.pH, e.u)
+        a, b, c, d = self._jacobien(e.volume, e.pH, e.u)
+        det = a * d - b * c
+        return -(d * gH - b * gL) / det, -(a * gL - c * gH) / det
 
     # --- les grandeurs -----------------------------------------------------------------
 
@@ -266,72 +221,6 @@ class ComplexationLibre:
         with np.errstate(divide="ignore", invalid="ignore"):
             return np.asarray(-(Cu - T) / ((self.volume_becher + V) * T * LN10) + Y1 * du, dtype=np.float64)
 
-    # --- la courbe ----------------------------------------------------------------------
-
-    def _depart(self, metal: str, volume_max: float) -> float:
+    def depart(self, metal: str, volume_max: float) -> float:
         """0, ou un milliardième de ``volume_max`` si le métal suivi n'est pas au bécher."""
         return 0.0 if self.becher.concentration(metal) > 0 else 1e-9 * volume_max
-
-    def _raffiner(self, volume_max: float, points: int, metal: str) -> Etat:
-        """Des points de plus là où la courbe tourne, jusqu'à ce que chaque segment, en
-        coordonnées normalisées, soit plus court que ``1/points``."""
-        e = self.etat(np.linspace(self._depart(metal, volume_max), volume_max, 200))
-        for _ in range(80):
-            y = self.pM(e, metal)
-            etendue = max(float(np.ptp(y[np.isfinite(y)])), 1e-12)
-            longueur = np.hypot(np.diff(e.volume) / volume_max, np.diff(y) / etendue)
-            a_couper = (longueur > 1.0 / points) & (np.diff(e.volume) > 1e-13 * volume_max)
-            if not np.any(a_couper):
-                break
-            i = np.flatnonzero(a_couper)
-            milieu = Etat(
-                (e.volume[i] + e.volume[i + 1]) / 2, (e.pH[i] + e.pH[i + 1]) / 2, (e.u[i] + e.u[i + 1]) / 2
-            )
-            nouveaux = self.etat(milieu.volume, milieu)
-            ordre = np.argsort(np.concatenate((e.volume, nouveaux.volume)), kind="stable")
-            e = Etat(
-                *(
-                    np.concatenate((x, y_))[ordre]
-                    for x, y_ in zip(
-                        (e.volume, e.pH, e.u), (nouveaux.volume, nouveaux.pH, nouveaux.u), strict=True
-                    )
-                )
-            )
-        return e
-
-    def courbe(self, volume_max: float, points: int, metal: str) -> Etat:
-        """``points`` points exacts, à longueur d'arc constante en coordonnées normalisées."""
-        e = self._raffiner(volume_max, points, metal)
-        y = self.pM(e, metal)
-        etendue = max(float(np.ptp(y[np.isfinite(y)])), 1e-12)
-        s = np.concatenate(([0.0], np.cumsum(np.hypot(np.diff(e.volume) / volume_max, np.diff(y) / etendue))))
-        cibles = np.linspace(0.0, s[-1], points)
-        j = np.clip(np.searchsorted(s, cibles), 1, len(s) - 1)
-        t = np.where(
-            s[j] > s[j - 1], (cibles - s[j - 1]) / np.where(s[j] > s[j - 1], s[j] - s[j - 1], 1.0), 0.0
-        )
-        V = e.volume[j - 1] + t * (e.volume[j] - e.volume[j - 1])
-        depart = Etat(V, e.pH[j - 1] + t * (e.pH[j] - e.pH[j - 1]), e.u[j - 1] + t * (e.u[j] - e.u[j - 1]))
-        return self.etat(V, depart)
-
-    def sauts(self, volume_max: float, points: int, metal: str) -> list[tuple[float, Etat]]:
-        """Les points d'inflexion : les minima de :math:`|\\mathrm{d}V/\\mathrm{d\\,pM}|`, en
-        :math:`V`, affinés par :func:`~titrages.equilibre.minimum_lisse` avec un pas
-        proportionnel à la largeur locale de la grille raffinée."""
-        e = self._raffiner(volume_max, points, metal)
-        garde = e.volume >= 1e-6 * volume_max
-        e = Etat(e.volume[garde], e.pH[garde], e.u[garde])
-        d = np.abs(1 / self.pente(e, metal))
-        resultat = []
-        for i in np.flatnonzero((d[1:-1] < d[:-2]) & (d[1:-1] <= d[2:])) + 1:
-            proche = Etat(e.volume[i : i + 1], e.pH[i : i + 1], e.u[i : i + 1])
-
-            def f(V: float, proche: Etat = proche) -> float:
-                x = self.etat([V], Etat(np.array([V]), proche.pH, proche.u))
-                return float(np.abs(1 / self.pente(x, metal))[0])
-
-            largeur = min(e.volume[i + 1] - e.volume[i], e.volume[i] - e.volume[i - 1])
-            V = minimum_lisse(f, e.volume[i - 1], e.volume[i + 1], 1e-3 * largeur)
-            if 0 < V < volume_max:
-                resultat.append((V, self.etat([V], proche)))
-        return resultat
