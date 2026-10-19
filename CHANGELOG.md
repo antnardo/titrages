@@ -52,6 +52,9 @@ LaTeX partagent un numéro de version.
 - Le document technique `docs/technique/titrages-technique.tex` : les calculs, les
   choix algorithmiques et les vérifications, avec les tables d'écarts mesurés que
   `docs/technique/verifications.py` recalcule.
+- Six exemples des dosages du cours, dans la galerie : Mohr et l'erreur de
+  l'indicateur, Charpentier-Volhard et la redissolution du chlorure d'argent, trois
+  halogénures, Mg(OH)₂ par la soude, l'EDTA (pH, tampon, dureté d'une eau), Liebig.
 - `fractions_complexes` vit dans `titrages.equilibre`, avec `log_somme_complexes` et
   `moments_complexes`.
 - Sections « La complexométrie » et « La précipitation » de `docs/DOC.md` et de la

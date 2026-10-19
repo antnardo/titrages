@@ -4,7 +4,8 @@ Chaque script de ce dossier calcule ses courbes avec `titrages`, les affiche et
 enregistre sa figure en PDF à côté de lui ; les images ci-dessous en sont la version
 PNG, groupées par thème : les titrages pH-métriques d'un acide ou d'une base, puis des
 polyacides et des mélanges, la conductimétrie, la potentiométrie, les fractions et le
-pH d'une solution, enfin l'export vers pgfplots. Les scripts se lancent depuis la
+pH d'une solution, les dosages par précipitation et par complexation du cours, enfin
+l'export vers pgfplots. Les scripts se lancent depuis la
 racine du dépôt, matplotlib installé (`uv sync`, ou `pip install "titrages[trace]"`) :
 
 ```bash
@@ -169,6 +170,133 @@ de phosphate, 0,1 mol/L chacun, de n = −3 à 3. Le script vérifie ensuite ave
 `Titrage(..., dilution=False)` que le pH à n = 1/2 et n = 1 vaut 6,35 et 8,34.
 
 ![Deux panneaux : à gauche le pH de l'acide carbonique en fonction du nombre de bases fortes ajoutées par acide, pour six concentrations de 0,00001 à 1 mol/L ; à droite la même courbe pour un mélange de carbonate et de phosphate à 0,1 mol/L chacun](images/08_melanges_sans_dilution.png)
+
+## Précipitation
+
+### La méthode de Mohr — [`12_mohr.py`](12_mohr.py)
+
+Les chlorures, 0,05 mol/L dans 20 mL, titrés par le nitrate d'argent 0,05 mol/L, le
+chromate de potassium servant d'indicateur. À gauche, pAg et pCl à pH 7,5 :
+`TitrageParPrecipitation` avec les précipités de la base, `precipite("AgCl")` et
+`precipite("Ag2CrO4")`, et `tracer_titrage_precipitation`, qui marque d'un losange
+chaque apparition de solide. Le chlorure d'argent apparaît dès la première goutte,
+le chromate d'argent, rouge, 12 µL après l'équivalence. À droite, ce retard — l'erreur
+de l'indicateur — selon la concentration de chromate et le pH : trop de chromate, et
+le rouge apparaît avant l'équivalence ; un milieu trop acide protone le chromate
+(pKa 6,51) et retarde le virage, d'où la règle d'un dosage de Mohr en milieu neutre.
+
+```text
+équivalences : [20.0, 24.0]
+Cl-      apparaît à 0.0000 mL, pAg 8.44
+CrO4^2-  apparaît à 20.0121 mL, pAg 4.64
+[CrO4] = 0.001 mol/L : +38.4 µL à pH 7,5, +131.2 µL à pH 5,5
+[CrO4] = 0.005 mol/L : +12.1 µL à pH 7,5, +56.9 µL à pH 5,5
+[CrO4] = 0.02 mol/L : -3.4 µL à pH 7,5, +25.5 µL à pH 5,5
+```
+
+![Deux panneaux : à gauche pAg décroissant et pCl croissant pour le titrage des chlorures par l'argent, saut à 20 mL, losanges à l'apparition du chlorure d'argent au départ et du chromate d'argent juste après 20 mL ; à droite le retard du virage en microlitres en fonction de la concentration de chromate, pour les pH 7,5, 6,5 et 5,5, décroissant et d'autant plus grand que le pH est bas](images/12_mohr.png)
+
+### La méthode de Charpentier-Volhard — [`13_charpentier_volhard.py`](13_charpentier_volhard.py)
+
+Les chlorures, 0,05 mol/L, précipités par un excès connu d'argent, 0,1 mol/L, en milieu
+nitrique ; l'excès est titré en retour par le thiocyanate 0,1 mol/L, l'ion fer(III)
+signalant la fin par la couleur rouge de FeSCN²⁺, qui demande environ 10⁻⁵ mol/L de
+SCN⁻ libre. Le pH se calcule (`acidobasique=Solution(acide_fort=0.1)`) : 1,18, où
+SCN⁻ est un peu protoné. À gauche, pAg : saut à 10 mL, l'équivalence de l'excès, puis
+le chlorure d'argent qui se redissout entièrement à 20,08 mL. À droite, pSCN avec et
+sans le chlorure d'argent : laissé dans le bécher, il se change en thiocyanate
+d'argent, moins soluble, et retient SCN⁻ après l'équivalence ; le seuil de l'indicateur
+n'est atteint qu'à 10,34 mL au lieu de 10,00 mL, une erreur de 3,4 %. C'est la raison
+de filtrer le chlorure d'argent, ou de l'isoler, avant le titrage en retour.
+
+```text
+équivalence (excès d'argent) : [10.0] mL
+pH du milieu : 1.18
+SCN-  apparaît à 0.0000 mL
+Cl-   disparaît à 20.0822 mL
+avec AgCl    : pSCN = 5 à 10.344 mL
+AgCl filtré  : pSCN = 5 à 10.003 mL
+```
+
+![Deux panneaux : à gauche pAg croissant pour le titrage en retour de l'argent par le thiocyanate, saut à 10 mL et losange à 20 mL où le chlorure d'argent disparaît ; à droite pSCN avec et sans chlorure d'argent, confondus jusqu'à 10 mL, puis le premier restant au-dessus du seuil de l'indicateur jusqu'à 10,3 mL et formant un palier jusqu'à 20 mL](images/13_charpentier_volhard.png)
+
+### Trois halogénures précipités l'un après l'autre — [`14_halogenures.py`](14_halogenures.py)
+
+Iodure, bromure et chlorure, 0,02 mol/L chacun, par l'argent 0,05 mol/L : l'iodure
+d'argent, le moins soluble, précipite dès la première goutte, le bromure d'argent
+au voisinage de la première équivalence, le chlorure d'argent de la deuxième. Ces
+deux équivalences sont des points anguleux, où un solide apparaît, et non des points
+d'inflexion : `sauts` n'en trouve qu'un, à la troisième. Les cologarithmes des trois
+halogénures, `p_partenaire`, montrent chacun son propre saut.
+
+```text
+équivalences : [8.0, 16.0, 24.0] mL
+AgBr apparaît à 7.9987 mL, pAg 10.45
+AgCl apparaît à 15.9780 mL, pAg 7.79
+sauts : [(24.0, 4.87)]
+```
+
+![pAg décroissant en trois paliers pour le titrage d'un mélange d'iodure, de bromure et de chlorure par l'argent, losanges à 8 et 16 mL, saut à 24 mL, et les trois courbes pI, pBr, pCl croissantes](images/14_halogenures.png)
+
+### Un hydroxyde : Mg(OH)₂ par la soude — [`17_hydroxyde.py`](17_hydroxyde.py)
+
+Mg²⁺ 10 mmol/L, en milieu chlorhydrique (2 mmol/L), titré par la soude 0,1 mol/L ;
+`precipite("Mg(OH)2")` est un précipité de partenaire `"OH-"`, et le pH se calcule.
+La soude neutralise d'abord l'acide fort (0,4 mL), puis précipite l'hydroxyde : le pH
+reste sur un palier vers 9,5, fixé par le produit de solubilité, jusqu'à la seconde
+équivalence, 4,4 mL. En tirets, l'acide chlorhydrique seul.
+
+```text
+équivalences : [0.4, 4.4] mL
+Mg(OH)2 apparaît à 0.4055 mL, pH 9.43
+pH du palier : [9.47, 9.56, 9.68, 9.95]
+```
+
+![Courbe pH-métrique de l'acide chlorhydrique et du magnésium par la soude : saut à 0,4 mL jusqu'au losange de l'apparition de l'hydroxyde à pH 9,4, palier montant lentement jusqu'à 4,4 mL, puis remontée ; en tirets l'acide chlorhydrique seul, qui monte directement vers pH 12](images/17_hydroxyde.png)
+
+## Complexation
+
+### L'EDTA : l'effet du pH, et la dureté d'une eau — [`15_edta_durete.py`](15_edta_durete.py)
+
+À gauche, le calcium 0,01 mol/L par l'EDTA 0,01 mol/L, introduit sous la forme qu'on
+pèse, Na₂H₂Y (`protons_ligand=2`). À pH imposé de 6 à 12, le saut grandit avec le pH,
+la constante conditionnelle du complexe aussi. Sans pH (`pH` absent), le pH se
+calcule : sans tampon, l'EDTA libère ses protons en se fixant, le pH tombe à 3,5 et
+le saut disparaît ; avec un tampon ammoniacal décrit comme une solution, le pH dérive
+de 9,25 à 9,16 et le saut reste. À droite, la dureté totale d'une eau, Ca²⁺ 6 mmol/L
+et Mg²⁺ 4 mmol/L, à pH 10 : le calcium, plus fortement complexé (log β 10,69 contre
+8,79), est titré d'abord ; les deux pM sautent ensemble à 20 mL, la somme des deux.
+
+```text
+pH  6 : pCa à l'équivalence 4.18, sauts [19.99]
+pH  8 : pCa à l'équivalence 5.37, sauts [20.0]
+pH 10 : pCa à l'équivalence 6.28, sauts [20.0]
+pH 12 : pCa à l'équivalence 6.49, sauts [20.0]
+sans tampon                : pH 7.00 → 3.54 à l'équivalence, sauts []
+tampon NH₄⁺/NH₃ 0,1 mol/L  : pH 9.25 → 9.16 à l'équivalence, sauts [20.0]
+dureté : équivalences [12.0, 20.0] mL
+```
+
+![Deux panneaux : à gauche pCa pour le calcium par l'EDTA à pH 6, 8, 10 et 12, sauts de plus en plus grands à 20 mL, la courbe sans tampon presque plate et la courbe avec tampon ammoniacal proche de celle à pH 10 ; à droite pCa et pMg pour une eau dure, pCa montant d'abord, les deux sautant à 20 mL](images/15_edta_durete.png)
+
+### Le dosage de Liebig — [`16_liebig.py`](16_liebig.py)
+
+Le cyanure de potassium 0,1 mol/L titré par le nitrate d'argent 0,05 mol/L, le pH
+calculé, HCN étant un acide faible (pKa 9,21). La base donne Ag(CN)₂⁻ et Ag(CN)₃²⁻,
+pas AgCN dissous : les équivalences se comptent comme celles d'un polyacide, une par
+complexe prédominant, Ag(CN)₃²⁻ à 13,3 mL puis Ag(CN)₂⁻ à 20 mL, et seule la seconde
+donne un saut. Le pH, en tirets, descend de 11,1 à 7,7 à l'équivalence. Au laboratoire,
+la fin du dosage se voit au trouble de AgCN qui précipite ; le paquet ne combine pas
+complexation et précipitation, et la courbe s'arrête au complexe.
+
+```text
+log beta : (-inf, 20.48, 21.4)
+équivalences : [13.333, 20.0] mL
+sauts : [(20.0, 7.46)]
+pH : 11.10 au départ, 7.73 à l'équivalence
+```
+
+![pAg décroissant pour le cyanure par l'argent, saut à 20 mL marqué d'un point, pointillés verticaux à 13,3 et 20 mL, et le pH calculé en tirets sur l'axe de droite, de 11 à 7](images/16_liebig.png)
 
 ## Export vers pgfplots
 

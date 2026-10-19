@@ -325,7 +325,7 @@ dans la documentation `titrages-doc.pdf`.
 
 - [docs/DOC.md](https://github.com/antnardo/titrages/blob/main/docs/DOC.md) : l'API
   complète, la méthode et ses formules, les modules.
-- [examples/](https://github.com/antnardo/titrages/tree/main/examples/) : onze
+- [examples/](https://github.com/antnardo/titrages/tree/main/examples/) : dix-sept
   scripts, décrits avec leurs courbes dans la galerie
   [`examples/README.md`](https://github.com/antnardo/titrages/blob/main/examples/README.md).
 - `titrages-doc.pdf`, la documentation du paquet LaTeX (syntaxe, clés, messages,
