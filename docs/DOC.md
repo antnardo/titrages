@@ -446,5 +446,26 @@ colonnes de la courbe suffit.
 Voir `latex/titrages-doc.pdf`. Son moteur Lua implémente le même algorithme, la
 complexométrie et la précipitation comprises (`\titragecomplexationdefinir`,
 `\titrageprecipitationdefinir`), à pH imposé ou calculé, hydroxydes compris : sans la
-clé `pH`, le pH se calcule, et un avertissement du paquet le dit ; `tests/test_lua.py` confronte les deux, et
-`tests/test_latex.py` les nombres que rendent les documents.
+clé `pH`, le pH se calcule, et un avertissement du paquet le dit.
+`tests/test_lua.py` confronte les deux moteurs, et `tests/test_latex.py` les nombres
+que rendent les documents.
+
+## Les modules
+
+Tout ce qui sert couramment s'importe de `titrages` directement.
+
+| Module | Rôle |
+| --- | --- |
+| `titrages.base` | la base : couples, indicateurs, conductivités, couples rédox, ligands, complexes, précipités ; `solution`, `solution_redox`, `espece`, `couple`, `indicateur`, `ligand`, `complexe`, `precipite`, `chercher` |
+| `titrages.solution` | `Solution` : pH, concentrations, pouvoir tampon, conductivité d'une solution quelconque |
+| `titrages.titrage` | `Titrage` : la courbe V(pH), le pH à volume donné, les sauts, les équivalences, les tangentes, la conductimétrie |
+| `titrages.redox` | `SolutionRedox`, `TitrageRedox` : les mêmes, les électrons remplaçant les protons |
+| `titrages.complexation` | `SolutionComplexation`, `TitrageComplexometrique` : pM = f(V), à pH imposé ou calculé |
+| `titrages.precipitation` | `SolutionPrecipitation`, `TitrageParPrecipitation` : pP = f(V), événements, hydroxydes |
+| `titrages.libre` | ce que partagent les titrages à pH calculé : l'état à volume fixé, Newton et la dichotomie, la courbe raffinée |
+| `titrages.complexation_libre`, `titrages.precipitation_libre` | leurs bilans à pH calculé |
+| `titrages.equilibre` | les fractions, les moments, les fractions des complexes, les dichotomies |
+| `titrages.modeles` | les objets du domaine : `Couple`, `Espece`, `Ligand`, `Complexe`, `Precipite`, les courbes, les sauts, les événements |
+| `titrages.trace` | les tracés matplotlib |
+| `titrages.export` | `vers_pgfplots` |
+| `titrages.__main__` | la commande `titrages` |

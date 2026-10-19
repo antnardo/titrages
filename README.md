@@ -4,12 +4,45 @@
 [![CI](https://github.com/antnardo/titrages/actions/workflows/ci.yml/badge.svg)](https://github.com/antnardo/titrages/actions/workflows/ci.yml)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](https://github.com/antnardo/titrages/blob/main/LICENSE)
 
-Le pH, la conductivité ou le potentiel d'une solution quelconque, et les courbes de
-titrage pH-métrique, conductimétrique et potentiométrique d'un bécher quelconque par
-une burette quelconque — acides et bases forts ou faibles, polyacides, ampholytes,
-mélanges, titrant faible, titrage en retour, couples rédox à plusieurs étapes ou
-dimériques — avec la dilution, **sans aucune approximation**. Un paquet Python, et
-un paquet LaTeX qui calcule la même chose dans `pgfplots`.
+La courbe de titrage d'un bécher quelconque par une burette quelconque — pH-métrie,
+conductimétrie, potentiométrie, complexométrie, précipitation —, avec la dilution et
+**sans aucune approximation**, et les nombres qu'on y lit : pH à un volume donné,
+équivalences, points d'inflexion, méthode des tangentes. Un paquet Python, et un
+paquet LaTeX qui calcule la même chose dans `pgfplots`.
+
+## Sommaire
+
+- [Le but](#le-but)
+- [Les moyens](#les-moyens)
+- [Installation](#installation)
+- [Une solution, un titrage](#une-solution-un-titrage)
+- [Tracer](#tracer)
+- [Conductimétrie et potentiométrie](#conductimétrie-et-potentiométrie)
+- [Complexométrie et précipitation](#complexométrie-et-précipitation)
+- [Sans tampon : le pH calculé](#sans-tampon--le-ph-calculé)
+- [La base de constantes](#la-base-de-constantes)
+- [En ligne de commande](#en-ligne-de-commande)
+- [Le paquet LaTeX](#le-paquet-latex)
+- [La documentation](#la-documentation)
+- [Antériorité](#antériorité)
+- [Limites](#limites)
+- [Développement](#développement)
+- [Sources](#sources)
+- [Licence](#licence)
+
+## Le but
+
+Une courbe de titrage se calcule d'ordinaire par morceaux — avant, à, après
+l'équivalence —, chaque morceau par sa réaction prépondérante et sa formule
+approchée. Cela tient pour un acide faible par la soude ; cela ne tient plus pour un
+polyacide aux pKa voisins, un mélange, un titrant faible, un titrage en retour, ni
+pour l'EDTA sans tampon, dont le pH s'effondre en cours de route. Résoudre
+numériquement le polynôme en h ne vaut pas mieux : ses coefficients couvrent des
+dizaines d'ordres de grandeur, et le saut, là où tout se joue, est son point le plus
+mal conditionné.
+
+`titrages` donne la courbe exacte, et les nombres qu'on y mesure, pour toute
+composition :
 
 ```pycon
 >>> from titrages import Titrage, solution
@@ -23,120 +56,101 @@ un paquet LaTeX qui calcule la même chose dans `pgfplots`.
 
 ```
 
-Le paquet s'installe depuis GitHub (ci-dessous). CTAN : à venir.
+Le paquet rend des nombres et des tableaux numpy : une courbe (`volume`, `pH`,
+`pente`), des sauts, des équivalences, une construction des tangentes. Le tracé est
+au choix du lecteur : matplotlib par `titrages.trace`, `pgfplots` par la liste de
+coordonnées de `vers_pgfplots`, ou directement par le paquet LaTeX.
 
-## Sommaire
+## Les moyens
 
-- [Ce qu'il fait](#ce-quil-fait)
-- [Installation](#installation)
-- [Prérequis](#prérequis)
-- [Prise en main](#prise-en-main)
-- [La documentation](#la-documentation)
-- [Les modules](#les-modules)
-- [En ligne de commande](#en-ligne-de-commande)
-- [Le paquet LaTeX](#le-paquet-latex)
-- [Avec pychimie](#avec-pychimie)
-- [Tester](#tester)
-- [Antériorité](#antériorité)
-- [Pour plus tard : complexation et précipitation](#pour-plus-tard--complexation-et-précipitation)
-- [Limites](#limites)
-- [Sources](#sources)
-- [Licence](#licence)
-
-## Ce qu'il fait
-
-- **Le sens direct.** À pH imposé, tout est explicite : les fractions de chaque forme,
-  puis l'électroneutralité, qui donne le volume versé comme une fonction directe du
-  pH, `V(pH) = -V0 R_bécher(pH) / R_burette(pH)`. Pas de polynôme à résoudre, pas de
-  réaction prépondérante. C'est la méthode de Kalka (2021) et de Brière (2002),
-  généralisée à un bécher et une burette quelconques.
-- **Le sens inverse, quand il le faut.** Le pH d'une solution ou le pH à un volume
-  donné se trouvent par dichotomie sur une fonction qu'on sait croissante : une
-  racine unique, trouvée à la précision de la machine, sans réglage.
-- **La dilution, exactement.** Le résidu du mélange, multiplié par `V0 + V`, se
-  sépare en une part du bécher et une part de la burette, chacune calculée avec ses
-  concentrations d'origine : la dilution ne demande aucun traitement particulier.
-  Tracer `n0 = Y1 + δ/C` comme une courbe de titrage, ainsi que le fait Kalka (2021),
-  dont la méthode est tirée, c'est la négliger — jusqu'à 0,48 unité de pH d'erreur.
-  Les tests confrontent la formule à un calcul indépendant qui dilue à la main.
-- **Tous les cas d'un seul tenant.** Une base faible est la forme basique d'un
-  couple (l'ammoniac est la forme 1 de NH₄⁺/NH₃) ; un sel s'introduit par sa forme,
-  ses ions spectateurs se déduisent. Mélanges, ampholytes, titrant faible, titrage
-  en retour ne demandent rien de plus.
-- **Les équivalences, des deux façons.** Les volumes stœchiométriques, et les points
-  d'inflexion effectivement visibles : l'acide phosphorique a trois équivalences
-  stœchiométriques, et deux sauts seulement.
-- **La méthode des tangentes**, construite exactement sur la courbe, pH-métrique ou
-  potentiométrique, pour mesurer son erreur plutôt que la supposer.
-- **Une base de couples, d'indicateurs, de conductivités et de couples rédox**,
-  cherchée par ce qu'on écrit : `"NH3"`, `"ammoniac"`, `"carbonate de sodium"`,
-  `"CO3^2-"`.
-- **Une précision sans débordement.** Les fractions se calculent en échelle
-  logarithmique : l'EDTA à pH 14 ne déborde pas. Les points d'inflexion sont
-  confrontés à un calcul mpmath à 60 chiffres (`tests/reference_mpmath.py`).
-- **La conductimétrie** par la loi de Kohlrausch, ions spectateurs compris (le Na⁺
-  de la soude, celui du carbonate de sodium), avec ou sans correction de dilution,
-  pour 34 des 35 couples de la base.
-- **La potentiométrie** : les électrons remplacent les protons, E/s le pH. Couples à
-  plusieurs étapes (le vanadium), couples qui échangent des protons (à pH fixé),
-  couples dimériques (I₂/I⁻, Cr₂O₇²⁻/Cr³⁺, S₄O₆²⁻/S₂O₃²⁻), électrode de référence.
-- **Le même calcul en LaTeX**, par un moteur Lua sous LuaLaTeX, ou par pgfmath et
-  l3fp sous pdfLaTeX. Les tests confrontent les trois implémentations.
+1. **À pH imposé, tout est explicite.** Les fractions de chaque forme se calculent,
+   puis l'électroneutralité donne le volume versé comme une fonction directe du pH,
+   `V(pH) = -V0 R_bécher(pH) / R_burette(pH)` : pas de polynôme à résoudre. C'est la
+   méthode de Kalka (2021) et de Brière (2002), généralisée à un bécher et une
+   burette quelconques ; la dilution y est exacte, chaque résidu gardant les
+   concentrations de sa solution.
+2. **Le sens inverse par dichotomie.** Le pH à un volume donné annule une fonction
+   croissante : une racine unique, trouvée à la précision de la machine, sans
+   réglage ni point de départ.
+3. **Des calculs qui ne perdent pas de chiffres.** Les fractions se calculent en
+   échelle logarithmique — l'EDTA à pH 14 ne déborde pas —, et la pente sans
+   soustraire deux nombres voisins. Un point d'inflexion est un minimum de
+   `|dV/dpH|`, affiné jusqu'à la précision de la machine : 10⁻¹⁰ unité de pH.
+4. **La même idée partout.** Le potentiel remplace le pH en rédox ; le ligand libre
+   en complexométrie ; l'ion commun en précipitation, où l'on essaie chaque ensemble
+   de solides et garde le seul cohérent. Quand le pH n'est pas tamponné, deux
+   dichotomies imbriquées trouvent l'équilibre, dont l'unicité vient de la convexité
+   des bilans.
+5. **Chaque nombre est vérifié.** Les tests confrontent le paquet à des calculs
+   indépendants en précision arbitraire (mpmath), qui diluent à la main, et les trois
+   implémentations — Python, Lua, pgfmath — entre elles.
 
 ## Installation
 
-Quatre façons, selon le poste.
-
-**Avec pip depuis PyPI**, quand le réseau et pip sont disponibles :
-
 ```bash
 pip install titrages
-pip install "titrages[trace]"   # avec matplotlib
+pip install "titrages[trace]"   # avec matplotlib, pour titrages.trace
 ```
 
-(ou `uv add titrages`). **Depuis GitHub**, pour la version de développement :
+Python 3.11 ou plus récent, et numpy 1.24 ou plus ; matplotlib 3.7 ou plus seulement
+pour les tracés. Le paquet est testé sous Python 3.11 à 3.14.
 
-```bash
-pip install git+https://github.com/antnardo/titrages
-pip install "titrages[trace] @ git+https://github.com/antnardo/titrages"   # avec matplotlib
+La version de développement s'installe depuis GitHub
+(`pip install git+https://github.com/antnardo/titrages`). Chaque
+[release](https://github.com/antnardo/titrages/releases) porte aussi la roue
+`titrages-<version>-py3-none-any.whl`, pour un poste sans git, et le sdist, avec
+`docs/`, `examples/` et `tests/`. Sans pip ni réseau, le dossier `src/titrages/` posé
+à côté d'un script suffit : `from titrages import Titrage, solution` fonctionne
+depuis le dossier du script.
+
+Le paquet LaTeX demande une distribution TeX avec `pgfplots` ; LuaLaTeX pour tout ce
+qui n'est pas une courbe acide-base, rédox ou un nombre simple (voir
+[Le paquet LaTeX](#le-paquet-latex)).
+
+## Une solution, un titrage
+
+Une solution se décrit par ce qu'on y dissout, en mol/L ; les ions spectateurs se
+déduisent du sel :
+
+```pycon
+>>> s = solution({"Na2CO3": 0.1})
+>>> round(s.pH(), 2)
+11.65
+>>> round(s.concentrations()["HCO3-"], 4)
+0.0045
+
 ```
 
-**Avec la roue d'une release**, pour un poste qui a pip mais pas git : chaque
-[release](https://github.com/antnardo/titrages/releases) porte
-`titrages-<version>-py3-none-any.whl` (et le sdist `.tar.gz`, avec `docs/`,
-`examples/` et `tests/`), qui s'installe par `pip install titrages-<version>-py3-none-any.whl`.
+Un mélange par un titrant faible, et un titrage en retour — la soude en excès a déjà
+transformé l'acide éthanoïque en éthanoate, que l'acide chlorhydrique titre après
+l'excès :
 
-**Copier le dossier**, sans pip ni réseau : le dossier `src/titrages/` se pose à
-côté des scripts, et `from titrages import Titrage, solution` fonctionne, à condition
-d'exécuter le script depuis son dossier. Le paquet ne demande que numpy.
+```pycon
+>>> t = Titrage(solution({"HCl": 0.05, "CH3COOH": 0.05}), solution({"NH3": 0.1}), volume_becher=20)
+>>> [round(s.volume, 1) for s in t.sauts(30)]
+[10.0, 20.0]
+>>> Titrage(solution({"CH3COOH": 0.05, "NaOH": 0.1}), solution({"HCl": 0.1}), 10).volumes_equivalents()
+(5.0, 10.0)
 
-**Pour développer**, un clone et [uv](https://docs.astral.sh/uv/) :
-
-```bash
-git clone https://github.com/antnardo/titrages
-cd titrages && uv sync && uv run pytest
 ```
 
-CTAN : à venir.
+Les équivalences stœchiométriques et les points d'inflexion sont deux choses : l'acide
+phosphorique a trois équivalences et deux sauts. La méthode des tangentes part d'un
+point avant le saut et rend la construction complète :
 
-## Prérequis
+```pycon
+>>> t = Titrage(solution({"CH3COOH": 0.1}), solution({"NaOH": 0.1}), volume_becher=10)
+>>> tg = t.tangentes(7, 20)
+>>> round(tg.volume, 2), round(tg.pH, 2)
+(10.0, 8.65)
 
-Python 3.11 ou plus récent, avec numpy (1.24 ou plus) ; matplotlib (3.7 ou plus)
-seulement pour `titrages.trace`. Le paquet est testé sous Python 3.11, 3.12, 3.13
-et 3.14. Le paquet LaTeX demande pgfplots, et LuaLaTeX pour tout ce qui n'est pas
-une courbe ou un nombre (voir [Le paquet LaTeX](#le-paquet-latex)).
+```
 
-## Prise en main
+Deux règles valent partout : un `float` pour un scalaire, un tableau numpy pour un
+tableau (`t.pH(5)`, `t.pH([5, 10])`) ; les volumes dans l'unité qu'on veut, la même
+partout.
 
-Deux règles valent partout. **Un `float` pour un scalaire, un tableau numpy pour un
-tableau** : `t.pH(5)` est un `float`, `t.pH([5, 10])` un tableau. **Une seule unité
-pour la conductivité, le S/m** — celle que donnent λ° en mS·m²·mol⁻¹ et *c* en
-mol/L ; un conductimètre affiche des mS/cm, dix fois moins, et `unite="mS/cm"` le
-fait pour un tracé. Les volumes s'écrivent dans l'unité qu'on veut, la même partout ;
-les concentrations en mol/L.
-
-Une courbe pH-métrique, son saut, la méthode des tangentes et la zone de virage
-d'un indicateur :
+## Tracer
 
 ```python
 import matplotlib.pyplot as plt
@@ -156,45 +170,16 @@ Le même tracé pour l'acide éthanoïque, par
 
 ![Courbe pH-métrique de l'acide éthanoïque par la soude : saut à 10 mL, méthode des tangentes et zone de virage de la phénolphtaléine](https://raw.githubusercontent.com/antnardo/titrages/main/examples/images/01_acide_faible.png)
 
-La méthode des tangentes, `t.tangentes(volume_avant, volume_max)`, part d'un point
-avant le saut et rend la construction complète (`Tangentes` : les deux points de
-contact, la pente commune, le point trouvé) :
+Chaque fonction de tracé dessine sur l'axe qu'on lui donne et le rend : elle se
+compose avec le reste d'un script. `vers_pgfplots(t.courbe(20))` rend la même courbe
+en coordonnées `pgfplots`.
 
-```pycon
->>> t = Titrage(solution({"CH3COOH": 0.1}), solution({"NaOH": 0.1}), volume_becher=10)
->>> tg = t.tangentes(7, 20)
->>> round(tg.volume, 2), round(tg.pH, 2)
-(10.0, 8.65)
+## Conductimétrie et potentiométrie
 
-```
-
-Un mélange par un titrant faible, et un titrage en retour (la soude en excès a déjà
-transformé l'acide éthanoïque en éthanoate, que l'acide chlorhydrique titre après
-l'excès) :
-
-```pycon
->>> t = Titrage(solution({"HCl": 0.05, "CH3COOH": 0.05}), solution({"NH3": 0.1}), volume_becher=20)
->>> [round(s.volume, 1) for s in t.sauts(30)]
-[10.0, 20.0]
->>> Titrage(solution({"CH3COOH": 0.05, "NaOH": 0.1}), solution({"HCl": 0.1}), 10).volumes_equivalents()
-(5.0, 10.0)
-
-```
-
-Le pH d'une solution, et ce qu'elle contient :
-
-```pycon
->>> from titrages import solution
->>> s = solution({"Na2CO3": 0.1})
->>> round(s.pH(), 2)
-11.65
->>> round(s.concentrations()["HCO3-"], 4)
-0.0045
-
-```
-
-La conductimétrie, en S/m, corrigée ou non de la dilution, et son tracé par
-`tracer_conductimetrie(t, volume_max, ax, corrigee=True, unite="mS/cm")` :
+La conductimétrie suit la loi de Kohlrausch, ions spectateurs compris (le Na⁺ de la
+soude), en S/m — l'unité que donnent λ° en mS·m²·mol⁻¹ et c en mol/L ; un
+conductimètre affiche des mS/cm, dix fois moins, et `unite="mS/cm"` le fait pour un
+tracé :
 
 ```pycon
 >>> t = Titrage(solution({"HCl": 0.01}), solution({"NaOH": 0.1}), volume_becher=100)
@@ -205,11 +190,10 @@ La conductimétrie, en S/m, corrigée ou non de la dilution, et son tracé par
 
 ```
 
-La potentiométrie, mesurée contre une électrode au calomel saturé. Le pH du milieu,
-supposé tamponné, se donne aux **deux** solutions, bécher et burette, puisqu'il décale
-les potentiels standard apparents ; `tracer_titrage_redox(r, volume_max, ax,
-sauts=True)` trace la courbe, et `tracer_sauts`, `tracer_tangentes`, `tracer_derivee`
-acceptent un titrage rédox comme un titrage acide-base :
+En potentiométrie, les électrons remplacent les protons. Les couples à plusieurs
+étapes, ceux qui échangent des protons (pris au pH du milieu, donné aux deux
+solutions) et les couples dimériques (I₂/I⁻, Cr₂O₇²⁻/Cr³⁺) s'y traitent ; le
+potentiel se lit contre une électrode de référence :
 
 ```pycon
 >>> from titrages import TitrageRedox, solution_redox
@@ -222,33 +206,74 @@ acceptent un titrage rédox comme un titrage acide-base :
 
 ```
 
-## La documentation
+## Complexométrie et précipitation
 
-- [docs/DOC.md](https://github.com/antnardo/titrages/blob/main/docs/DOC.md) : l'API complète, la méthode et ses formules.
-- [examples/](https://github.com/antnardo/titrages/tree/main/examples/) : onze scripts à lancer. La galerie
-  [`examples/README.md`](https://github.com/antnardo/titrages/blob/main/examples/README.md)
-  décrit chaque exemple avec sa courbe.
-- Le paquet LaTeX : [latex/README.md](https://github.com/antnardo/titrages/blob/main/latex/README.md), et sa documentation
-  `titrages-doc.pdf` (index, clés, messages), jointe à chaque
-  [release](https://github.com/antnardo/titrages/releases) et à l'artefact de la
-  CI ; pour la recompiler, voir [latex/README.md](https://github.com/antnardo/titrages/blob/main/latex/README.md).
-- [CHANGELOG.md](https://github.com/antnardo/titrages/blob/main/CHANGELOG.md).
+Un métal titré par un ligand, à pH tamponné : la courbe pM = f(V), complexes
+successifs et métaux en compétition compris ; les équivalences se comptent comme
+celles d'un polyacide, une par étape de complexation.
 
-## Les modules
+```pycon
+>>> from titrages import SolutionComplexation, TitrageComplexometrique, complexe, ligand
+>>> t = TitrageComplexometrique(
+...     SolutionComplexation({"Ca2+": 0.01}), SolutionComplexation(ligand=0.01), 20,
+...     [complexe("Ca2+", "EDTA")], ligand("EDTA"), pH=10,
+... )
+>>> round(t.pM(20), 2), [round(s.volume, 3) for s in t.sauts(40)], t.volumes_equivalents()
+(6.28, [20.0], (20.0,))
 
-| Module | Rôle |
-| --- | --- |
-| `titrages.base` | la base de couples, d'indicateurs, de conductivités et de couples rédox ; `solution`, `solution_redox`, `espece`, `couple`, `indicateur`, `chercher` |
-| `titrages.solution` | `Solution` : pH, concentrations, pouvoir tampon, conductivité d'une solution quelconque |
-| `titrages.titrage` | `Titrage` : la courbe V(pH), le pH à volume donné, les sauts, les équivalences, les tangentes, la conductimétrie |
-| `titrages.redox` | `SolutionRedox`, `TitrageRedox` : les mêmes, les électrons remplaçant les protons |
-| `titrages.equilibre` | les fractions, les moments, le résidu de l'électroneutralité, les dichotomies |
-| `titrages.modeles` | les objets du domaine : `Couple`, `Espece`, `Courbe`, `Saut`, `Tangentes`, leurs analogues rédox |
-| `titrages.trace` | les tracés matplotlib |
-| `titrages.export` | `vers_pgfplots` |
-| `titrages.__main__` | la commande `titrages` |
+```
 
-Tout ce qui sert couramment s'importe de `titrages` directement.
+Un titrage par précipitation suit l'ion commun, pAg = f(V). La courbe a des points
+anguleux là où un solide apparaît ou disparaît — des *événements*, distincts des
+sauts : dans la méthode de Mohr, le chromate d'argent apparaît juste après
+l'équivalence du chlorure.
+
+```pycon
+>>> from titrages import SolutionPrecipitation, TitrageParPrecipitation, precipite
+>>> m = TitrageParPrecipitation(
+...     SolutionPrecipitation(partenaires={"Cl-": 0.05, "CrO4^2-": 0.005}),
+...     SolutionPrecipitation(commun=0.05), 20,
+...     [precipite("AgCl"), precipite("Ag2CrO4")], pH=7.5,
+... )
+>>> [round(v, 9) for v in m.volumes_equivalents()], [(e.partenaire, round(e.volume, 3)) for e in m.evenements(30)]
+([20.0, 24.0], [('Cl-', 0.0), ('CrO4^2-', 20.012)])
+
+```
+
+## Sans tampon : le pH calculé
+
+Sans `pH=`, et dès que le pH compte — un ligand ou un partenaire qui a des acidités,
+un hydroxyde, une solution qui apporte de l'acide-base —, le pH se calcule à partir
+du contenu des solutions, et un `UserWarning` le rappelle : un pH oublié change la
+chimie. L'EDTA, pesé sous la forme Na₂H₂Y, libère ses protons en se fixant ; sans
+tampon, le pH tombe et le saut disparaît :
+
+```pycon
+>>> import warnings
+>>> with warnings.catch_warnings():
+...     warnings.simplefilter("ignore")
+...     s = TitrageComplexometrique(
+...         SolutionComplexation({"Ca2+": 0.01}), SolutionComplexation(ligand=0.01, protons_ligand=2), 20,
+...         [complexe("Ca2+", "EDTA")], ligand("EDTA"),
+...     )
+>>> round(float(s.pH_du_melange(20)), 2), s.sauts(40)
+(3.54, ())
+
+```
+
+Un tampon se décrit alors comme une solution (un couple acide-base dans le bécher et
+la burette), et un hydroxyde comme un précipité de partenaire `"OH-"`, que précipite
+une base forte.
+
+## La base de constantes
+
+Les espèces se cherchent par ce qu'on écrit — `"NH3"`, `"ammoniac"`,
+`"carbonate de sodium"`, `"CO3^2-"` ; casse, accents et écriture des charges ne
+comptent pas. La base porte 35 couples acide-base, 15 couples rédox, 9 indicateurs,
+les conductivités molaires ioniques, 13 ligands, 92 complexes et 56 précipités, dont
+15 hydroxydes et oxydes. Les complexes et les précipités viennent des tables de
+D. Harvey, d'après Martell et Smith ; la source et les conditions de chaque valeur
+sont dans les fichiers de données et dans le champ `note`.
 
 ## En ligne de commande
 
@@ -264,11 +289,10 @@ titrages indicateurs
 
 ## Le paquet LaTeX
 
-Le dossier [`latex/`](https://github.com/antnardo/titrages/tree/main/latex/) contient `titrages.sty` et `titrages.lua`. Ils
-s'installent par copie des deux fichiers dans un dossier que TeX trouve, par exemple
-`TEXMFHOME/tex/latex/titrages/`, ou à côté du document ; chaque release porte
-aussi `titrages-ctan.zip`, l'archive prête pour CTAN, avec la documentation compilée.
-Le paquet demande pgfplots, et `\pgfplotsset{compat=1.18}` dans le préambule :
+Le dossier [`latex/`](https://github.com/antnardo/titrages/tree/main/latex/) contient
+`titrages.sty` et `titrages.lua`, à poser ensemble dans un dossier que TeX trouve
+(par exemple `TEXMFHOME/tex/latex/titrages/`) ou à côté du document ; chaque release
+porte aussi `titrages-ctan.zip`, avec la documentation compilée.
 
 ```latex
 \usepackage{titrages}
@@ -287,96 +311,81 @@ Le paquet demande pgfplots, et `\pgfplotsset{compat=1.18}` dans le préambule :
 Le pH à l'équivalence vaut \num{\titragepH{ethanoique}{10}}.
 ```
 
-Deux moteurs derrière la même interface. Sous LuaLaTeX, `titrages.lua` calcule tout
-— courbes pH, σ et E, dérivée, sauts, équivalences, tangentes, nombres
-développables —, en une seconde. Sous pdfLaTeX, le moteur pgf trace les courbes par
-pgfmath (quatre à cinq chiffres, invisible au tracé) et donne par l3fp les nombres
-qui ne demandent qu'une évaluation ou une dichotomie : `\titragevolume`,
-`\titragepH`, `\titrageE`, `\titrageconductivite` ; pas d'équivalences, de sauts
-ni de tangentes, ni de couples dimériques. Son coût : 250 lignes d'expl3 à maintenir
-en parallèle du moteur Lua, et une compilation deux à trente fois plus lente (une
-demi-seconde par nombre). `tests/test_latex.py` vérifie que les deux moteurs donnent
-les nombres du paquet Python.
+Sous LuaLaTeX, `titrages.lua` calcule tout : courbes pH, σ, E, pM et pP, dérivée,
+sauts, équivalences, tangentes, événements, pH calculé, et des nombres développables
+(`\titragepH`, `\titragepM`, `\titragesaut`…). Sous pdfLaTeX, un moteur de secours
+trace les courbes acide-base et rédox par pgfmath (quatre à cinq chiffres, invisible
+au tracé) et donne par l3fp le pH, le potentiel, la conductivité ou le volume à un
+point donné, plus lentement ; ni équivalences, ni sauts, ni tangentes, ni couples
+dimériques, ni complexométrie, ni précipitation. Le détail est dans
+[latex/README.md](https://github.com/antnardo/titrages/blob/main/latex/README.md) et
+dans la documentation `titrages-doc.pdf`.
 
-## Avec pychimie
+## La documentation
 
-`titrages` ne dépend que de numpy et ne connaît que des concentrations en mol/L.
-Pour partir d'une masse pesée, le paquet voisin
-[pychimie](https://github.com/antnardo/pychimie) donne la masse molaire ; le pont
-tient en une ligne, dans le script de l'utilisateur, sans que l'un importe l'autre :
+- [docs/DOC.md](https://github.com/antnardo/titrages/blob/main/docs/DOC.md) : l'API
+  complète, la méthode et ses formules, les modules.
+- [examples/](https://github.com/antnardo/titrages/tree/main/examples/) : onze
+  scripts, décrits avec leurs courbes dans la galerie
+  [`examples/README.md`](https://github.com/antnardo/titrages/blob/main/examples/README.md).
+- `titrages-doc.pdf`, la documentation du paquet LaTeX (syntaxe, clés, messages,
+  index), jointe à chaque release.
+- [CHANGELOG.md](https://github.com/antnardo/titrages/blob/main/CHANGELOG.md).
+
+Pour partir d'une masse pesée, le paquet [pychimie](https://github.com/antnardo/pychimie)
+donne la masse molaire ; `titrages` n'en dépend pas, le pont tient dans le script :
 
 ```python
-from pychimie import masse_molaire      # un paquet à part, installé à part
+from pychimie import masse_molaire
 from titrages import Titrage, solution
 
 C = 0.384 / masse_molaire("NaHCO3") / 0.100      # 384 mg dans 100 mL, en mol/L
 t = Titrage(solution({"NaHCO3": C}), solution({"HCl": 0.1}), volume_becher=50)
 ```
 
-Les deux paquets ont une classe `Solution` de sens différents ; quand les deux
-cohabitent, importer l'une sous un alias (`from titrages import Solution as
-SolutionTitrage`). Le renommage est prévu du côté de pychimie.
+## Antériorité
 
-## Tester
+[pHcalc](https://github.com/rnelsonchem/pHcalc) et
+[chempy](https://github.com/bjodah/chempy) calculent l'équilibre d'une composition
+donnée, chempy avec complexation et précipitation ; ni l'un ni l'autre n'a d'objet
+titrage, de dilution exacte, de sauts, de tangentes, de conductimétrie ni de rédox.
+Les logiciels de spéciation (PHREEQC, Visual MINTEQ) résolvent n'importe quel mélange,
+sans courbe de titrage ni points d'inflexion. Côté LaTeX,
+[phtitration](https://ctan.org/pkg/phtitration) trace huit configurations de titrage
+par un titrant fort, sans mélange, sans nombres, ni conductimétrie ni rédox ;
+`titrages` part du même calcul paramétrique exact et le généralise à un bécher et une
+burette quelconques.
+
+## Limites
+
+- Les solutions sont idéales : l'activité est la concentration, les conductivités
+  molaires sont les valeurs limites, qui surestiment σ dès quelques mmol/L. La
+  température n'entre que par `pKe` et la pente de Nernst.
+- Les couples rédox qui échangent des protons sont pris à pH fixé ; un métal ou un gaz
+  (Ag, H₂) n'est pas un couple de solution.
+- Un seul ligand par titrage : un tampon ammoniacal qui complexerait aussi le métal, ou
+  un indicateur métallochrome, en serait un second. Complexation et précipitation ne
+  se combinent pas dans un même titrage.
+- Les constantes de la base sont celles des tables à 25 °C ; elles diffèrent d'une
+  table à l'autre, et la base le signale quand l'écart est notable. Les λ° de
+  dix-sept ions, non tabulés, sont approchés par un ion voisin, nommé ; ceux de l'EDTA
+  manquent.
+
+## Développement
 
 ```bash
+git clone https://github.com/antnardo/titrages
+cd titrages && uv sync
 uv run pytest                    # tout, moteur Lua et paquet LaTeX compris quand TeX est là
-uv run pytest -m "not latex"     # sans compiler le paquet LaTeX (une quarantaine de secondes)
+uv run pytest -m "not latex"     # sans compiler le paquet LaTeX
 uv run ruff check src tests && uv run ruff format --check src tests && uv run mypy
 cd latex/tests && texlua test_titrages.lua
 ```
 
-Les tests marqués `lua` confrontent le moteur Lua au moteur Python par `texlua` (ou
-`lua`) ; ceux marqués `latex` compilent `latex/tests/titrages-test-nombres.tex` par
-`lualatex` et par `pdflatex` et comparent leurs nombres au calcul Python ; les deux
-groupes sont sautés quand TeX manque. Les points d'inflexion de référence se
-régénèrent par `uv run python tests/reference_mpmath.py` (mpmath, dépendance de
-développement). L'intégration continue (`.github/workflows/ci.yml`) rejoue tout
-cela à chaque push, sous Python 3.11 à 3.14, et compile la documentation LaTeX ; à
-chaque release publiée, `publish.yml` joint à la release la roue, le sdist, la
-documentation PDF et l'archive CTAN.
-
-## Antériorité
-
-[pHcalc](https://github.com/rnelsonchem/pHcalc) et
-[chempy](https://github.com/bjodah/chempy) calculent le pH d'une composition
-donnée (chempy traite aussi complexation et précipitation) ; ni l'un ni l'autre
-n'a d'objet titrage, de dilution exacte en V(pH), de sauts, de tangentes, de
-conductimétrie ni de rédox. Côté LaTeX, [phtitration](https://ctan.org/pkg/phtitration)
-(CTAN, 2026) trace huit configurations de titrage par un titrant fort, par
-Henderson-Hasselbalch par morceaux pour les monoacides et par le calcul paramétrique
-exact pour les polyacides, sans mélange, sans nombres, ni conductimétrie ni rédox ;
-`titrages` part du même calcul paramétrique et le généralise à un bécher et une
-burette quelconques. Sans équivalent ailleurs : le couple Python + LaTeX à même
-calcul, la conductimétrie avec spectateurs, le rédox dimérique, la base en français.
-
-## Pour plus tard : complexation et précipitation
-
-Le paquet ne traite ni la complexation ni la précipitation : un titrage par le
-chlorure de baryum ou par l'EDTA se calcule à la main. L'étude
-[docs/PROJET-complexation-precipitation.md](https://github.com/antnardo/titrages/blob/main/docs/PROJET-complexation-precipitation.md)
-dit ce que coûterait leur ajout, en deux niveaux. Le **niveau 1** garde la méthode
-explicite en paramétrant la courbe par la grandeur mesurée, pM ou pAg : la
-complexométrie en milieu tamponné (EDTA, constante conditionnelle), l'argentimétrie
-(Mohr, Charpentier-Volhard) et les mélanges d'halogénures y entrent, avec des
-courbes à points anguleux là où un solide apparaît ou disparaît ; 800 à 1 200 lignes,
-Lua et LaTeX compris, le moteur pgf pouvant suivre. Le **niveau 2** — ligand basique
-en milieu non tamponné, complexes successifs, hydroxydes — demande un solveur de
-spéciation (Newton sur les logarithmes des concentrations libres, continuation le
-long de la courbe, problème de complémentarité pour les solides) : 2 500 à 4 000
-lignes, sans moteur pgf, et une précision qui n'est plus celle du calcul explicite.
-Les deux demandent une base de constantes (β, Ks) sourcées. Recommandation de
-l'étude : le niveau 1 d'abord, si un TP le demande ; sinon chempy ponctuellement.
-
-## Limites
-
-Solutions idéales (activité = concentration, conductivités molaires limites),
-température par le seul `pKe` et la pente de Nernst. Les couples rédox qui échangent
-des protons sont pris à pH fixé ; les métaux et les gaz ne sont pas des couples de
-solution. Les pKa, E° et λ° de la base sont ceux des tables usuelles à 25 °C ; ils
-diffèrent d'une table à l'autre, et la base le signale quand l'écart est notable. Les
-λ° de dix-sept ions, non tabulés dans le CRC, sont approchés par un ion voisin,
-nommé dans `src/titrages/donnees/conductivites.toml` ; ceux de l'EDTA manquent.
+Les tests marqués `lua` comparent le moteur Lua au moteur Python par `texlua` ; ceux
+marqués `latex` compilent les documents de `latex/tests/` par `lualatex` et
+`pdflatex` et comparent leurs nombres au calcul Python. Les deux groupes sont sautés
+quand TeX manque.
 
 ## Sources
 
@@ -387,11 +396,13 @@ nommé dans `src/titrages/donnees/conductivites.toml` ; ceux de l'EDTA manquent.
 - Y. Cortial, *Courbe de dosage acidobasique et méthode des tangentes*, BUP 734, 1991.
 - W. M. Haynes (dir.), *CRC Handbook of Chemistry and Physics*, 97e éd., CRC Press,
   2016 : constantes d'acidité, potentiels standard, conductivités molaires ioniques.
+- D. Harvey, *Analytical Chemistry 2.1*, LibreTexts, § 16.10 à 16.12, d'après
+  A. E. Martell et R. M. Smith, *Critical Stability Constants*, Plenum, 1976 :
+  constantes de formation et produits de solubilité.
 
 ## Licence
 
 Le code — le paquet Python (`src/`), le paquet LaTeX (`latex/`), les tests et les
-scripts — est sous licence MIT (`LICENSE`). Les exemples (`examples/`), qui sont du
-contenu scientifique et pédagogique plutôt que des algorithmes, sont sous licence
-Creative Commons Attribution - Pas d'utilisation commerciale - Partage dans les mêmes
-conditions 4.0 International, CC BY-NC-SA 4.0 (`LICENSE-CC-BY-NC-SA-4.0`).
+scripts — est sous licence MIT (`LICENSE`). Les exemples (`examples/`), contenu
+scientifique et pédagogique plutôt qu'algorithmes, sont sous licence CC BY-NC-SA 4.0
+(`LICENSE-CC-BY-NC-SA-4.0`).
