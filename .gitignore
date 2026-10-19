@@ -36,6 +36,12 @@ latex/tests/*.out
 latex/tests/*.synctex.gz
 latex/tests/*.dat
 latex/ctan/
+docs/technique/*.pdf
+docs/technique/*.aux
+docs/technique/*.log
+docs/technique/*.out
+docs/technique/*.toc
+docs/technique/*.synctex.gz
 examples/*.pdf
 examples/*.png
 

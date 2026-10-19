@@ -44,9 +44,9 @@ package.path = "{LATEX.as_posix()}/?.lua;" .. package.path
 local T = require("titrages")
 local t = T.titrage(T.solution({becher}, {b0}), T.solution({burette}, {b1}), 10)
 local pH = {{}}
-for i, V in ipairs({{{", ".join(map(str, VOLUMES))}}}) do pH[i] = string.format("%.12g", T.pH(t, V)) end
+for i, V in ipairs({{{", ".join(map(str, VOLUMES))}}}) do pH[i] = string.format("%.17g", T.pH(t, V)) end
 local sauts = {{}}
-for i, s in ipairs(T.sauts(t, {vmax})) do sauts[i] = string.format("[%.12g,%.12g]", s[1], s[2]) end
+for i, s in ipairs(T.sauts(t, {vmax})) do sauts[i] = string.format("[%.17g,%.17g]", s[1], s[2]) end
 io.write('{{"pH":[' .. table.concat(pH, ",") .. '],"sauts":[' .. table.concat(sauts, ",") .. ']}}')
 """
     fichier = dossier / "cas.lua"  # texlua ne lit pas l'entrée standard
@@ -99,7 +99,7 @@ package.path = "{LATEX.as_posix()}/?.lua;" .. package.path
 local T = require("titrages")
 local t = T.titrage(T.solution({lb}, {b0}), T.solution({{}}, {b1}), 10)
 local eq = {{}}
-for i, V in ipairs(T.equivalences(t)) do eq[i] = string.format("%.12g", V) end
+for i, V in ipairs(T.equivalences(t)) do eq[i] = string.format("%.17g", V) end
 io.write("[" .. table.concat(eq, ",") .. "]")
 """
     fichier = tmp_path / "equivalences.lua"
@@ -130,28 +130,37 @@ REDOX = {
 }
 
 
-@pytest.mark.parametrize("nom", REDOX)
-def test_redox_memes_nombres(nom, tmp_path):
-    from titrages import TitrageRedox, solution_redox
-
-    becher, burette, lb, lu = REDOX[nom]
-    t = TitrageRedox(solution_redox(becher), solution_redox(burette), 10)
+def lua_redox(nom: str, dossier: Path) -> dict:
+    """Le potentiel, les sauts et les tangentes du moteur Lua, pour un cas de REDOX."""
+    _, _, lb, lu = REDOX[nom]
     script = f"""
 package.path = "{LATEX.as_posix()}/?.lua;" .. package.path
 local T = require("titrages")
 local t = T.titrage(T.solution_redox({lb}), T.solution_redox({lu}), 10)
 local E = {{}}
-for i, V in ipairs({{{", ".join(map(str, VOLUMES[1:]))}}}) do E[i] = string.format("%.12g", T.E_enh(t, V)) end
+for i, V in ipairs({{{", ".join(map(str, VOLUMES[1:]))}}}) do E[i] = string.format("%.17g", T.E_enh(t, V)) end
 local S = {{}}
-for i, s in ipairs(T.sauts_redox(t, 20)) do S[i] = string.format("[%.15g,%.15g,%.12g]", s[1], s[2], s[3]) end
+for i, s in ipairs(T.sauts_redox(t, 20)) do S[i] = string.format("[%.17g,%.17g,%.17g]", s[1], s[2], s[3]) end
 local tg = T.tangentes_redox(t, 7, 20)
 io.write('{{"E":[' .. table.concat(E, ",") .. '],"sauts":[' .. table.concat(S, ",") .. '],')
-io.write(string.format('"tangentes":[%.12g,%.12g]}}', tg.V, tg.E))
+io.write(string.format('"tangentes":[%.17g,%.17g]}}', tg.V, tg.E))
 """
-    fichier = tmp_path / "redox.lua"
+    fichier = dossier / "redox.lua"
     fichier.write_text(script, encoding="utf-8")
     sortie = subprocess.run([INTERPRETE, str(fichier)], capture_output=True, text=True, check=True)
-    lua = json.loads(sortie.stdout)
+    return json.loads(sortie.stdout)
+
+
+def python_redox(nom: str):
+    from titrages import TitrageRedox, solution_redox
+
+    becher, burette, _, _ = REDOX[nom]
+    return TitrageRedox(solution_redox(becher), solution_redox(burette), 10)
+
+
+@pytest.mark.parametrize("nom", REDOX)
+def test_redox_memes_nombres(nom, tmp_path):
+    lua, t = lua_redox(nom, tmp_path), python_redox(nom)
     assert lua["E"] == pytest.approx(t.E(VOLUMES[1:]).tolist(), abs=1e-9)
     tangentes = t.tangentes(7, 20)
     assert lua["tangentes"] == pytest.approx([tangentes.volume, tangentes.E], abs=1e-6)
@@ -237,10 +246,10 @@ def _complexation_python(nom: str):
     )
 
 
-@pytest.mark.parametrize("nom", COMPLEXATION)
-def test_complexation_memes_nombres(nom, tmp_path):
+def lua_complexation(nom: str, dossier: Path) -> dict:
+    """Le moteur Lua sur un cas : ses nombres, en JSON."""
     becher, burette, complexes, pKa, pH = COMPLEXATION[nom]
-    lua = _executer(
+    return _executer(
         _EXPORT
         + f"""
 local t = T.titrage_complexation(T.solution_complexation({becher}), T.solution_complexation({burette}),
@@ -254,8 +263,13 @@ local ok, eq = pcall(T.equivalences_complexation, t)
 io.write('{{"pM":' .. liste(pM) .. ',"pente":' .. liste(pente) .. ',"sauts":' .. triplets(T.sauts_complexation(t, 40))
   .. ',"equivalences":' .. (ok and liste(eq) or "null") .. '}}')
 """,
-        tmp_path,
+        dossier,
     )
+
+
+@pytest.mark.parametrize("nom", COMPLEXATION)
+def test_complexation_memes_nombres(nom, tmp_path):
+    lua = lua_complexation(nom, tmp_path)
     t = _complexation_python(nom)
     assert lua["pM"] == pytest.approx(t.pM(CP_VOLUMES).tolist(), abs=1e-9)
     assert lua["pente"] == pytest.approx(t.pente(t.pL(CP_VOLUMES)).tolist(), rel=1e-9)
@@ -315,10 +329,10 @@ def _precipitation_python(nom: str):
     )
 
 
-@pytest.mark.parametrize("nom", PRECIPITATION)
-def test_precipitation_memes_nombres(nom, tmp_path):
+def lua_precipitation(nom: str, dossier: Path) -> dict:
+    """Le moteur Lua sur un cas : ses nombres, en JSON."""
     becher, burette, precipites, pH = PRECIPITATION[nom]
-    lua = _executer(
+    return _executer(
         _EXPORT
         + f"""
 local t = T.titrage_precipitation(T.solution_precipitation({becher}), T.solution_precipitation({burette}),
@@ -335,8 +349,13 @@ end
 io.write('{{"p":' .. liste(p) .. ',"pente":' .. liste(pente) .. ',"sauts":' .. triplets(T.sauts_precipitation(t, 30))
   .. ',"evenements":[' .. table.concat(ev, ",") .. '],"equivalences":' .. liste(T.equivalences_precipitation(t)) .. '}}')
 """,
-        tmp_path,
+        dossier,
     )
+
+
+@pytest.mark.parametrize("nom", PRECIPITATION)
+def test_precipitation_memes_nombres(nom, tmp_path):
+    lua = lua_precipitation(nom, tmp_path)
     t = _precipitation_python(nom)
     assert lua["p"] == pytest.approx(t.p(CP_VOLUMES).tolist(), abs=1e-9)
     assert lua["pente"] == pytest.approx(t.pente(t.p(CP_VOLUMES)).tolist(), rel=1e-9)
@@ -442,10 +461,10 @@ def _complexation_libre_python(nom: str):
 LIBRE_VOLUMES = [0.5, 5.0, 10.0, 15.0, 19.9, 20.0, 20.1, 25.0, 39.0]
 
 
-@pytest.mark.parametrize("nom", COMPLEXATION_LIBRE)
-def test_complexation_libre_memes_nombres(nom, tmp_path):
+def lua_complexation_libre(nom: str, dossier: Path) -> dict:
+    """Le moteur Lua sur un cas : ses nombres, en JSON."""
     becher, burette, complexes, pKa = COMPLEXATION_LIBRE[nom]
-    lua = _executer(
+    return _executer(
         _LIBRE_EXPORT
         + f"""
 local t = T.titrage_complexation({becher}, {burette}, 20, {complexes}, {pKa})
@@ -453,8 +472,13 @@ local pH, pM = etats(t, {{{", ".join(map(str, LIBRE_VOLUMES))}}}, function(t, V)
 io.write('{{"libre":' .. tostring(t.libre) .. ',"pH":' .. pH .. ',"pM":' .. pM
   .. ',"sauts":' .. triplets(T.sauts_complexation(t, 40)) .. '}}')
 """,
-        tmp_path,
+        dossier,
     )
+
+
+@pytest.mark.parametrize("nom", COMPLEXATION_LIBRE)
+def test_complexation_libre_memes_nombres(nom, tmp_path):
+    lua = lua_complexation_libre(nom, tmp_path)
     t = _complexation_libre_python(nom)
     assert lua["libre"] is True
     assert lua["pH"] == pytest.approx(t.pH_du_melange(LIBRE_VOLUMES).tolist(), abs=1e-9)
@@ -542,10 +566,10 @@ def _precipitation_libre_python(nom: str):
         )
 
 
-@pytest.mark.parametrize("nom", PRECIPITATION_LIBRE)
-def test_precipitation_libre_memes_nombres(nom, tmp_path):
+def lua_precipitation_libre(nom: str, dossier: Path) -> dict:
+    """Le moteur Lua sur un cas : ses nombres, en JSON."""
     becher, burette, precipites, Vmax, volumes = PRECIPITATION_LIBRE[nom]
-    lua = _executer(
+    return _executer(
         _LIBRE_EXPORT
         + f"""
 local t = T.titrage_precipitation({becher}, {burette}, 20, {precipites})
@@ -558,8 +582,14 @@ io.write('{{"libre":' .. tostring(t.libre) .. ',"pH":' .. pH .. ',"p":' .. p
   .. ',"sauts":' .. triplets(T.sauts_precipitation(t, {Vmax}))
   .. ',"evenements":[' .. table.concat(ev, ",") .. '],"equivalences":' .. liste(T.equivalences_precipitation(t)) .. '}}')
 """,
-        tmp_path,
+        dossier,
     )
+
+
+@pytest.mark.parametrize("nom", PRECIPITATION_LIBRE)
+def test_precipitation_libre_memes_nombres(nom, tmp_path):
+    _, _, _, Vmax, volumes = PRECIPITATION_LIBRE[nom]
+    lua = lua_precipitation_libre(nom, tmp_path)
     t = _precipitation_libre_python(nom)
     assert lua["libre"] is True
     assert lua["pH"] == pytest.approx(t.pH_du_melange(volumes).tolist(), abs=1e-9)

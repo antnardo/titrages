@@ -49,6 +49,9 @@ LaTeX partagent un numéro de version.
   du paquet ; clés de solution `protons ligand`, `acide fort`, `base forte`,
   `espece` ; partenaire `OH-` pour un hydroxyde ; `\titragepH` lit le pH de ces
   titrages. Moteur Lua confronté au moteur Python (`test_lua.py`, `test_latex.py`).
+- Le document technique `docs/technique/titrages-technique.tex` : les calculs, les
+  choix algorithmiques et les vérifications, avec les tables d'écarts mesurés que
+  `docs/technique/verifications.py` recalcule.
 - `fractions_complexes` vit dans `titrages.equilibre`, avec `log_somme_complexes` et
   `moments_complexes`.
 - Sections « La complexométrie » et « La précipitation » de `docs/DOC.md` et de la

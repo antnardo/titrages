@@ -1,0 +1,737 @@
+% !TEX encoding = UTF-8
+% !TEX spellcheck = fr_FR
+% !TEX program = lualatex
+%
+% titrages-technique.tex — les calculs, les choix algorithmiques et les vérifications du
+% paquet titrages (Python, Lua, LaTeX).
+%
+% Compilation, depuis ce dossier, le paquet LaTeX titrages étant pris dans ../../latex :
+%   uv run python verifications.py            (refait tables/, une minute)
+%   TEXINPUTS=../../latex: lualatex titrages-technique
+%   TEXINPUTS=../../latex: lualatex titrages-technique
+%
+% Sources :
+%   H. Kalka, Polyprotic Acids and Beyond — An Algebraic Approach, Chemistry 2021, 3, 454-508.
+%   T. Brière, Une méthode simple de résolution des problèmes de pH et de titrages
+%     acido-basiques sans approximations, BUP 841, 2002.
+%   Y. Cortial, Courbe de dosage acidobasique et méthode des tangentes, BUP 734, 1991.
+%   F. M. M. Morel, J. G. Hering, Principles and Applications of Aquatic Chemistry, Wiley, 1993
+%     (la méthode du tableau, les composantes).
+%   D. Harvey, Analytical Chemistry 2.1, LibreTexts, § 16.10 à 16.12 (constantes).
+%
+% Copyright (c) 2026 antnardo — licence MIT (voir LICENSE).
+
+\documentclass[a4paper,11pt]{article}
+\usepackage{fontspec}
+\usepackage[french]{babel}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{mathtools}
+\usepackage[version=4]{mhchem}
+\usepackage{siunitx}
+\sisetup{locale=FR, exponent-product=\cdot}
+\usepackage{booktabs,tabularx}
+\usepackage{enumitem}
+\usepackage[hypcap=false, justification=raggedright, singlelinecheck=false]{caption}
+\usepackage{xcolor}
+\usepackage[most]{tcolorbox}
+\usepackage{fontawesome5}
+\usepackage{pifont}
+\usepackage{xspace}
+\usepackage[hidelinks]{hyperref}
+\usepackage{titrages}
+\emergencystretch=3em
+\pgfplotsset{compat=1.18}
+
+% --- les boîtes, à l'image des fiches dont ce document reprend le style -----------------
+\tcbset{
+  rmq/.style={enhanced, breakable, boxrule=0pt, frame hidden, arc=2pt, outer arc=2pt,
+    left=15pt, right=3pt, top=4pt, bottom=4pt, boxsep=0pt, before skip=4pt, after skip=4pt,
+    fontupper=\small},
+  bleu/.style={interior style={left color=blue!10, right color=black!5}},
+  rouge/.style={interior style={left color=red!20, right color=red!5}},
+  vert/.style={interior style={left color=green!40!black!30, right color=green!40!black!10}},
+}
+\newcommand\logo[1]{\hspace{-12pt}\makebox[12pt][l]{#1}}
+\newcommand\rmqphys[1]{\begin{tcolorbox}[rmq, bleu]\logo{\faLightbulb}#1\end{tcolorbox}}
+\newcommand\rmqplus[1]{\begin{tcolorbox}[rmq, bleu]\logo{\ding{40}}#1\end{tcolorbox}}
+\newcommand\rmqcons[1]{\begin{tcolorbox}[rmq, rouge, fontupper=\small\itshape]\logo{\ding{43}}#1\end{tcolorbox}}
+\newcommand\rmqattention[1]{\begin{tcolorbox}[rmq, vert]\logo{\faExclamationTriangle}#1\end{tcolorbox}}
+\newcommand\rmxphys[1]{\begin{tcolorbox}[rmq, bleu, left=3pt]\begin{itemize}[label=\faLightbulb, leftmargin=*, topsep=0pt, itemsep=2pt]#1\end{itemize}\end{tcolorbox}}
+\newcommand\rmxcons[1]{\begin{tcolorbox}[rmq, rouge, left=3pt, fontupper=\small\itshape]\begin{itemize}[label=\ding{43}, leftmargin=*, topsep=0pt, itemsep=2pt]#1\end{itemize}\end{tcolorbox}}
+\newcommand\asavoir{\par\noindent\textbf{\textsf{À savoir.}}\xspace}
+\newcommand\gras[1]{\textbf{#1}}
+\newcommand\rsltm[1]{\boxed{#1}}
+\newcommand\rslt[1]{\fbox{#1}}
+\newcommand\captionout[1]{\captionof{figure}{#1}}
+
+% --- notations ---------------------------------------------------------------------------
+\newcommand\pH{\ensuremath{\mathrm{pH}}\xspace}
+\newcommand\pL{\ensuremath{\mathrm{pL}}\xspace}
+\newcommand\pM{\ensuremath{\mathrm{pM}}\xspace}
+\newcommand\pP{\ensuremath{\mathrm{pP}}\xspace}
+\newcommand\pKa{\ensuremath{\mathrm{p}K_\mathrm{a}}\xspace}
+\newcommand\pKs{\ensuremath{\mathrm{p}K_\mathrm{s}}\xspace}
+\newcommand\pKe{\ensuremath{\mathrm{p}K_\mathrm{e}}\xspace}
+\newcommand\Ke{\ensuremath{K_\mathrm{e}}\xspace}
+\newcommand\co[1]{[\ce{#1}]}
+\newcommand\ddp[2]{\frac{\mathrm{d}#1}{\mathrm{d}#2}}
+\newcommand\pdp[2]{\frac{\partial#1}{\partial#2}}
+\newcommand\pare[1]{\left(#1\right)}
+\newcommand\et{\quad\text{et}\quad}
+\newcommand\Lra{\Longleftrightarrow}
+\newcommand\code[1]{\texttt{#1}}
+\newcommand\Rb{R_\text{bécher}}
+\newcommand\Ru{R_\text{burette}}
+
+\title{Le paquet \code{titrages}\\[4pt] \large Calculs, choix algorithmiques et vérifications}
+\author{antnardo}
+\date{19 octobre 2026}
+
+\begin{document}
+\maketitle
+
+Ce document accompagne le paquet \code{titrages} — un paquet Python et un paquet \LaTeX{} qui calculent la courbe de titrage d'un bécher quelconque par une burette quelconque, sans aucune approximation.
+Il donne tous les calculs sur lesquels reposent les deux moteurs, explique chacun des choix algorithmiques, et rassemble les preuves de leur fonctionnement : les démonstrations d'unicité et de monotonie qui fondent les algorithmes, et les comparaisons à des calculs indépendants, en double précision ou en précision arbitraire, dont les tables donnent les écarts mesurés.
+
+\rmxcons{
+\item Les solutions sont idéales : l'activité est la concentration.
+La température n'intervient que par \pKe et par la pente de Nernst.
+\item Les concentrations sont en \unit{mol/L}, les volumes dans une unité quelconque, la même partout.
+\item Le code est dans \code{src/titrages/} (Python) et \code{latex/titrages.lua} (Lua) ; chaque section nomme le module qu'elle décrit.
+Les tables de la dernière partie sont écrites par \code{docs/technique/verifications.py}, qui les recalcule.
+}
+
+\tableofcontents
+
+% =========================================================================================
+\section{Les fractions d'un polyacide}
+
+\subsection{Notations}
+\begin{itemize}
+\item $h=\co{H3O+}$, $w=\co{HO-}$, et le produit ionique de l'eau $\Ke=hw$.
+\item Un polyacide sous $N+1$ formes, de la plus acide (forme $0$) à la plus basique (forme $N$), de concentration totale $C$ ; la forme $j$ a cédé $j$ protons.
+\item Ses fractions $x_j=a_j/C$, avec $a_j$ la concentration de la forme $j$.
+\item Les constantes d'acidité successives $K_j$ et les constantes de dissociation cumulées $k_j=\prod_{i\le j}K_i$, constantes de \ce{H_{$N$}A = $j$ H+ + H_{$N-j$}A^{$-j$}} ; $k_0=1$.
+\item La forme $q$ est celle sous laquelle on introduit l'espèce : \ce{NaHCO3} introduit \ce{HCO3-}, $q=1$.
+\end{itemize}
+
+\subsection{Les fractions, explicites}
+La loi d'action des masses donne $k_j=h^ja_j/a_0$, et la conservation de la matière $\sum_jx_j=1$, d'où
+\begin{align}
+x_j(h)=\frac{k_j/h^j}{\sum_{m=0}^Nk_m/h^m}.
+\label{eq:fractions}
+\end{align}
+Avec $\log(k_j/h^j)=\log k_j+j\,\pH$, on note $t_j=\log k_j+j\,\pH$ et $t_\text{max}=\max_mt_m$ ; alors
+\begin{align}
+\rsltm{x_j=\frac{10^{t_j-t_\text{max}}}{\sum_m10^{t_m-t_\text{max}}}}
+\label{eq:lse}
+\end{align}
+\rmqphys{Le plus grand terme du dénominateur vaut exactement 1, les autres sont entre 0 et 1 : la somme est entre 1 et $N+1$, et aucune fraction n'est le quotient de deux nombres démesurés.
+Écrite comme \eqref{eq:fractions}, la formule déborde : pour l'EDTA à $\pH=14$, $\log(k_6/h^6)=-\num{22,56}+84=\num{61,4}$, et $x_0=10^{-61}$.
+C'est le procédé dit \og log-sum-exp\fg{} (\code{equilibre.fractions}, \code{fractions\_espece} en Lua).}
+
+\subsection{Les moments}
+Le nombre moyen de protons cédés, et le moment d'ordre 2,
+\begin{align}
+Y_1=\sum_{j=0}^Nj\,x_j \et Y_2=\sum_{j=0}^Nj^2x_j .
+\end{align}
+De $\ln x_j=\ln10\,t_j-\ln\sum_m10^{t_m}$, et de $\ddp{t_j}{\pH}=j$,
+\begin{align}
+\ddp{x_j}{\pH}=\ln10\,x_j\pare{j-Y_1}
+\quad\Longrightarrow\quad
+\ddp{Y_1}{\pH}=\ln10\sum_jj\,x_j\pare{j-Y_1}=\ln10\pare{Y_2-Y_1^2}.
+\label{eq:dY1}
+\end{align}
+$Y_2-Y_1^2$ est la variance du nombre de protons cédés : $Y_1$ est \gras{strictement croissante} en \pH dès que deux formes coexistent.
+
+\subsection{La variance, sans soustraction}
+Dans un saut, une forme domine à $1-10^{-10}$ près : $Y_2$ et $Y_1^2$ coïncident sur dix chiffres, et leur différence n'en garde que six.
+On l'écrit donc autrement :
+\begin{align}
+Y_2-Y_1^2
+=\sum_jj^2x_j-\sum_{j,k}j\,k\,x_jx_k
+=\frac12\sum_{j,k}x_jx_k\pare{j^2+k^2-2jk}
+=\rsltm{\sum_{j<k}x_jx_k\pare{k-j}^2}
+\label{eq:variance}
+\end{align}
+en utilisant $\sum_kx_k=1$ pour symétriser.
+Tous les termes sont positifs : aucun chiffre ne se perd.
+De même, l'écart de $Y_1$ à la forme introduite s'écrit $Y_1-q=\sum_jx_j\pare{j-q}$, sans soustraire deux nombres voisins (\code{equilibre.variance}, \code{equilibre.ecart\_moyen}).
+
+% =========================================================================================
+\section{Le pH d'une solution}
+
+\subsection{L'électroneutralité}
+Une solution contient des espèces faibles $i$, de concentrations $C_i$, introduites sous les formes $q_i$ ; un acide fort $C_a$ et une base forte $C_b$ ; leurs contre-ions.
+Une espèce introduite sous la forme $q_i$ apporte un contre-ion qui compense sa charge : ce qui compte est l'écart des protons cédés à ceux qu'on a ôtés en l'introduisant, $C_i(Y_{1,i}-q_i)$.
+La conservation de la charge s'écrit alors
+\begin{align}
+\rsltm{R(\pH)=\sum_iC_i\pare{Y_{1,i}-q_i}-\pare{C_b-C_a}+\delta}
+\qquad\text{avec}\qquad\delta=w-h,
+\label{eq:R}
+\end{align}
+et le \pH de la solution est celui qui annule $R$ (\code{Solution.residu}).
+
+\subsection{Unicité}
+D'après \eqref{eq:dY1} et $\ddp\delta\pH=\ln10\pare{w+h}$,
+\begin{align}
+\ddp R\pH=\ln10\pare{\sum_iC_i\pare{Y_{2,i}-Y_{1,i}^2}+h+w}>0 :
+\label{eq:dR}
+\end{align}
+$R$ est strictement croissante, et s'annule au plus une fois.
+Elle s'annule au moins une fois sur $[-6;\pKe+6]$ : en $\pH=-6$, $h=\qty{e6}{mol/L}$ l'emporte sur toutes les concentrations, et $R<0$ ; en $\pH=\pKe+6$, $w=\qty{e6}{mol/L}$, et $R>0$.
+\rmqphys{$\ddp R\pH$ est le pouvoir tampon de la solution, $\ddp{C_b}{\pH}$ (\code{Solution.pouvoir\_tampon}) : les deux notions sont la même dérivée.}
+
+\subsection{La dichotomie}
+Le \pH se trouve par dichotomie sur $[-6;\pKe+6]$ : on coupe l'intervalle en deux, on garde la moitié où $R$ change de signe, 64 fois.
+L'intervalle final mesure $(\pKe+12)/2^{64}\approx\num{1.4e-18}$, sous la précision de la machine au voisinage de 7 ($\num{8.9e-16}$) : le résultat est le \pH exact en double précision.
+\rmxcons{
+\item Pourquoi pas Newton : $\ddp R\pH$ varie de plusieurs ordres de grandeur entre les zones tampon et les sauts.
+Un pas de Newton parti d'une zone où la pente est presque nulle part à l'infini ; la dichotomie ne regarde que le signe, et ne demande ni réglage ni point de départ.
+\item Les 64 coupes sont les mêmes pour tous les points : elles se font sur un tableau de volumes d'un coup (\code{equilibre.racine\_croissante}).
+}
+
+% =========================================================================================
+\section{Le titrage : le sens direct}
+
+\subsection{Le mélange}
+Verser $V$ de burette dans $V_0$ de bécher, c'est mélanger les deux solutions : chaque concentration du mélange est la moyenne des deux pondérée par les volumes, $C^\text{mél}=\pare{V_0C^\text{b}+VC^\text{u}}/\pare{V_0+V}$.
+À \pH fixé, les $Y_{1,i}$ ne dépendent pas des concentrations : le premier terme de \eqref{eq:R} est linéaire en concentrations, et $\delta$ ne dépend que du \pH.
+L'électroneutralité du mélange, multipliée par $V_0+V$, se sépare donc en une part du bécher et une part de la burette, chacune calculée avec ses concentrations d'avant le mélange :
+\begin{align}
+(V_0+V)\,R^\text{mél}(\pH)=V_0\,\Rb(\pH)+V\,\Ru(\pH)=0
+\quad\Longrightarrow\quad
+\rsltm{V(\pH)=-V_0\,\frac{\Rb(\pH)}{\Ru(\pH)}}
+\label{eq:V}
+\end{align}
+\rmxphys{
+\item La dilution ne demande aucun traitement : il suffit de ne pas diluer les concentrations, et de laisser $V_0$ et $V$ pondérer les deux résidus.
+\item La courbe a un sens là où $V\ge0$ : entre le \pH du bécher ($\Rb=0$, $V=0$) et celui de la burette ($\Ru=0$, $V\to\infty$), là où les deux résidus sont de signes opposés.
+\item Ni polynôme à résoudre, ni réaction prépondérante : tout est explicite à \pH fixé (\code{Titrage.volume}).
+}
+
+\rmqattention{L'article de Kalka (2021) trace $n_0(h)=Y_1+\delta/C$ comme une courbe de titrage, ce qui revient à négliger la dilution.
+Pour l'acide éthanoïque et la soude à \qty{0.1}{mol/L}, l'écart atteint $\log3\approx\num{0,48}$ unité de \pH à deux fois l'équivalence (\code{tests/test\_dilution.py}).}
+
+\gras{Deux cas particuliers.}
+\begin{itemize}
+\item Le \pH imposé à une solution d'une seule espèce donne sa concentration, sans résolution : $R=0$ avec $C_a=C_b=0$ s'écrit $\rsltm{C(h)=-\delta(h)/\pare{Y_1(h)-q}}$ (\code{concentration\_pour\_pH}), le sens direct de la courbe $\pH=f(\mathrm pC)$.
+\item Un bécher d'acide faible ($\Rb=C_TY_1+\delta$) et une burette de base forte ($\Ru=-C_B+\delta$) donnent, avec l'abscisse normalisée $n=C_BV/(C_TV_0)$,
+\begin{align}
+n(h)=\frac{Y_1(h)+\delta(h)/C_T}{1-\delta(h)/C_B} :
+\end{align}
+le numérateur seul est la courbe sans dilution, et le dénominateur, la correction de dilution.
+\end{itemize}
+
+\gras{Sans dilution.} L'option \code{dilution=False} décrit l'ajout d'un réactif sans eau : le terme $\delta$ du mélange n'est plus porté que par le bécher, et $\Ru$ se réduit à sa partie $\sum_iC_i(Y_{1,i}-q_i)-(C_b-C_a)$ (\code{Solution.charge}).
+
+\subsection{La pente}
+En dérivant $V_0\Rb+V\Ru=0$ par rapport au \pH,
+\begin{align}
+V_0\Rb'+V'\Ru+V\Ru'=0
+\quad\Longrightarrow\quad
+\rsltm{\ddp V\pH=-\frac{V_0\Rb'+V\Ru'}{\Ru}}
+\label{eq:dV}
+\end{align}
+Le numérateur est une somme de deux termes positifs \eqref{eq:dR}, à poids positifs : rien ne s'y soustrait.
+Le quotient $V_0\pare{\Rb\Ru'-\Rb'\Ru}/\Ru^2$, équivalent sur le papier, est au contraire une différence de deux termes presque égaux au cœur d'un saut.
+La pente de la courbe est l'inverse, $\ddp\pH V$.
+
+\subsection{L'échantillonnage}
+La courbe est une courbe paramétrée par le \pH.
+On calcule $V(\pH)$ sur une grille de $40n$ \pH réguliers, entre le \pH du bécher et celui du volume maximal, puis on choisit $n$ points à \gras{longueur d'arc constante} dans le plan normalisé $\pare{V/V_\text{max},\pH/\Delta\pH}$ : les points se resserrent dans les sauts, où la courbe tourne, et s'espacent sur les plateaux.
+Chaque point retenu est recalculé exactement, et non interpolé (\code{Titrage.courbe}).
+
+\begin{center}
+\titragedefinir{ethanoique}{volume = 10, becher = { espece = { pKa = 4.76, C = 0.1 } }, burette = { base forte = 0.1 }, volume max = 20}
+\begin{tikzpicture}
+\begin{axis}[width=.62\textwidth, height=5.2cm, xlabel={$V$ (mL)}, ylabel=\pH, grid=both, ymin=0, ymax=14]
+  \addplottitrage[thick, mark=*, mark size=.6pt, only marks]{ethanoique}
+  \addplottitragesauts[red, mark=*]{ethanoique}
+\end{axis}
+\end{tikzpicture}
+\captionout{\qty{10}{mL} d'acide éthanoïque à \qty{0.1}{mol/L} par la soude à \qty{0.1}{mol/L}, 300 points à longueur d'arc constante : ils se resserrent dans le saut. Point d'inflexion à \qty{\titragesaut{ethanoique}{1}}{mL}, \pH \num{\titragesaut[pH]{ethanoique}{1}}.}
+\end{center}
+
+% =========================================================================================
+\section{Le titrage : le sens inverse}
+
+Le \pH après un volume $V$ donné annule
+\begin{align}
+g(\pH)=V_0\,\Rb(\pH)+V\,\Ru(\pH),
+\end{align}
+somme de deux fonctions strictement croissantes \eqref{eq:dR} à poids positifs : $g$ est strictement croissante, et la dichotomie de la section précédente s'applique telle quelle, sur le même intervalle (\code{Titrage.pH}).
+\rmqcons{On pourrait aussi interpoler la courbe directe ; mais c'est exact à la finesse de la grille près, quand la dichotomie l'est à la précision de la machine, pour le même coût.}
+
+% =========================================================================================
+\section{Les points d'inflexion}
+
+\subsection{Ce qu'on cherche}
+Un point d'inflexion de la courbe $\pH(V)$ est un extremum de sa pente $\ddp\pH V$.
+On le cherche sur la courbe directe, comme minimum de $\left|\ddp V\pH\right|$ : le changement de paramètre ne déplace pas l'extremum, puisque
+\begin{align}
+\ddp{}{\pH}\pare{\ddp V\pH}=-\pare{\ddp V\pH}^3\frac{\mathrm d^2\pH}{\mathrm dV^2}
+\end{align}
+s'annule en même temps que la dérivée seconde de $\pH(V)$, la pente $\ddp V\pH$ étant finie et non nulle.
+
+\subsection{Pourquoi en \pH, et non en volume}
+Un saut tient parfois dans un intervalle de volume minuscule : celui de \ce{Fe^2+} par \ce{MnO4-} occupe moins de \qty{e-9}{mL}.
+Aucune grille en $V$ ne le résout ; en \pH (ou en potentiel), il s'étale sur des unités, et $\left|\ddp V\pH\right|$ y est une fonction lisse.
+
+\subsection{L'affinage : le zéro d'une dérivée, et non la comparaison de deux valeurs}
+On repère les minima locaux de $f=\left|\ddp V\pH\right|$ sur une grille de 4000 \pH, puis on affine chacun entre ses deux voisins.
+\begin{itemize}
+\item Une section dorée compare $f(x_1)$ et $f(x_2)$.
+Près d'un minimum, $f(x)=f(x^\star)+\tfrac12f''(x^\star)(x-x^\star)^2$ : deux valeurs ne s'y distinguent qu'au second ordre, et la précision sur $x^\star$ plafonne à $\sqrt\varepsilon\approx10^{-8}$ en relatif.
+\item On cherche plutôt le zéro de $(\ln f)'$, estimée par différence centrée, $\ln f(x+\eta)-\ln f(x-\eta)$, de pas $\eta=10^{-6}$.
+Une dérivée s'annule au premier ordre, et la dichotomie sur son signe atteint la précision de la machine (\code{equilibre.minimum\_lisse}).
+\end{itemize}
+\rmqphys{Les trois précautions — chercher dans le paramètre et non en volume, annuler une dérivée plutôt que comparer des valeurs, écrire la variance et la pente sans soustraction — se mesurent sur \ce{Fe^2+} par \ce{MnO4-}, face à mpmath à 60 chiffres (\qty{1,37288297818}{V}) : sans la première, \qty{1,3716}{V} ; sans la deuxième, \qty{1,37289}{V} ; sans la troisième, \qty{1,37300}{V}.
+Avec les trois, l'écart est de quelques $10^{-12}$\,V (table~\ref{tab:inflexions}).}
+
+\rmqattention{Un point d'inflexion n'est pas l'équivalence.
+Pour \ce{Fe^2+} par \ce{MnO4-}, \qty{1,3729}{V} contre $E(V_\text{éq})=\qty{1,3867}{V}$, alors que les volumes ne diffèrent que de \qty{6e-10}{mL}.
+L'acide phosphorique a trois équivalences et deux points d'inflexion seulement.}
+
+% =========================================================================================
+\section{Les équivalences stœchiométriques}
+
+Elles ne demandent aucune résolution : ce sont des décomptes de protons.
+Le bécher offre des \og sites\fg : chaque acidité $j$ encore portée par une espèce introduite sous la forme $q$ ($j>q$) est un site acide de \pKa $\mathrm{p}K_{\mathrm{a},j}$, de taille $C\,V_0$ ; chaque proton déjà ôté ($j\le q$) est un site basique.
+\begin{enumerate}
+\item Un excès de base forte dans le bécher consomme d'abord les sites acides, par \pKa croissant, et en fait des sites basiques de même \pKa ; un excès d'acide fort fait l'inverse.
+Ce qui en reste est un site de \pKa infini.
+\item Une base forte titrante prend les sites acides par \pKa croissant ; un acide fort, les sites basiques par \pKa décroissant.
+\item La $k$-ième équivalence est le volume qui apporte autant de réactif que les $k$ premiers sites en demandent ; deux sites de même \pKa ne font qu'une équivalence.
+\end{enumerate}
+Un titrage en retour en découle : l'acide éthanoïque à \qty{0.05}{mol/L} et la soude à \qty{0.1}{mol/L}, titrés par l'acide chlorhydrique, donnent deux équivalences, à 5 et \qty{10}{mL} pour \qty{10}{mL} de bécher (\code{Titrage.volumes\_equivalents}).
+Le titrant faible n'a pas de définition aussi simple : la fonction le refuse.
+
+% =========================================================================================
+\section{La méthode des tangentes}
+
+Elle s'exécute exactement sur la courbe exacte, pour en mesurer l'erreur plutôt que la supposer.
+\begin{enumerate}
+\item Au volume $V_1$ choisi avant le saut, la pente $p_1=\ddp\pH V$, par \eqref{eq:dV}.
+\item Après le premier saut suivant $V_1$, le point $\pH_2$ de même pente : le zéro de $\left|\ddp\pH V\right|-|p_1|$, encadré sur une grille de 2000 \pH entre le saut et le \pH du volume maximal, puis affiné par dichotomie sur son signe.
+\item La parallèle équidistante passe par le milieu $\pare{(V_1+V_2)/2,(\pH_1+\pH_2)/2}$ ; son intersection avec la courbe est le zéro de $\pH-\pH_m-p_1\pare{V(\pH)-V_m}$ entre $\pH_1$ et $\pH_2$.
+\end{enumerate}
+Pour l'acide éthanoïque par la soude, depuis \qty{7}{mL} : \qty{\titragetangentes{ethanoique}{7}}{mL}, \pH \num{\titragetangentes[pH]{ethanoique}{7}}.
+
+% =========================================================================================
+\section{La conductimétrie}
+
+La loi de Kohlrausch, $\sigma=\sum_i\lambda_i^\circ c_i$, est linéaire en concentrations ; à \pH fixé, toutes le sont, et
+\begin{align}
+\rsltm{\sigma=\frac{V_0\,\sigma_\text{bécher}(\pH)+V\,\sigma_\text{burette}(\pH)}{V_0+V}+\lambda^\circ_{\ce{H3O+}}h+\lambda^\circ_{\ce{HO-}}w}
+\end{align}
+où $\sigma_\text{bécher}$ et $\sigma_\text{burette}$ sont les parts des ions de chaque solution, formes chargées et ions spectateurs (le \ce{Na+} de la soude), calculées avec leurs concentrations d'avant le mélange et au \pH du mélange.
+L'unité du paquet est le \unit{S/m}, celle que donnent $\lambda^\circ$ en \unit{mS.m^2.mol^{-1}} et $c$ en \unit{mol/L} ; la correction de dilution multiplie par $(V_0+V)/V_0$.
+
+% =========================================================================================
+\section{L'oxydoréduction}
+
+\subsection{La transposition}
+Les électrons remplacent les protons, et $E/s$ le \pH, avec $s=RT\ln10/F$.
+Un élément a ses formes de la plus réduite (0) à la plus oxydée ($N$) ; l'étape $j$ échange $n_j$ électrons et consomme $m_j$ protons à la réduction ; $e_j=\sum_{i\le j}n_i$ est le nombre d'électrons cédés de la forme 0 à la forme $j$.
+Le milieu est tamponné : $E^{\circ\prime}_j=E^\circ_j-s\,\frac{m_j}{n_j}\pH$.
+La loi de Nernst donne $a_j/a_{j-1}=10^{n_j(E-E^{\circ\prime}_j)/s}$, d'où, comme \eqref{eq:lse},
+\begin{align}
+x_j=\frac{10^{t_j}}{\sum_m10^{t_m}}
+\qquad\text{avec}\qquad
+t_j=-\sum_{i\le j}\frac{n_iE^{\circ\prime}_i}s+e_j\frac Es,
+\end{align}
+et $Y=\sum_je_jx_j$, de dérivée $\ddp YE=\frac{\ln10}s\sum_{j<k}x_jx_k(e_k-e_j)^2>0$, par le même calcul que \eqref{eq:dY1} et \eqref{eq:variance}.
+Le bilan d'électrons remplace l'électroneutralité : $R(E)=\sum_iT_i\pare{Y_i(E)-e_{q_i}}$, strictement croissant, et
+\begin{align}
+\rsltm{V(E)=-V_0\,\frac{\Rb(E)}{\Ru(E)}}
+\end{align}
+comme en acide-base (\code{redox.py}).
+
+\subsection{Le sens inverse}
+Le potentiel à volume donné annule $g(E)=V_0\Rb(E)+V\Ru(E)$, croissante : dichotomie sur $[\qty{-3}{V};\qty{4}{V}]$/ENH, qui contient tous les couples en solution aqueuse, 64 coupes ; l'intervalle final mesure $\qty{7}{V}/2^{64}\approx\qty{4e-19}{V}$.
+Un bécher qui ne contient qu'une forme par couple (du \ce{Fe^2+} pur) n'a pas de potentiel : $\Rb>0$ partout, et la dichotomie converge vers une borne.
+On le détecte ainsi — un résultat à moins de \qty{1}{\micro V} d'une borne —, et la courbe commence alors au millième du volume tracé.
+
+\subsection{Les couples dimériques}
+Pour \ce{I2}/\ce{I-}, \ce{Cr2O7^2-}/\ce{Cr^3+} ou \ce{S4O6^2-}/\ce{S2O3^2-}, la loi de Nernst porte un carré, $o=\kappa r^2$ avec $\kappa=10^{n(E-E^{\circ\prime})/s}$, et la conservation de l'élément, comptée en unités, $T=r+2\kappa r^2$.
+Sa racine positive s'écrit sans soustraction quand $\kappa T\ll1$ :
+\begin{align}
+r=\frac{2T}{1+\sqrt{1+8\kappa T}}.
+\end{align}
+La fraction oxydée dépend alors de $T$ : il n'existe plus de $Y(E)$, une simple dilution change le potentiel, et la séparation \eqref{eq:V} ne tient plus.
+\begin{itemize}
+\item \gras{Le sens inverse tient toujours} : $Y(E,T)$ reste croissante en $E$ à $T$ fixé, et chaque dimère s'évalue à sa concentration du mélange dans $g(E,V)$.
+\item \gras{Un seul dimère} : notons $u$ la concentration de sa forme monomère (\ce{Cr^3+}).
+À $E$ fixé, les couples monomères contribuent au bilan, multiplié par $V_0+V$, pour une quantité affine en $V$, $A(E)+B(E)\,V$.
+Avec pour inconnue $W=(V_0+V)u$, le bilan d'électrons d'un dimère oxydé (l'autre cas s'en déduit en échangeant les deux formes) s'écrit $A+BV+e_1\pare{V_0T_\text{b}+VT_\text{u}-W}-V_0I_\text{b}-VI_\text{u}=0$ ($I$ : les électrons introduits), linéaire en $W$ et en $V$ :
+\begin{align}
+W=w_0+w_1V,\qquad w_0=\frac{A+V_0\pare{e_1T_\text{b}-I_\text{b}}}{e_1},\qquad w_1=\frac{B+e_1T_\text{u}-I_\text{u}}{e_1}.
+\end{align}
+La conservation de l'élément multipliée par $(V_0+V)^2$, $\pare{V_0T_\text{b}+VT_\text{u}-W}(V_0+V)=2\kappa W^2$, est alors du second degré en $V$ : avec $d_0=V_0T_\text{b}-w_0$ et $d_1=T_\text{u}-w_1$, $c_2V^2+c_1V+c_0=0$, où
+\begin{align}
+c_2=d_1-2\kappa w_1^2,\qquad c_1=d_0+V_0d_1-4\kappa w_0w_1,\qquad c_0=V_0d_0-2\kappa w_0^2.
+\end{align}
+$V(E)$ est la racine qui a un sens physique — $V\ge0$, $W\ge0$, $V_0T_\text{b}+VT_\text{u}-W\ge0$, la plus petite si deux conviennent —, calculée par $\mathcal Q=-\frac12\pare{c_1+\operatorname{sgn}(c_1)\sqrt{c_1^2-4c_2c_0}}$, puis $V=\mathcal Q/c_2$ et $V=c_0/\mathcal Q$ : la formule scolaire perd tous ses chiffres quand $c_1^2\gg|4c_2c_0|$, ce qui arrive sur les plateaux, où $\kappa$ vaut $10^{\pm30}$.
+\item \gras{Deux dimères ou plus} : $V(E)$ par dichotomie sur $\log V$ entre $10^{-12}V_0$ et $10^6V_0$, sur le signe de $g(E,V)$.
+\end{itemize}
+
+\gras{La pente d'un dimère.} Elle se prend par dérivation implicite, $\ddp EV=-\pdp gV\big/\pdp gE$, au point où $g$ est exactement nulle.
+Avec $Y=e_1\pare{1-r/T}$ pour un dimère oxydé et $D=T-r=2\kappa r^2$ la part dimère, la dérivée de $T=r+2\kappa r^2$ à $T$ fixé, $0=\mathrm dr\pare{1+4\kappa r}+2r^2\,\mathrm d\kappa$, et $1+4\kappa r=(2T-r)/r$, donnent
+\begin{align}
+\pdp YE=\frac{n\ln10}s\,\frac{e_1\,rD}{T(2T-r)}
+\et
+\pdp YT=\frac{e_1\,rD}{T^2(2T-r)},
+\end{align}
+de signe opposé pour un dimère réduit.
+Le bilan du mélange multiplié par $V_0+V$,
+\begin{align}
+g=\sum_i\Sigma_i\,Y_i\pare{E,T_i^\text{mél}}-\pare{V_0I_i^\text{b}+VI_i^\text{u}}
+\qquad\text{avec}\qquad\Sigma_i=V_0T^\text{b}_i+VT^\text{u}_i,
+\end{align}
+a pour dérivées
+\begin{align}
+\pdp gE&=\sum_i\Sigma_i\pdp{Y_i}E,\\
+\pdp gV&=\sum_i\pare{T^\text{u}_i\pare{Y_i-e_{q_i}^\text{u}}+\Sigma_i\pdp{Y_i}T\,\frac{T^\text{u}_i-T^\text{mél}_i}{V_0+V}},
+\end{align}
+toutes analytiques, sans différence finie (\code{electrons\_et\_derivees}).
+
+\subsection{Les équivalences}
+La burette apporte une capacité d'électrons ; le bécher offre un site par étape, de taille $T\,n_j$ et de potentiel $E^{\circ\prime}_j$, rangés par potentiel croissant pour un oxydant titrant, décroissant pour un réducteur.
+
+\begin{center}
+\titrageredoxdefinir{permanganate}{volume = 10, becher = { espece = { E0 = 0.77, C = 0.1 } }, burette = { espece = { E0 = 1.51, n = 5, H = 8, C = 0.02, forme = ox } }, volume max = 20}
+\begin{tikzpicture}
+\begin{axis}[width=.62\textwidth, height=5.2cm, xlabel={$V$ (mL)}, ylabel={$E$ (V/ENH)}, grid=both]
+  \addplottitrage[thick]{permanganate}
+  \addplottitragesauts[red, mark=*]{permanganate}
+\end{axis}
+\end{tikzpicture}
+\captionout{\qty{10}{mL} de \ce{Fe^2+} à \qty{0.1}{mol/L} par \ce{MnO4-} à \qty{0.02}{mol/L}, $\pH=0$. Point d'inflexion à \qty{\titragesaut{permanganate}{1}}{mL}, $E=\qty{\titragesaut[E]{permanganate}{1}}{V}$ : il n'est pas au milieu du saut, $n_1\neq n_2$.}
+\end{center}
+
+% =========================================================================================
+\section{La complexométrie à pH imposé}
+
+\subsection{Le ligand libre joue le rôle du proton}
+Un métal M et ses complexes successifs $\ce{ML}_j$, $j=0\dots n$, de constantes globales $\beta_j$ ($\beta_0=1$), se comportent comme un polyacide dont les \og protons\fg seraient des ligands.
+Si le ligand a des acidités, seule sa forme la plus basique L complexe ; à \pH fixé, sa fraction $\alpha$ est une constante, et l'on travaille sur le ligand libre toutes formes protonées comprises, $\ell'=\ell/\alpha$, avec les constantes conditionnelles $\beta'_j=\beta_j\alpha^j$.
+À $\ell'$ imposé, les fractions sont explicites,
+\begin{align}
+x_j=\frac{\beta'_j\ell'^j}{\sum_m\beta'_m\ell'^m},
+\end{align}
+calculées en échelle logarithmique comme \eqref{eq:lse}, avec $t_j=\log\beta'_j-j\,\pL$ et $\pL=-\log\ell'$ (\code{equilibre.fractions\_complexes}).
+Un complexe que les tables ne donnent pas a $\log\beta=-\infty$ : sa fraction est nulle, et le calcul n'en est pas gêné.
+
+\subsection{Le bilan du ligand}
+Le ligand se répartit entre sa forme libre et les complexes : pour une solution de métaux $C_i$ et de ligand $C_L$,
+\begin{align}
+\rsltm{R(\pL)=\sum_iC_i\,Y_{1,i}(\pL)+\ell'-C_L}
+\qquad\text{avec}\qquad Y_{1,i}=\sum_jj\,x_{j,i},
+\end{align}
+nul à l'équilibre.
+Il est linéaire dans les concentrations de la solution, à \pL fixé : il se sépare entre le bécher et la burette comme l'électroneutralité, et $V(\pL)=-V_0\Rb(\pL)/\Ru(\pL)$, plusieurs métaux en compétition compris.
+Sa dérivée,
+\begin{align}
+\ddp R\pL=-\ln10\pare{\sum_iC_i\,\mathrm{Var}_i+\ell'}<0,
+\end{align}
+avec $\mathrm{Var}_i$ écrite comme \eqref{eq:variance}, assure l'unicité de $\pL(V)$, trouvé par dichotomie sur $u=-\pL\in[-80;\log C_\text{max}+1]$ : à $\ell'=10^{-80}$, même le complexe le plus stable des tables ($\log\beta\approx40$) n'en fixe plus rien (\code{TitrageComplexometrique.pL}).
+
+\subsection{pM et sa pente}
+Le métal libre est $[\ce{M}]=T_\mathrm M(V)\,x_0$, soit
+\begin{align}
+\pM=-\log T_\mathrm M(V)+\log\sum_j\beta'_j\ell'^j,
+\qquad
+T_\mathrm M(V)=\frac{V_0C_\mathrm M^\text{b}+VC_\mathrm M^\text{u}}{V_0+V}.
+\end{align}
+Avec $\ddp{T_\mathrm M}V=\pare{C^\text{u}_\mathrm M-T_\mathrm M}/(V_0+V)$ et $\ddp{}\pL\log\sum_j\beta'_j\ell'^j=-Y_1$,
+\begin{align}
+\rsltm{\ddp\pM\pL=-\frac{C^\text{u}_\mathrm M-T_\mathrm M}{(V_0+V)\,T_\mathrm M\ln10}\ddp V\pL-Y_1}
+\qquad\text{et}\qquad
+\ddp\pM V=\ddp\pM\pL\Big/\ddp V\pL,
+\end{align}
+$\ddp V\pL$ venant de \eqref{eq:dV} appliquée au bilan du ligand.
+
+\subsection{La courbe et les sauts}
+La courbe part d'un milliardième du volume maximal : à volume nul, le bécher n'a pas de ligand libre, et \pL est infini.
+Les points d'inflexion sont les minima de $\left|\ddp V\pM\right|=\left|\ddp V\pL\big/\ddp\pM\pL\right|$, cherchés en \pL et affinés comme en acide-base, à partir d'un millionième du volume maximal : avant, la courbe est plate à la précision de la machine, et ses minima n'y seraient que du bruit.
+
+\subsection{Les équivalences}
+Comme pour un polyacide, une équivalence par étape de complexation, qu'elle donne un saut ou non.
+Mais les constantes successives d'un métal ne décroissent pas toujours, et un complexe peut ne jamais prédominer.
+\begin{itemize}
+\item Quand le ligand libre augmente, le complexe prédominant est celui qui maximise $\log\beta_j+j\log\ell$ : c'est l'enveloppe supérieure d'une famille de droites en $\log\ell$.
+Par dualité, les complexes qui prédominent tour à tour sont les \gras{sommets de l'enveloppe concave} des points $(j,\log\beta_j)$, et chaque arête de cette enveloppe est une étape, qui fixe $\Delta j$ ligands avec la force $\Delta\log\beta/\Delta j$ (\code{\_sommets}, \code{\_etapes}).
+\item Un ligand qui titre des métaux : les étapes de tous les métaux, rangées de la plus forte à la plus faible ; la $k$-ième équivalence apporte le ligand des $k$ premières, et deux étapes de même force n'en font qu'une, comme deux sites de même \pKa.
+\item Un métal qui titre le ligand : celui-ci, d'abord en excès, est fixé dans le complexe prédominant le plus riche, puis dans les suivants : une équivalence par sommet, $V=V_0C_L/\pare{n_\text{sommet}C_\mathrm M}$.
+\end{itemize}
+\rmqphys{\ce{Zn}–\ce{NH3} : $\log K=\num{2,21}$, \num{2,29}, \num{2,36}, \num{2,03}, croissantes jusqu'à la troisième ; \ce{Zn(NH3)^2+} et \ce{Zn(NH3)2^2+} ne prédominent jamais, et la première étape fixe trois ligands.
+Le dosage de Liebig : la source ne donne pas $\beta_1$ pour \ce{Ag}–\ce{CN-} ; \ce{Ag(CN)3^2-} puis \ce{Ag(CN)2-}, et seule la seconde donne un saut, comme la troisième acidité de l'acide phosphorique.}
+
+\begin{center}
+\titragecomplexationdefinir{calcium}{volume = 20, pH = 10, ligand pKa = {0, 1.5, 2, 2.66, 6.16, 10.24}, complexe = {metal = Ca2+, log beta = 10.7}, becher = {metal = {Ca2+, 0.01}}, burette = {ligand = 0.01}, volume max = 40}
+\titragecomplexationdefinir{zinc}{volume = 20, pH = 10, ligand pKa = {0, 1.5, 2, 2.66, 6.16, 10.24}, complexe = {metal = Ca2+, log beta = 10.7}, complexe = {metal = Zn2+, log beta = 16.5}, becher = {metal = {Ca2+, 0.01}, metal = {Zn2+, 0.005}}, burette = {ligand = 0.01}, suivi = Zn2+, volume max = 40}
+\begin{tikzpicture}
+\begin{axis}[width=.62\textwidth, height=5.2cm, xlabel={$V$ (mL)}, ylabel=\pM, grid=both]
+  \addplottitrage[thick]{calcium}
+  \addplottitragesauts[black, mark=*]{calcium}
+  \addplottitrage[thick]{zinc}
+  \addplottitragesauts[black, mark=*]{zinc}
+\end{axis}
+\end{tikzpicture}
+\captionout{\qty{20}{mL} de \ce{Ca^2+} à \qty{0.01}{mol/L} par l'EDTA à \qty{0.01}{mol/L}, à $\pH=10$ : pCa \num{\titragepM{calcium}{20}} à l'équivalence. Avec \ce{Zn^2+} à \qty{0.005}{mol/L}, pZn : équivalences \num{\titrageequivalence{zinc}{1}} et \qty{\titrageequivalence{zinc}{2}}{mL}, le zinc d'abord ($\log\beta=\num{16,5}$).}
+\end{center}
+
+% =========================================================================================
+\section{La précipitation à pH imposé}
+
+\subsection{Les solides présents}
+Un ion commun P (\ce{Ag+}) forme avec des partenaires $\mathrm X_i$ des solides $\mathrm P_\nu\mathrm X_\mu$, $K_s=a^\nu x^\mu$ avec $a=[\mathrm P]$.
+À $a$ imposé, un solide présent fixe son partenaire, toutes formes protonées comprises,
+\begin{align}
+x_\text{sat}=\pare{K_s/a^\nu}^{1/\mu}\big/\alpha,
+\end{align}
+et un solide absent laisse le partenaire en solution.
+En notant $r=\nu/\mu$, pour un ensemble $S$ de solides présents,
+\begin{align}
+\rsltm{R_S(\pP)=a+\sum_{i\in S}r_i\pare{C_{\mathrm X_i}-x_{\text{sat},i}}-C_\mathrm P}
+\end{align}
+est encore linéaire dans les concentrations de la solution : chaque ensemble a son volume explicite, $V_S(\pP)=-V_0R_{S,\text{bécher}}/R_{S,\text{burette}}$.
+
+\subsection{L'ensemble cohérent}
+On essaie les $2^n$ ensembles, et l'on retient celui qui est \gras{cohérent} au volume trouvé : chaque solide présent a une quantité positive, $T_{\mathrm X_i}(V)\ge x_{\text{sat},i}$, chaque absent n'est pas sursaturé, $T_{\mathrm X_i}(V)\le x_{\text{sat},i}$, à $10^{-12}$ près en relatif ; un volume de $-10^{-12}V_0$, au départ, est un zéro arrondi.
+À volume donné, l'ensemble ne se choisit pas : la fonction
+\begin{align}
+F_V(a)=a+\sum_ir_i\max\pare{0,T_{\mathrm X_i}(V)-x_{\text{sat},i}(a)}-T_\mathrm P(V)
+\end{align}
+est strictement croissante en $a$ — $x_\text{sat}$ décroît avec $a$ —, son zéro est unique, et les solides présents en découlent ; c'est la dichotomie de \code{TitrageParPrecipitation.p}, sur $\log a\in[-60;\log C_\text{max}+1]$.
+
+\subsection{La pente}
+La dérivée de $R_S$ ne dépend que de $a$ et des solides présents,
+\begin{align}
+\ddp{R_S}\pP=-\ln10\pare{a+\sum_{i\in S}r_i^2x_{\text{sat},i}},
+\end{align}
+la même pour les deux solutions ; \eqref{eq:dV} donne alors $\ddp V\pP=-(V_0+V)\,R_S'/R_{S,\text{burette}}$.
+
+\subsection{Les événements}
+Là où un solide apparaît ou disparaît, la pente saute : la courbe a un \gras{point anguleux}, un événement, distinct des points d'inflexion.
+On les repère où l'ensemble change sur une grille de 4000 \pP, et on les affine par dichotomie sur le signe de la sursaturation $T_\mathrm X(V)-x_\text{sat}(a)$.
+Les points d'inflexion ne se cherchent qu'à l'intérieur des morceaux lisses : les mêmes solides de part et d'autre.
+
+\subsection{Les équivalences}
+L'ion commun titre les partenaires dans l'ordre où ils précipitent dans le bécher, par le \pP où chacun commencerait à précipiter, $(\mu(\log C+\log\alpha)+\pKs)/\nu$ ; un partenaire titre l'ion commun qui reste une fois les partenaires du bécher précipités (Charpentier-Volhard).
+
+\begin{center}
+\titrageprecipitationdefinir{mohr}{volume = 20, pH = 7.5, precipite = {partenaire = Cl-, pKs = 9.75}, precipite = {partenaire = CrO4^2-, pKs = 11.95, nu = 2, pKa = 6.5}, becher = {partenaire = {Cl-, 0.05}, partenaire = {CrO4^2-, 0.005}}, burette = {commun = 0.05}, volume max = 30}
+\titrageprecipitationdefinir{volhard}{volume = 20, precipite = {partenaire = Cl-, pKs = 9.75}, precipite = {partenaire = SCN-, pKs = 12}, becher = {commun = 0.1, partenaire = {Cl-, 0.05}}, burette = {partenaire = {SCN-, 0.1}}, volume max = 25}
+\begin{tikzpicture}
+\begin{axis}[width=.62\textwidth, height=5.2cm, xlabel={$V$ (mL)}, ylabel={pAg}, grid=both]
+  \addplottitrage[thick]{mohr}
+  \addplottitrageevenements[black, mark=diamond*]{mohr}
+  \addplottitrage[thick]{volhard}
+  \addplottitrageevenements[black, mark=diamond*]{volhard}
+\end{axis}
+\end{tikzpicture}
+\captionout{Mohr, $\pH=\num{7,5}$ : le chromate d'argent apparaît à \qty{\titrageevenement{mohr}{2}}{mL}. Charpentier-Volhard : le thiocyanate d'argent apparaît dès la première goutte, le chlorure d'argent se redissout à \qty{\titrageevenement{volhard}{2}}{mL}. Losanges : les événements.}
+\end{center}
+
+% =========================================================================================
+\section{Le pH calculé}
+
+\subsection{Les composantes}
+Sans tampon, le pH devient une inconnue.
+On reprend la formulation des logiciels de spéciation (la méthode du tableau de Morel) : les inconnues sont les concentrations libres de quelques \gras{composantes} — \ce{H+}, le ligand sous sa forme la plus basique, l'ion commun, les métaux, les partenaires —, en logarithme, $u_c=\log c$.
+Toute espèce s'en déduit, $c_s=K_s\,10^{\nu_s\cdot u}$ : $\ce{H_kL}$ a $\nu_\mathrm H=k$, $\nu_\mathrm L=1$ ; \ce{HO-} a $\nu_\mathrm H=-1$ et $K=\Ke$.
+Chaque composante a son bilan, $\sum_s\nu_{sc}c_s=T_c$, et chaque total est linéaire dans les deux solutions.
+Le bilan de H est l'électroneutralité écrite en protons : un acide fort compte dans $T_\mathrm H$, une base forte en négatif, \ce{Na2H2Y} apporte $2C$ à $T_\mathrm H$.
+
+\subsection{L'unicité : la convexité}
+Les bilans sont le gradient de
+\begin{align}
+\Phi(u)=\frac1{\ln10}\sum_sc_s(u)-\sum_cT_cu_c,
+\qquad
+\pdp\Phi{u_c}=\sum_s\nu_{sc}c_s-T_c,
+\end{align}
+dont la hessienne, $\ln10\sum_sc_s\,\nu_s\nu_s^\top$, est définie positive dès que les composantes sont indépendantes : $\Phi$ est strictement convexe, et l'équilibre à volume donné est \gras{unique}.
+Un solide ajoute une contrainte linéaire, $\nu_p\cdot u\le\log K_{s,p}$ : le domaine reste convexe, la solution unique, et la quantité de solide est le multiplicateur de la contrainte.
+
+\rmqphys{La conséquence qui fonde l'algorithme : minimiser une fonction convexe sur une partie des variables laisse une fonction convexe des autres, dont la dérivée est le bilan restant.
+\gras{Le bilan des protons, évalué après avoir résolu les autres bilans à \pH fixé, est donc monotone en \pH.}
+D'où deux dichotomies imbriquées, chacune sur une fonction monotone, sans Newton ni point de départ (\code{\_dichotomie}).}
+
+Une composante est \gras{éliminable} quand son bilan se résout explicitement une fois les autres fixées : un métal, à $\ell$ connu, par ses fractions ; un partenaire, à $a$ et \pH connus, par $x'=\min\pare{T_\mathrm X,x_\text{sat}}$ ; un métal qui précipite en hydroxyde, par la borne qu'impose \pH.
+Restent au plus deux composantes principales : le \pH, à l'extérieur, et $u$ — le ligand ou l'ion commun —, à l'intérieur.
+
+\subsection{La complexométrie}
+Avec $\ell$ le ligand basique libre, $P=\sum_kK_kh^k$ (les $K_k$ cumulés de ses formes protonées), $P_1=\sum_kk\,K_kh^k$ et $P_2=\sum_kk^2K_kh^k$, les deux bilans du mélange sont
+\begin{align}
+g_L&=\sum_mT_mY_{1,m}(u)+\ell P-T_L,\\
+g_H&=R_\text{ab}(\pH)+k_0T_L-\ell P_1,
+\end{align}
+où $R_\text{ab}$ est le résidu \eqref{eq:R} de la partie acido-basique des solutions (acides et bases forts, un tampon décrit comme un couple, l'eau), $k_0$ les protons du ligand tel qu'on l'introduit, et $\ell P_1$ ceux que portent ses formes libres ; le ligand fixé dans un complexe n'en porte pas.
+La jacobienne, en $(\pH,u)$ :
+\begin{align}
+\pdp{g_H}\pH=R_\text{ab}'+\ln10\,\ell P_2,\quad
+\pdp{g_H}u=\pdp{g_L}\pH=-\ln10\,\ell P_1,\quad
+\pdp{g_L}u=\ln10\pare{\sum_mT_m\mathrm{Var}_m+\ell P},
+\end{align}
+symétrique, comme le veut la convexité (\code{complexation\_libre.py}).
+
+\subsection{La précipitation et les hydroxydes}
+Avec $a$ l'ion commun libre, $x'_i=x_{\text{sat},i}$ pour un solide présent et $T_{\mathrm X_i}$ sinon, $m_i$ le nombre moyen de protons du partenaire en solution :
+\begin{align}
+g_P&=a+\sum_{i\in S}r_i\pare{T_{\mathrm X_i}-x'_i}-T_P,\\
+g_H&=R_\text{ab}(\pH)-\sum_ix'_im_i,
+\end{align}
+un partenaire s'introduisant sous sa forme la plus basique.
+Un \gras{hydroxyde} $\mathrm P_\nu(\mathrm{OH})_\mu$ — un précipité dont le partenaire est \ce{HO-} — borne l'ion commun : $a\le a_\text{sat}(h)$, $K_s=a^\nu(\Ke/h)^\mu$.
+Présent, il fixe $u=\pare{-\pKs-\mu(\pH-\pKe)}/\nu$, et sa quantité $s=-g_P/\nu$ libère $\mu s$ protons : l'équation du \pH devient $g_H-(\mu/\nu)\,g_P=0$, à une seule inconnue (\code{precipitation\_libre.py}).
+
+\subsection{Newton, et son critère d'arrêt}
+Pour suivre la courbe, on n'emploie la dichotomie imbriquée qu'en reprise : chaque point part de l'état d'un voisin (\pH, $u$, solides), et Newton, à jacobienne exacte et à ensemble de solides fixé, y converge en quelques pas.
+\begin{itemize}
+\item Les pas sont bornés à deux unités, pour qu'un départ lointain ne sorte pas du domaine.
+\item Près d'une équivalence, le bilan du ligand est mal conditionné : $\pdp{g_L}u$ y est petit, et le bruit d'arrondi de $g_L$ ($\approx10^{-18}$ sur des totaux de $10^{-2}$) laisse $u$ indéterminé à quelques $10^{-13}$ près, pour Newton comme pour la dichotomie.
+Le critère d'arrêt en tient compte : le pas tombe sous $10^{-13}$, ou cesse de décroître alors qu'il est déjà sous $10^{-8}$.
+\item Un point où Newton n'a pas convergé, ou dont l'ensemble de solides ne convient plus, est repris par la dichotomie, qui est sûre.
+\end{itemize}
+
+\subsection{Les dérivées}
+À volume fixé, le théorème des fonctions implicites donne la pente exactement :
+\begin{align}
+J\begin{pmatrix}\ddp\pH V\\[2pt]\ddp uV\end{pmatrix}=-\pdp gV=-\frac1{V_0+V}\begin{pmatrix}g_H^\text{burette}\\ g_{L}^\text{burette}\end{pmatrix},
+\end{align}
+où $g^\text{burette}$ est le bilan écrit avec les seules concentrations de la burette, termes libres compris : sur la courbe, $g=0$, et $\pdp{}V\frac{V_0g^\text{b}+Vg^\text{u}}{V_0+V}=\frac{g^\text{u}-g}{V_0+V}$.
+
+\subsection{La courbe paramétrée par le volume}
+Le volume n'est plus une fonction explicite du paramètre, et le \pH n'est pas toujours monotone le long du titrage : la courbe est paramétrée par $V$ lui-même.
+On part de 200 volumes réguliers, puis on ajoute le milieu de chaque segment plus long que $1/n$ dans le plan normalisé, jusqu'à ce qu'il n'en reste plus ; on rééchantillonne enfin à longueur d'arc constante (\code{libre.py}).
+Les points d'inflexion sont les minima de $\left|\ddp V\pM\right|$ en $V$, à l'intérieur des morceaux lisses, affinés par \code{minimum\_lisse} avec un pas proportionnel à la largeur locale de la grille raffinée : avec des dérivées exactes à $10^{-15}$ près, la position est juste à environ $10^{-12}$ fois cette largeur.
+Les événements sont affinés par dichotomie en volume, sur le prolongement du morceau qui les précède.
+
+\begin{center}
+\titragecomplexationdefinir{sanstampon}{volume = 20, ligand pKa = {0, 1.5, 2, 2.66, 6.16, 10.24}, complexe = {metal = Ca2+, log beta = 10.7}, becher = {metal = {Ca2+, 0.01}}, burette = {ligand = 0.01, protons ligand = 2}, volume max = 40}
+\titragecomplexationdefinir{ammoniacal}{volume = 20, ligand pKa = {0, 1.5, 2, 2.66, 6.16, 10.24}, complexe = {metal = Ca2+, log beta = 10.7}, becher = {metal = {Ca2+, 0.01}, espece = {pKa = 9.25, C = 0.1}, espece = {pKa = 9.25, C = 0.1, forme = 1}}, burette = {ligand = 0.01, protons ligand = 2, espece = {pKa = 9.25, C = 0.1}, espece = {pKa = 9.25, C = 0.1, forme = 1}}, volume max = 40}
+\begin{tikzpicture}
+\begin{axis}[width=.62\textwidth, height=5.2cm, xlabel={$V$ (mL)}, ylabel={pCa}, grid=both]
+  \addplottitrage[thick]{sanstampon}
+  \addplottitrage[thick]{ammoniacal}
+  \addplottitragesauts[black, mark=*]{ammoniacal}
+\end{axis}
+\end{tikzpicture}
+\captionout{\ce{Ca^2+} à \qty{0.01}{mol/L} par \ce{Na2H2Y} à \qty{0.01}{mol/L}, pH calculé. Sans tampon, l'EDTA libère ses protons : \pH \num{\titragepH{sanstampon}{10}} à \qty{10}{mL}, plus de saut. Avec le tampon \ce{NH4+}/\ce{NH3} à \qty{0.1}{mol/L} décrit comme une solution, le \pH dérive de \num{\titragepH{ammoniacal}{0}} à \num{\titragepH{ammoniacal}{20}}, et le saut reste, à \qty{\titragesaut{ammoniacal}{1}}{mL}.}
+\end{center}
+
+% =========================================================================================
+\section{Les trois implémentations}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{.27\linewidth}>{\raggedright\arraybackslash}p{.22\linewidth}@{}}
+\toprule
+& Python et Lua & pgf (pdf\LaTeX)\\
+\midrule
+courbes acide-base, conductimétrie, rédox monomère & oui & oui \\
+couples dimériques, sauts, équivalences, tangentes & oui & non \\
+complexométrie, précipitation, pH calculé & oui & non \\
+précision des courbes & double précision & \code{fpu}, 4 à 5 chiffres \\
+précision des nombres & double précision & \code{l3fp}, 16 chiffres \\
+\bottomrule
+\end{tabularx}
+\end{center}
+\begin{itemize}
+\item Le moteur Python est vectorisé : les dichotomies avancent sur des tableaux de points d'un coup.
+\item Le moteur Lua suit le même algorithme, point par point, en Lua 5.3 pur ; il tourne sous Lua\TeX{} comme sous \code{texlua}, ce qui permet de le comparer au moteur Python hors de \TeX.
+Pour le pH calculé, où une dichotomie imbriquée coûte quelques dizaines de millisecondes par point, la courbe se construit par continuation : Newton depuis le point précédent, la dichotomie en reprise.
+\item Le moteur pgf construit, à la définition du titrage, l'expression de $V(\pH)$ et la confie à \code{pgfplots} en courbe paramétrée ; la même expression, évaluée par \code{l3fp}, donne les nombres explicites, et ceux qu'une dichotomie de 54 coupes trouve ($\num{2e-15}$ en \pH).
+\end{itemize}
+
+% =========================================================================================
+\section{Les vérifications}
+
+\subsection{Le principe}
+Chaque calcul du paquet est confronté à un calcul qui ne lui emprunte rien : ni son code, ni, autant que possible, sa formulation.
+\begin{itemize}
+\item \gras{La dilution} : la force brute dilue à la main chaque concentration, écrit chaque forme par la formule des manuels, avec ses contre-ions, et résout l'électroneutralité du mélange par 200 coupes de dichotomie en double précision ; elle ne connaît pas la séparation \eqref{eq:V}.
+\item \gras{Les points d'inflexion} : mpmath, à 60 chiffres, écrit la courbe directe en multiprécision et cherche le zéro de sa dérivée seconde (\code{mp.findroot}), depuis le minimum de $|V'|$ sur une grille (\code{tests/reference\_mpmath.py}).
+\item \gras{La complexométrie et la précipitation} : mpmath, à 50 chiffres, dilue à la main et résout les bilans du mélange par dichotomie sur le ligand libre ou sur l'ion commun, chaque solide présent ou non selon qu'il est sursaturé ; il ne connaît ni le paramétrage par \pL ou \pP, ni l'énumération des ensembles.
+\item \gras{Le pH calculé} : la référence écrit l'électroneutralité, avec les contre-ions écrits à la main (\ce{Cl-} de \ce{CaCl2}, \ce{Na+} de \ce{Na2H2Y}, \ce{K+} de \ce{KCN}…), là où le paquet écrit le bilan des protons ; elle trouve un départ par dichotomie en double précision, puis résout le système de l'ensemble de solides trouvé par Newton à 40 chiffres (\code{mp.findroot}).
+\item \gras{Les moteurs Lua et pgf} : leurs nombres, comparés à ceux du paquet Python sur les mêmes titrages.
+\end{itemize}
+Les tables suivantes donnent, pour chaque cas, le plus grand écart mesuré, et non la tolérance des tests.
+Elles sont écrites par \code{docs/technique/verifications.py}, qui reprend les références des tests (\code{tests/}).
+
+\subsection{La dilution}
+\begin{center}
+\captionof{table}{Le \pH (ou le potentiel, en volts) du paquet face à la force brute qui dilue à la main, au même volume versé.}\label{tab:dilution}
+\input{tables/dilution}
+\end{center}
+\rmqcons{L'écart de \num{2.3e-11} de l'acide fort est à l'équivalence, où $\ddp\pH V$ est très grande : un écart relatif de $10^{-15}$ sur le volume y devient $10^{-11}$ en \pH. Ce n'est pas une erreur du calcul, c'est le conditionnement du problème.}
+
+\subsection{Les points d'inflexion}
+\begin{center}
+\captionof{table}{Le point d'inflexion, en \pH ou en volts/ENH : mpmath à 60 chiffres face au paquet. Les volumes valent \qty{10}{mL} pour \qty{10}{mL} de bécher.}\label{tab:inflexions}
+\input{tables/inflexions}
+\end{center}
+
+\subsection{La complexométrie et la précipitation à pH imposé}
+\begin{center}
+\captionof{table}{pM du paquet face à mpmath à 50 chiffres (\code{tests/test\_complexation.py}).}\label{tab:complexation}
+\input{tables/complexation}
+
+\bigskip
+\captionof{table}{pP du paquet face à mpmath à 50 chiffres (\code{tests/test\_precipitation.py}).}\label{tab:precipitation}
+\input{tables/precipitation}
+\end{center}
+
+\subsection{Le pH calculé}
+\begin{center}
+\captionof{table}{Complexométrie à pH calculé : pH et pM du paquet face à la référence par l'électroneutralité, Newton à 40 chiffres (\code{tests/test\_complexation\_libre.py}).}\label{tab:complexation-libre}
+\input{tables/complexation_libre}
+
+\bigskip
+\captionof{table}{Précipitation à pH calculé, hydroxydes compris (\code{tests/test\_precipitation\_libre.py}).}\label{tab:precipitation-libre}
+\input{tables/precipitation_libre}
+\end{center}
+\rmqcons{Les deux limites du niveau imposé sont vérifiées à part : un ligand ou un partenaire sans acidité, dont le pH se calcule sans compter, donne le même pM ou pP qu'à pH imposé à $10^{-12}$ près ; un tampon de plus en plus concentré rapproche le résultat de celui du pH imposé, l'écart diminuant d'un facteur 5 au moins à chaque décade de concentration.}
+
+\subsection{Le moteur Lua}
+\begin{center}
+\captionof{table}{Le moteur Lua face au moteur Python, sur les mêmes titrages (\code{tests/test\_lua.py}) : la courbe (pH, $E$, pM ou pP, à des volumes donnés), puis la position relative et la grandeur des points d'inflexion.}\label{tab:lua}
+\resizebox{\linewidth}{!}{\input{tables/lua}}
+\end{center}
+\rmqphys{Les courbes sont identiques au bit près, ou à quelques $10^{-14}$ : les deux moteurs font les mêmes opérations dans le même ordre.
+Les points d'inflexion diffèrent davantage en grandeur qu'en volume : un saut amplifie l'écart, comme pour la dilution.}
+
+\subsection{Le moteur pgf}
+Sous pdf\LaTeX, \code{tests/test\_latex.py} compile \code{latex/tests/titrages-test-nombres.tex} et compare ses nombres au paquet Python : ceux d'\code{l3fp} à $10^{-9}$ près ; les courbes, évaluées par l'arithmétique de \code{pgfplots} (\code{fpu}), à $\num{2e-3}$ près en relatif, moins que l'épaisseur du trait.
+
+\subsection{La suite de tests}
+La suite compte 740 tests ; outre ces comparaisons, elle vérifie les pentes contre des différences finies, les équivalences, les doctests de la documentation, et les deux paquets \LaTeX{} compilés.
+Elle se rejoue par
+\begin{center}
+\code{uv run pytest} \quad et \quad \code{cd latex/tests \&\& texlua test\_titrages.lua}
+\end{center}
+et les tables de ce document par \code{uv run python docs/technique/verifications.py}.
+
+% =========================================================================================
+\section{Limites}
+
+\begin{itemize}
+\item Les solutions sont idéales ; les conductivités molaires sont les valeurs limites, qui surestiment $\sigma$ dès quelques \unit{mmol/L}.
+\item Un seul ligand par titrage complexométrique : un tampon qui complexerait aussi le métal, ou un indicateur métallochrome, en serait un second, et demanderait trois niveaux de dichotomie.
+Complexation et précipitation ne se combinent pas dans un même titrage.
+\item La courbe d'une précipitation à pH imposé est paramétrée par \pP : elle suppose \pP monotone le long du titrage, ce qui vaut dans les cas traités et se vérifie par la référence.
+\item Les constantes sont celles qu'on donne, ou celles de la base, tirées des tables à \qty{25}{\degreeCelsius}.
+\end{itemize}
+
+\section*{Références}
+\begin{itemize}
+\item H. Kalka, \emph{Polyprotic Acids and Beyond — An Algebraic Approach}, Chemistry 2021, 3, 454-508, \href{https://doi.org/10.3390/chemistry3020034}{doi:10.3390/chemistry3020034}.
+\item T. Brière, \emph{Une méthode simple de résolution des problèmes de pH et de titrages acido-basiques sans approximations}, BUP 841, 2002.
+\item Y. Cortial, \emph{Courbe de dosage acidobasique et méthode des tangentes}, BUP 734, 1991.
+\item F. M. M. Morel, J. G. Hering, \emph{Principles and Applications of Aquatic Chemistry}, Wiley, 1993 : la méthode du tableau et les composantes.
+\item D. Harvey, \emph{Analytical Chemistry 2.1}, LibreTexts, § 16.10 à 16.12, d'après A. E. Martell, R. M. Smith, \emph{Critical Stability Constants}, Plenum, 1976.
+\end{itemize}
+
+\end{document}

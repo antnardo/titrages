@@ -330,6 +330,10 @@ dans la documentation `titrages-doc.pdf`.
   [`examples/README.md`](https://github.com/antnardo/titrages/blob/main/examples/README.md).
 - `titrages-doc.pdf`, la documentation du paquet LaTeX (syntaxe, clés, messages,
   index), jointe à chaque release.
+- [docs/technique/](https://github.com/antnardo/titrages/tree/main/docs/technique/) :
+  le document technique, `titrages-technique.tex` — tous les calculs, les choix
+  algorithmiques, les démonstrations d'unicité, et les écarts mesurés face aux calculs
+  indépendants (mpmath), que `verifications.py` recalcule.
 - [CHANGELOG.md](https://github.com/antnardo/titrages/blob/main/CHANGELOG.md).
 
 Pour partir d'une masse pesée, le paquet [pychimie](https://github.com/antnardo/pychimie)

@@ -450,6 +450,17 @@ clé `pH`, le pH se calcule, et un avertissement du paquet le dit.
 `tests/test_lua.py` confronte les deux moteurs, et `tests/test_latex.py` les nombres
 que rendent les documents.
 
+## Le document technique
+
+`docs/technique/titrages-technique.tex` donne tous les calculs — fractions, résidus,
+pentes, dimères, complexation, précipitation, pH calculé —, explique les choix
+algorithmiques (dichotomie plutôt que Newton, paramétrage, affinage des points
+d'inflexion, critère d'arrêt) et rassemble les preuves de fonctionnement : les
+démonstrations d'unicité, et les écarts mesurés face aux références indépendantes des
+tests, que `docs/technique/verifications.py` recalcule dans `docs/technique/tables/`.
+Il se compile par `TEXINPUTS=../../latex: lualatex titrages-technique` depuis son
+dossier.
+
 ## Les modules
 
 Tout ce qui sert couramment s'importe de `titrages` directement.
