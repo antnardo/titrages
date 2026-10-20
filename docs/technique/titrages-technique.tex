@@ -98,7 +98,8 @@ Il donne tous les calculs sur lesquels reposent les moteurs, explique chacun des
 
 \rmxcons{
 \item Les solutions sont idéales : l'activité d'un soluté est sa concentration rapportée à $c^\circ=\qty{1}{mol/L}$.
-La température n'intervient que par \pKe et par la pente de Nernst.
+\item La température n'intervient pas, mais on peut changer les valeurs de \pKe et de la pente de Nernst, et toutes les autres constantes.
+Tout est tabulé ici à \qty{25}{\celsius}.
 \item Les concentrations sont en \unit{mol/L}, les volumes dans une unité quelconque, la même partout.
 \item Les calculs sont faits en \gras{double précision} : un nombre y porte 53 chiffres binaires, soit environ 16 chiffres décimaux.
 On note $\eps=2^{-52}\approx\num{2.2e-16}$ l'écart relatif entre deux nombres représentables voisins : c'est la meilleure précision relative qu'un résultat puisse avoir.
@@ -131,7 +132,7 @@ x_j(h)=\frac{k_j/h^j}{\sum_{m=0}^Nk_m/h^m}.
 Tout est explicite à \pH donné.
 
 \subsection{Le calcul en échelle logarithmique}
-Écrite telle quelle, la formule \eqref{eq:fractions} déborde : pour l'EDTA à $\pH=14$, $\log(k_6/h^6)=-\num{22,56}+84=\num{61,4}$ ; le dénominateur vaut $10^{61}$ et $x_0=10^{-61}$, et pour des ligands plus longs les puissances sortent des nombres représentables ($10^{\pm308}$).
+Écrite telle quelle, la formule \eqref{eq:fractions} déborde numériquement : pour l'EDTA à $\pH=14$, $\log(k_6/h^6)=-\num{22,56}+84=\num{61,4}$ ; le dénominateur vaut $10^{61}$ et $x_0=10^{-61}$, et pour des ligands plus longs les puissances sortent des nombres représentables ($10^{\pm308}$).
 On écrit chaque terme par son logarithme décimal,
 \begin{align}
 t_j=\log\frac{k_j}{h^j}=\log k_j+j\,\pH,

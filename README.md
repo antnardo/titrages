@@ -364,7 +364,9 @@ burette quelconques.
 
 - Les solutions sont idéales : l'activité est la concentration, les conductivités
   molaires sont les valeurs limites, qui surestiment σ dès quelques mmol/L. La
-  température n'entre que par `pKe` et la pente de Nernst.
+  température n'intervient pas, mais on peut changer les valeurs de `pKe`, de la pente
+  de Nernst et de toutes les autres constantes ; les valeurs par défaut sont celles de
+  25 °C.
 - Les couples rédox qui échangent des protons sont pris à pH fixé ; un métal ou un gaz
   (Ag, H₂) n'est pas un couple de solution.
 - Un seul ligand par titrage : un tampon ammoniacal qui complexerait aussi le métal, ou
