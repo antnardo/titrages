@@ -10,18 +10,18 @@
 % Copyright (c) 2026 antnardo — licence MIT (voir LICENSE).
 \documentclass[a4paper,full]{l3doc}
 \usepackage{fontspec}
-\usepackage[french]{babel}
+\usepackage[english,french]{babel}
 \usepackage{amsmath}
 \usepackage{siunitx}
 \sisetup{locale=FR}
 \usepackage[version=4]{mhchem}
-\usepackage{booktabs,tabularx,array}
+\usepackage{booktabs,tabularx,xltabular,array}
 \usepackage{titrages}
 \pgfplotsset{compat=1.18}
 \usepackage[most]{tcolorbox}
 \tcbuselibrary{listings}
 \lstset{basicstyle=\ttfamily\small, columns=fullflexible, keepspaces,
-  breaklines, upquote,
+  breaklines, breakatwhitespace, postbreak=\mbox{\hspace{2em}}, upquote,
   literate={é}{{\'e}}1 {è}{{\`e}}1 {à}{{\`a}}1 {ê}{{\^e}}1 {œ}{{\oe}}1
            {ï}{{\"i}}1 {É}{{\'E}}1 {ç}{{\c c}}1}
 \newtcblisting{exemple}{colback=gray!4, colframe=gray!50, listing above text,
@@ -37,10 +37,13 @@
 \newcommand\lua[1]{\texttt{#1}}
 
 \newenvironment{cles}
-  {\par\smallskip\noindent\tabularx{\linewidth}{@{}>{\raggedright\arraybackslash}p{.30\linewidth}
+  {\par\xltabular{\linewidth}{@{}>{\raggedright\arraybackslash}p{.30\linewidth}
     >{\raggedright\arraybackslash}p{.14\linewidth}X@{}}\toprule
-    Clé & Défaut & Effet \\ \midrule}
-  {\bottomrule\endtabularx\par\smallskip}
+    Clé & Défaut & Effet \\ \midrule\endhead
+    \bottomrule\endlastfoot}
+  {\endxltabular}
+\setlength\LTpre{\smallskipamount}
+\setlength\LTpost{\smallskipamount}
 
 % l3doc fait de " et | des \verb abrégés à \begin{document} : ils servent ici.
 \AtBeginDocument{\DeleteShortVerb{\"}\DeleteShortVerb{\|}}
@@ -61,23 +64,47 @@
 \begin{document}
 \maketitle
 
+\begin{otherlanguage}{english}
+\begin{abstract}\noindent
+The \paquet{titrages} package plots, within \paquet{pgfplots}, exact titration
+curves — pH, conductivity, electrode potential, pM and pAg against the added volume —
+for any beaker titrated by any burette: strong or weak acids and bases, polyprotic
+acids, ampholytes, mixtures, weak titrants, multi-step and dimeric redox couples,
+successive complexes with competing metals, and precipitation with several solids
+(Mohr, Charpentier–Volhard), in a buffered medium or with the pH computed from the
+solutions, metal hydroxides included. Dilution is taken into account, and no
+predominant-reaction approximation is made.
+Under Lua\LaTeX{}, an engine written in Lua computes in double precision and also
+returns expandable numbers: pH, potential, pM or conductivity at a given volume,
+equivalence volumes, inflection points to machine precision, the tangent method, the
+volumes where a solid appears or dissolves. Under pdf\LaTeX{}, a fallback engine plots
+acid–base, conductimetric and single-step redox curves with \paquet{pgfmath}, and
+computes single values with \paquet{l3fp}.
+The documentation is written in French, as are the package's commands, keys and
+messages. The same algorithm is available in Python, as the \texttt{titrages}
+package on PyPI.
+\end{abstract}
+\end{otherlanguage}
+
 \begin{abstract}\noindent
 Le paquet \paquet{titrages} trace dans \paquet{pgfplots} les courbes pH$=f(V)$,
 $\sigma=f(V)$ et $E=f(V)$ du titrage d'un bécher quelconque par une burette
 quelconque — acides et bases forts ou faibles, polyacides, ampholytes, mélanges,
 titrant faible compris, couples rédox à plusieurs étapes ou dimériques — en tenant
 compte de la dilution et sans aucune approximation de réaction prépondérante. Il
-trace aussi $\mathrm{pM}=f(V)$ d'un titrage complexométrique en milieu tamponné —
-complexes successifs, métaux en compétition — et $\mathrm{pAg}=f(V)$ d'un titrage par
-précipitation — plusieurs solides, méthodes de Mohr et de Charpentier-Volhard —, avec
-les points anguleux où un solide apparaît ou disparaît.
+trace aussi $\mathrm{pM}=f(V)$ d'un titrage complexométrique — complexes successifs,
+métaux en compétition — et $\mathrm{pAg}=f(V)$ d'un titrage par précipitation —
+plusieurs solides, méthodes de Mohr et de Charpentier-Volhard —, avec les points
+anguleux où un solide apparaît ou disparaît ; dans les deux cas, le pH est imposé par
+un tampon, ou calculé à partir des solutions, hydroxydes compris.
 Sous Lua\LaTeX{}, un moteur écrit en Lua calcule en double précision : il donne en
-plus le pH, la conductivité ou le potentiel à un volume donné, les équivalences, les
-points d'inflexion à la précision de la machine et la méthode des tangentes, sous
-forme de nombres développables. Sous pdf\LaTeX{}, un moteur de secours trace les
-courbes avec \paquet{pgfmath} et donne, par \paquet{l3fp}, les nombres qui ne
-demandent qu'une évaluation ou une dichotomie — pH, potentiel, conductivité,
-volume —, plus lentement.
+plus le pH, le potentiel, le pM ou la conductivité à un volume donné, les
+équivalences, les points d'inflexion à la précision de la machine, la méthode des
+tangentes et les volumes où un solide apparaît ou disparaît, sous forme de nombres
+développables. Sous pdf\LaTeX{}, un moteur de secours trace les courbes acide-base,
+conductimétriques et rédox à une étape avec \paquet{pgfmath}, et donne, par
+\paquet{l3fp}, les nombres qui ne demandent qu'une évaluation ou une dichotomie — pH,
+potentiel, conductivité, volume —, plus lentement.
 \end{abstract}
 
 \tableofcontents
@@ -92,9 +119,9 @@ Un document complet, à compiler par \texttt{lualatex} :
 \pgfplotsset{compat=1.18}
 \begin{document}
 \titragedefinir{ethanoique}{
-  volume  = 10,                                   % mL d'acide dans le bécher
-  becher  = { espece = { pKa = 4.76, C = 0.1 } },  % acide éthanoïque 0,1 mol/L
-  burette = { base forte = 0.1 },                 % soude 0,1 mol/L
+  volume  = 10,                                    % mL de bécher
+  becher  = { espece = { pKa = 4.76, C = 0.1 } },  % acide 0,1 mol/L
+  burette = { base forte = 0.1 },                  % soude 0,1 mol/L
 }
 \begin{tikzpicture}
 \begin{axis}[xlabel={$V$ (mL)}, ylabel=pH]
@@ -430,15 +457,18 @@ que deux points d'inflexion.
   burette = { base forte = 0.1 },
 }
 \begin{tikzpicture}
-\begin{axis}[width=9cm, height=6cm, xlabel={$V$ (mL)}, ylabel=pH, grid=both]
+\begin{axis}[width=9cm, height=6cm, xlabel={$V$ (mL)}, ylabel=pH,
+             grid=both]
   \addplottitrage[thick]{phosphorique}
   \addplottitragesauts[black, mark=*]{phosphorique}
 \end{axis}
 \end{tikzpicture}
 
-Équivalences : \num{\titrageequivalence{phosphorique}{1}}, \num{\titrageequivalence{phosphorique}{2}}
-et \num{\titrageequivalence{phosphorique}{3}}~mL ; sauts à \num{\titragesaut{phosphorique}{1}}
-et \num{\titragesaut{phosphorique}{2}}~mL.
+Équivalences : \num{\titrageequivalence{phosphorique}{1}},
+\num{\titrageequivalence{phosphorique}{2}} et
+\num{\titrageequivalence{phosphorique}{3}}~mL ; sauts à
+\num{\titragesaut{phosphorique}{1}} et
+\num{\titragesaut{phosphorique}{2}}~mL.
 \end{exemple}
 
 \subsection{Une base faible par un acide fort, en abscisse normalisée}
@@ -450,7 +480,8 @@ et \num{\titragesaut{phosphorique}{2}}~mL.
   abscisse = n,
 }
 \begin{tikzpicture}
-\begin{axis}[width=9cm, height=5cm, xlabel={$n = V/V_\mathrm{eq}$}, ylabel=pH]
+\begin{axis}[width=9cm, height=5cm,
+             xlabel={$n = V/V_\mathrm{eq}$}, ylabel=pH]
   \addplottitrage[thick]{ammoniac}
   \addplottitragesauts[black, mark=*]{ammoniac}
 \end{axis}
@@ -470,7 +501,8 @@ stœchiométriques ne sont pas définies, mais les points d'inflexion le sont.
   volume max = 30,
 }
 \begin{tikzpicture}
-\begin{axis}[width=9cm, height=5cm, xlabel={$V$ (mL)}, ylabel=pH, grid=both]
+\begin{axis}[width=9cm, height=5cm, xlabel={$V$ (mL)}, ylabel=pH,
+             grid=both]
   \addplottitrage[thick]{melange}
   \addplottitragesauts[black, mark=*]{melange}
 \end{axis}
@@ -496,7 +528,8 @@ atteint $\log 3$ à deux fois l'équivalence.
 \end{axis}
 \end{tikzpicture}
 
-À \qty{20}{mL} : \num{\titragepH{ethanoique}{20}} et \num{\titragepH{sans eau}{20}}.
+À \qty{20}{mL} : \num{\titragepH{ethanoique}{20}} et
+\num{\titragepH{sans eau}{20}}.
 \end{exemple}
 
 \subsection{La dérivée}
@@ -643,18 +676,21 @@ Le permanganate est
   volume = 10, pH = 0, reference = ECS,
   becher = { espece = { E0 = {-0.26, 0.34, 1.00}, n = {1, 1, 1},
                         H = {0, 2, 2}, C = 0.1 } },
-  burette = { espece = { E0 = 1.51, n = 5, H = 8, C = 0.02, forme = ox } },
+  burette = { espece = { E0 = 1.51, n = 5, H = 8, C = 0.02,
+                         forme = ox } },
   volume max = 40,
 }
 \titrageredoxdefinir{iodometrie}{
   volume = 10, reference = ECS,
   becher = { espece = { E0 = 0.54, n = 2, stoechiometrie = {1, 2},
                         C = 0.05, forme = ox } },
-  burette = { espece = { E0 = 0.08, n = 2, stoechiometrie = {1, 2}, C = 0.1 } },
+  burette = { espece = { E0 = 0.08, n = 2, stoechiometrie = {1, 2},
+                         C = 0.1 } },
   volume max = 20,
 }
 \begin{tikzpicture}
-\begin{axis}[width=9cm, height=6cm, xlabel={$V$ (mL)}, ylabel={$E$ (V/ECS)},
+\begin{axis}[width=9cm, height=6cm, xlabel={$V$ (mL)},
+             ylabel={$E$ (V/ECS)},
              grid=both]
   \addplottitrage[thick]{vanadium}
   \addplottitragesauts[black, mark=*]{vanadium}
@@ -662,9 +698,11 @@ Le permanganate est
 \end{axis}
 \end{tikzpicture}
 
-Équivalences : \num{\titrageequivalence{vanadium}{1}}, \num{\titrageequivalence{vanadium}{2}},
-\num{\titrageequivalence{vanadium}{3}}~mL ; iodométrie : \num{\titrageequivalence{iodometrie}{1}}~mL,
-à \qty{\titragesaut[E]{iodometrie}{1}}{V}.
+Équivalences : \num{\titrageequivalence{vanadium}{1}},
+\num{\titrageequivalence{vanadium}{2}},
+\num{\titrageequivalence{vanadium}{3}}~mL ; iodométrie :
+\num{\titrageequivalence{iodometrie}{1}}~mL, à
+\qty{\titragesaut[E]{iodometrie}{1}}{V}.
 \end{exemple}
 
 % =============================================================================
@@ -725,7 +763,8 @@ concentration du ligand ; et, pour un pH calculé, celles de §\,\ref{sec:pH-cal
   burette = {ligand = 0.01}, suivi = Zn2+, volume max = 40,
 }
 \begin{tikzpicture}
-\begin{axis}[width=9cm, height=6cm, xlabel={$V$ (mL)}, ylabel={pM}, grid=both]
+\begin{axis}[width=9cm, height=6cm, xlabel={$V$ (mL)},
+             ylabel={pM}, grid=both]
   \addplottitrage[thick]{calcium}
   \addplottitragesauts[black, mark=*]{calcium}
   \addplottitrage[thick]{zinc}
@@ -733,9 +772,10 @@ concentration du ligand ; et, pour un pH calculé, celles de §\,\ref{sec:pH-cal
 \end{axis}
 \end{tikzpicture}
 
-pCa à l'équivalence : \num{\titragepM{calcium}{20}} ; avec le zinc, pCa à
-\qty{15}{mL} : \num{\titragepM[Ca2+]{zinc}{15}} ; équivalences
-\num{\titrageequivalence{zinc}{1}} et \num{\titrageequivalence{zinc}{2}}~mL.
+pCa à l'équivalence : \num{\titragepM{calcium}{20}} ; avec le zinc,
+pCa à \qty{15}{mL} : \num{\titragepM[Ca2+]{zinc}{15}} ; équivalences
+\num{\titrageequivalence{zinc}{1}} et
+\num{\titrageequivalence{zinc}{2}}~mL.
 \end{exemple}
 
 Les équivalences se comptent comme celles d'un polyacide : une par étape de
@@ -817,7 +857,8 @@ Marque les points anguleux : l'apparition ou la disparition d'un solide.
   burette = {partenaire = {SCN-, 0.1}}, volume max = 25,
 }
 \begin{tikzpicture}
-\begin{axis}[width=9cm, height=6cm, xlabel={$V$ (mL)}, ylabel={pAg}, grid=both]
+\begin{axis}[width=9cm, height=6cm, xlabel={$V$ (mL)},
+             ylabel={pAg}, grid=both]
   \addplottitrage[thick]{mohr}
   \addplottitrageevenements[black, mark=diamond*]{mohr}
   \addplottitrage[thick]{volhard}
@@ -825,9 +866,10 @@ Marque les points anguleux : l'apparition ou la disparition d'un solide.
 \end{axis}
 \end{tikzpicture}
 
-Mohr : le chromate d'argent apparaît à \qty{\titrageevenement{mohr}{2}}{mL}, pAg
-\num{\titrageevenement[pM]{mohr}{2}}. Volhard : le thiocyanate d'argent apparaît dès
-le début, le chlorure d'argent se redissout à
+Mohr : le chromate d'argent apparaît à
+\qty{\titrageevenement{mohr}{2}}{mL}, pAg
+\num{\titrageevenement[pM]{mohr}{2}}. Volhard : le thiocyanate
+d'argent apparaît dès le début, le chlorure d'argent se redissout à
 \qty{\titrageevenement{volhard}{2}}{mL}.
 \end{exemple}
 
@@ -873,7 +915,8 @@ celle de l'acide fort du bécher.
   complexe = {metal = Ca2+, log beta = 10.7},
   becher = {metal = {Ca2+, 0.01}, espece = {pKa = 9.25, C = 0.1},
             espece = {pKa = 9.25, C = 0.1, forme = 1}},
-  burette = {ligand = 0.01, protons ligand = 2, espece = {pKa = 9.25, C = 0.1},
+  burette = {ligand = 0.01, protons ligand = 2,
+             espece = {pKa = 9.25, C = 0.1},
              espece = {pKa = 9.25, C = 0.1, forme = 1}},
   volume max = 40,
 }
@@ -884,19 +927,22 @@ celle de l'acide fort du bécher.
   burette = {base forte = 0.1}, volume max = 8,
 }
 \begin{tikzpicture}
-\begin{axis}[width=9cm, height=6cm, xlabel={$V$ (mL)}, ylabel={pCa}, grid=both]
+\begin{axis}[width=9cm, height=6cm, xlabel={$V$ (mL)},
+             ylabel={pCa}, grid=both]
   \addplottitrage[thick]{sanstampon}
   \addplottitrage[thick]{ammoniacal}
   \addplottitragesauts[black, mark=*]{ammoniacal}
 \end{axis}
 \end{tikzpicture}
 
-Sans tampon, l'EDTA libère ses protons : pH \num{\titragepH{sanstampon}{10}} à
-\qty{10}{mL}, et plus de saut. Le tampon ammoniacal décrit comme une solution dérive
-de \num{\titragepH{ammoniacal}{0}} à \num{\titragepH{ammoniacal}{20}} et garde le
-saut, à \qty{\titragesaut{ammoniacal}{1}}{mL}. Mg(OH)$_2$ : équivalences
-\num{\titrageequivalence{magnesium}{1}} et \num{\titrageequivalence{magnesium}{2}}~mL,
-pH \num{\titragepH{magnesium}{4.4}} à la seconde.
+Sans tampon, l'EDTA libère ses protons : pH
+\num{\titragepH{sanstampon}{10}} à \qty{10}{mL}, et plus de saut. Le
+tampon ammoniacal décrit comme une solution dérive de
+\num{\titragepH{ammoniacal}{0}} à \num{\titragepH{ammoniacal}{20}} et
+garde le saut, à \qty{\titragesaut{ammoniacal}{1}}{mL}. Mg(OH)$_2$ :
+équivalences \num{\titrageequivalence{magnesium}{1}} et
+\num{\titrageequivalence{magnesium}{2}}~mL, pH
+\num{\titragepH{magnesium}{4.4}} à la seconde.
 \end{exemple}
 
 % =============================================================================
@@ -1000,10 +1046,12 @@ Le point équivalent donné par la méthode des tangentes depuis \meta{V}.
 
 \begin{exemple}
 pH initial \num{\titragepHinitial{ethanoique}} ; demi-équivalence
-\num{\titragepH{ethanoique}{5}} ; équivalence \num{\titragepH{ethanoique}{10}}.
+\num{\titragepH{ethanoique}{5}} ; équivalence
+\num{\titragepH{ethanoique}{10}}.
 
-Inflexion à \qty{\titragesaut{ethanoique}{1}}{mL}, pH \num{\titragesaut[pH]{ethanoique}{1}} ;
-tangentes depuis \qty{7}{mL} : \qty{\titragetangentes{ethanoique}{7}}{mL}.
+Inflexion à \qty{\titragesaut{ethanoique}{1}}{mL}, pH
+\num{\titragesaut[pH]{ethanoique}{1}} ; tangentes depuis \qty{7}{mL} :
+\qty{\titragetangentes{ethanoique}{7}}{mL}.
 
 \titragesreglages{chiffres = 5}
 Plus finement : \num{\titragesaut[pH]{ethanoique}{1}} ; pH 9 atteint à
@@ -1155,11 +1203,13 @@ la version 1.0 ; les commandes \LaTeX{} ne changeront pas sans avertissement.
 % =============================================================================
 \section{Les messages}
 
-\begin{center}
-\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{.44\linewidth}X@{}}
+\begin{xltabular}{\linewidth}{@{}>{\raggedright\arraybackslash}p{.44\linewidth}X@{}}
 \toprule
 Message & Remède \\
 \midrule
+\endhead
+\bottomrule
+\endlastfoot
 \multicolumn{2}{@{}l}{\emph{Messages du paquet (\LaTeX)}} \\
 Le moteur lua demande LuaLaTeX ; moteur pgf retenu. & avertissement : compiler
   par \texttt{lualatex} \\
@@ -1203,9 +1253,7 @@ un hydroxyde demande que le pH se calcule & retirer la clé \cle{pH} ; décrire 
 les ions hydroxyde viennent de l'acide-base & une \cle{base forte}, pas un
   \cle{partenaire} \\
 le ligand n'a que \meta{n} protons & \cle{protons ligand} \\
-\bottomrule
-\end{tabularx}
-\end{center}
+\end{xltabular}
 
 % =============================================================================
 \section{Limites}
