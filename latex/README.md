@@ -5,6 +5,24 @@ burette quelconque — pH, conductivité, potentiel, pM, pAg —, avec la diluti
 aucune approximation, et donne les nombres qu'on y lit : pH à un volume donné,
 équivalences, points d'inflexion, méthode des tangentes.
 
+## In English
+
+This package plots, within `pgfplots`, exact titration curves — pH, conductivity,
+electrode potential, pM and pAg against the added volume — for any beaker titrated by
+any burette: strong or weak acids and bases, polyprotic acids, ampholytes, mixtures,
+weak titrants, multi-step and dimeric redox couples, successive complexes with
+competing metals, and precipitation with several solids (Mohr, Charpentier–Volhard),
+in a buffered medium or with the pH computed from the solutions. Dilution is taken
+into account, and no predominant-reaction approximation is made. Under LuaLaTeX, an
+engine written in Lua computes in double precision and also returns expandable
+numbers: pH, potential, pM or conductivity at a given volume, equivalence volumes,
+inflection points, the tangent method. Under pdfLaTeX, a fallback engine plots
+acid–base, conductimetric and single-step redox curves. The documentation is in
+French, as are the package's commands, keys and messages. The same algorithm is
+available in Python, as the `titrages` package on PyPI.
+
+License: MIT. Bugs and suggestions: <https://github.com/antnardo/titrages/issues>.
+
 ## Le but
 
 Tracer une courbe de titrage dans un document demande d'ordinaire de la calculer
@@ -107,9 +125,9 @@ pCa à l'équivalence 6,28 ; le chromate d'argent apparaît à 20,01 mL.
 - Le moteur de secours (pdfLaTeX) ne donne ni équivalences, ni points d'inflexion, ni
   tangentes, ni couples dimériques, ni complexométrie, ni précipitation ; ses nombres
   coûtent une demi-seconde chacun, contre quelques millisecondes en Lua.
-- Les solutions sont idéales, la température n'entre que par `pKe` et la pente de
-  Nernst ; les constantes sont celles qu'on écrit, le paquet LaTeX n'a pas de base de
-  données.
+- Les solutions sont idéales. La température n'intervient pas, mais on peut changer
+  `pKe` et la pente de Nernst (25 °C par défaut) ; les constantes sont celles qu'on
+  écrit, le paquet LaTeX n'a pas de base de données.
 - Un seul ligand par titrage complexométrique ; complexation et précipitation ne se
   combinent pas dans un même titrage.
 
