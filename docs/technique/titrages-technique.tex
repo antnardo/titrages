@@ -150,13 +150,13 @@ On définit le nombre moyen de protons cédés par une molécule, et le moment d
 \begin{align}
 Y_1=\sum_{j=0}^Nj\,x_j \et Y_2=\sum_{j=0}^Nj^2x_j .
 \end{align}
-D'après \eqref{eq:lse}, $\ln x_j=\ln10\,t_j-\ln\sum_m10^{t_m}$, et $\ddp{t_j}\pH=j$ ; en dérivant,
+D'après \eqref{eq:lse}, $\ln(x_j)=t_j\ln(10)-\ln\pare{\sum_m10^{t_m}}$, et $\ddp{t_j}\pH=j$ ; en dérivant,
 \begin{align}
-\frac1{x_j}\ddp{x_j}\pH=\ln10\,j-\ln10\frac{\sum_mm\,10^{t_m}}{\sum_m10^{t_m}}=\ln10\pare{j-Y_1},
+\frac1{x_j}\ddp{x_j}\pH=j\ln(10)-\ln(10)\frac{\sum_mm\,10^{t_m}}{\sum_m10^{t_m}}=\ln(10)\pare{j-Y_1},
 \end{align}
 d'où
 \begin{align}
-\ddp{Y_1}\pH=\sum_jj\ddp{x_j}\pH=\ln10\pare{\sum_jj^2x_j-Y_1\sum_jj\,x_j}=\ln10\pare{Y_2-Y_1^2}.
+\ddp{Y_1}\pH=\sum_jj\ddp{x_j}\pH=\ln(10)\pare{\sum_jj^2x_j-Y_1\sum_jj\,x_j}=\ln(10)\pare{Y_2-Y_1^2}.
 \label{eq:dY1}
 \end{align}
 $Y_2-Y_1^2$ est la variance du nombre de protons cédés : positive, nulle seulement si une seule forme existe.
@@ -212,10 +212,10 @@ Autant d'équations que d'inconnues $(a_{ij},h,w)$.
 }
 
 \subsection{Unicité}
-Avec $h=10^{-\pH}$ et $w=\Ke10^{\pH}$, $\ddp h\pH=-\ln10\,h$ et $\ddp w\pH=\ln10\,w$, donc $\ddp\delta\pH=\ln10\pare{w+h}$.
+Avec $h=10^{-\pH}$ et $w=\Ke10^{\pH}$, $\ddp h\pH=-h\ln(10)$ et $\ddp w\pH=w\ln(10)$, donc $\ddp\delta\pH=\ln(10)\pare{w+h}$.
 Avec \eqref{eq:dY1},
 \begin{align}
-\ddp R\pH=\ln10\pare{\sum_iC_i\pare{Y_{2,i}-Y_{1,i}^2}+h+w}>0.
+\ddp R\pH=\ln(10)\pare{\sum_iC_i\pare{Y_{2,i}-Y_{1,i}^2}+h+w}>0.
 \label{eq:dR}
 \end{align}
 $R$ est strictement croissante, et s'annule au plus une fois.
@@ -231,7 +231,7 @@ Le \pH se trouve par dichotomie sur $[-6;\pKe+6]$ : on coupe l'intervalle en deu
 L'intervalle final mesure $(\pKe+12)/2^{64}\approx\num{1.4e-18}$, bien moins que l'écart entre deux nombres représentables au voisinage de 7, $4\eps\approx\num{8.9e-16}$ : les dernières coupes ne changent plus rien, et le résultat est le nombre représentable le plus proche du zéro de $R$, aux erreurs d'arrondi du calcul de $R$ près.
 \rmxcons{
 \item Pourquoi pas la méthode de Newton, $\pH_{n+1}=\pH_n-R/R'$ ?
-$R'$ varie de plusieurs ordres de grandeur entre les zones tampon, où elle est grande, et les sauts, où elle se réduit presque au terme de l'eau, $\ln10(h+w)\approx\num{4.6e-7}$ à $\pH=7$.
+$R'$ varie de plusieurs ordres de grandeur entre les zones tampon, où elle est grande, et les sauts, où elle se réduit presque au terme de l'eau, $\ln(10)(h+w)\approx\num{4.6e-7}$ à $\pH=7$.
 Parti d'un saut, un pas de Newton envoie à des dizaines d'unités de \pH.
 La dichotomie ne regarde que le signe de $R$ : elle ne demande ni réglage ni point de départ, et converge toujours.
 \item Les 64 coupes sont les mêmes pour tous les points d'une courbe : elles se font sur un tableau de points d'un coup.
@@ -362,8 +362,8 @@ Chacun encadre un minimum, entre ses deux voisins, qu'il reste à localiser pré
 \item La méthode habituelle, la \gras{section dorée}, resserre l'intervalle en comparant les valeurs $f(x_1)$ et $f(x_2)$ en deux points intérieurs.
 Mais près d'un minimum $x^\star$, $f(x)=f(x^\star)+\tfrac12f''(x^\star)(x-x^\star)^2$ : deux valeurs ne s'y distinguent qu'au second ordre.
 Elles sont égales en double précision dès que $\tfrac12f''(x^\star)(x-x^\star)^2<\eps f(x^\star)$, et la précision sur $x^\star$ plafonne à $\sqrt\eps\approx10^{-8}$ en relatif.
-\item On cherche plutôt le zéro de la dérivée de $\ln f$, qui change de signe au minimum, du négatif au positif.
-On l'estime par la différence centrée $\ln f(x+\eta)-\ln f(x-\eta)$, de pas $\eta=10^{-6}$, et l'on resserre l'intervalle par dichotomie sur son signe.
+\item On cherche plutôt le zéro de la dérivée de $\ln(f)$, qui change de signe au minimum, du négatif au positif.
+On l'estime par la différence centrée $\ln\pare{f(x+\eta)}-\ln\pare{f(x-\eta)}$, de pas $\eta=10^{-6}$, et l'on resserre l'intervalle par dichotomie sur son signe.
 Une dérivée s'annule au premier ordre : la dichotomie atteint la précision de la machine.
 Le zéro de la différence centrée est décalé de celui de la dérivée d'une quantité de l'ordre de $\eta^2=10^{-12}$ en unités de \pH, ce qui fixe le choix du pas.
 \end{itemize}
@@ -437,7 +437,7 @@ L'étape $j$, entre les formes $j-1$ et $j$, échange $n_j$ électrons et $m_j$ 
 \begin{align}
 \text{forme }j+m_j\,\ce{H+}+n_j\,\ce{e-}=\text{forme }j-1.
 \end{align}
-On note $e_j=\sum_{i\le j}n_i$ le nombre d'électrons cédés de la forme 0 à la forme $j$ ($e_0=0$), et $s=RT\ln10/F$ la pente de Nernst, \qty{0,0592}{V} à \qty{25}{\degreeCelsius}.
+On note $e_j=\sum_{i\le j}n_i$ le nombre d'électrons cédés de la forme 0 à la forme $j$ ($e_0=0$), et $s=RT\ln(10)/F$ la pente de Nernst, \qty{0,0592}{V} à \qty{25}{\degreeCelsius}.
 Le milieu est tamponné : le \pH est imposé.
 La loi de Nernst s'écrit
 \begin{align}
@@ -455,7 +455,7 @@ t_j=-\sum_{i\le j}\frac{n_iE^{\circ\prime}_i}s+e_j\frac Es.
 C'est la même formule qu'en acide-base, avec $E/s$ à la place du \pH et $e_j$ à la place de $j$.
 Le nombre moyen d'électrons cédés par unité de l'élément, $Y=\sum_je_jx_j$, a pour dérivée, par le même calcul que \eqref{eq:dY1} et \eqref{eq:variance},
 \begin{align}
-\ddp YE=\frac{\ln10}s\sum_{j<k}x_jx_k\pare{e_k-e_j}^2>0.
+\ddp YE=\frac{\ln(10)}s\sum_{j<k}x_jx_k\pare{e_k-e_j}^2>0.
 \end{align}
 
 \subsection{Le bilan d'électrons}
@@ -526,16 +526,16 @@ On calcule plutôt $\mathcal Q=-\frac12\pare{c_1+\operatorname{sgn}(c_1)\sqrt{c_
 
 \gras{La pente d'un dimère.} À $E$ fixé, $g(E,V)=0$ définit $V(E)$, et le théorème des fonctions implicites donne $\ddp EV=-\pdp gV\big/\pdp gE$, au point où $g$ est exactement nulle.
 Pour un dimère oxydé, $Y=e_1\pare{1-r/T}$, et l'on note $D=T-r=2\kappa r^2$ la part de l'élément sous forme dimère.
-En différentiant $T=r+2\kappa r^2$, $\mathrm dT=\mathrm dr\pare{1+4\kappa r}+2r^2\,\mathrm d\kappa$, avec $1+4\kappa r=1+2D/r=(2T-r)/r$ et $\mathrm d\kappa=\frac{n\ln10}s\kappa\,\mathrm dE$.
+En différentiant $T=r+2\kappa r^2$, $\mathrm dT=\mathrm dr\pare{1+4\kappa r}+2r^2\,\mathrm d\kappa$, avec $1+4\kappa r=1+2D/r=(2T-r)/r$ et $\mathrm d\kappa=\frac{n\ln(10)}s\kappa\,\mathrm dE$.
 À $T$ fixé, puis à $E$ fixé,
 \begin{align}
-\pdp rE=-\frac{n\ln10}s\,\frac{rD}{2T-r}
+\pdp rE=-\frac{n\ln(10)}s\,\frac{rD}{2T-r}
 \et
 \pdp rT=\frac r{2T-r},
 \end{align}
 d'où
 \begin{align}
-\pdp YE=\frac{n\ln10}s\,\frac{e_1\,rD}{T(2T-r)}
+\pdp YE=\frac{n\ln(10)}s\,\frac{e_1\,rD}{T(2T-r)}
 \et
 \pdp YT=\frac{e_1\,rD}{T^2(2T-r)} ;
 \end{align}
@@ -597,9 +597,9 @@ On note $Y_{1,i}=\sum_jj\,x_{j,i}$ le nombre moyen de ligands fixés par le mét
 \end{align}
 nul à l'équilibre.
 À \pL fixé, il est linéaire dans les concentrations, le terme $\ell'$ jouant le rôle de $\delta$ : il se sépare entre le bécher et la burette comme l'électroneutralité, et $V(\pL)=-V_0\Rb(\pL)/\Ru(\pL)$, plusieurs métaux en compétition compris.
-Avec $\ddp{Y_{1,i}}\pL=-\ln10\,\mathrm{Var}_i$, comme \eqref{eq:dY1} au signe près (\pL décroît quand le ligand augmente), et $\ddp{\ell'}\pL=-\ln10\,\ell'$, sa dérivée est
+Avec $\ddp{Y_{1,i}}\pL=-\mathrm{Var}_i\ln(10)$, comme \eqref{eq:dY1} au signe près (\pL décroît quand le ligand augmente), et $\ddp{\ell'}\pL=-\ell'\ln(10)$, sa dérivée est
 \begin{align}
-\ddp R\pL=-\ln10\pare{\sum_iC_i\,\mathrm{Var}_i+\ell'}<0,
+\ddp R\pL=-\ln(10)\pare{\sum_iC_i\,\mathrm{Var}_i+\ell'}<0,
 \end{align}
 où $\mathrm{Var}_i$ est la variance du nombre de ligands fixés, écrite comme \eqref{eq:variance}.
 $R$ est strictement décroissante, ce qui assure l'unicité de $\pL(V)$, trouvé par dichotomie sur $-\pL\in[-80;\log C_\text{max}+1]$, où $C_\text{max}$ est la plus grande concentration des deux solutions.
@@ -616,7 +616,7 @@ x_0=\frac1{\sum_j\beta'_j\ell'^j},
 \end{align}
 D'une part $\ddp{T_\mathrm M}V=\pare{C^\text{u}_\mathrm M-T_\mathrm M}/(V_0+V)$ ; d'autre part la dérivée logarithmique de $\sum_j\beta'_j\ell'^j$ par rapport à $\log\ell'=-\pL$ est $Y_1$, d'où
 \begin{align}
-\rsltm{\ddp\pM\pL=-\frac{C^\text{u}_\mathrm M-T_\mathrm M}{(V_0+V)\,T_\mathrm M\ln10}\ddp V\pL-Y_1}
+\rsltm{\ddp\pM\pL=-\frac{C^\text{u}_\mathrm M-T_\mathrm M}{(V_0+V)\,T_\mathrm M\ln(10)}\ddp V\pL-Y_1}
 \qquad\text{et}\qquad
 \ddp\pM V=\ddp\pM\pL\Big/\ddp V\pL,
 \end{align}
@@ -693,9 +693,9 @@ $x_{\text{sat},i}$ décroît quand $a$ croît, donc $F_V$ est strictement croiss
 C'est aussi le sens inverse, qui trouve $a$ à volume donné par dichotomie sur $\log a\in[-60;\log C_\text{max}+1]$.
 
 \subsection{La pente}
-Avec $\ddp a\pP=-\ln10\,a$ et $x_{\text{sat},i}\propto a^{-r_i}$, donc $\ddp{x_{\text{sat},i}}\pP=r_i\ln10\,x_{\text{sat},i}$, la dérivée de $R_S$ ne dépend que de $a$ et des solides présents,
+Avec $\ddp a\pP=-a\ln(10)$ et $x_{\text{sat},i}\propto a^{-r_i}$, donc $\ddp{x_{\text{sat},i}}\pP=r_i\,x_{\text{sat},i}\ln(10)$, la dérivée de $R_S$ ne dépend que de $a$ et des solides présents,
 \begin{align}
-\ddp{R_S}\pP=-\ln10\pare{a+\sum_{i\in S}r_i^2x_{\text{sat},i}},
+\ddp{R_S}\pP=-\ln(10)\pare{a+\sum_{i\in S}r_i^2x_{\text{sat},i}},
 \end{align}
 la même pour les deux solutions ; \eqref{eq:dV} donne alors $\ddp V\pP=-(V_0+V)\,R_S'/R_{S,\text{burette}}$.
 
@@ -819,15 +819,15 @@ Restent au plus deux composantes principales : le \pH, et $u=\log\ell$ en comple
 \subsection{L'unicité : la convexité}
 Les conservations sont le gradient de la fonction
 \begin{align}
-\Phi(u)=\frac1{\ln10}\sum_sc_s(u)-\sum_cT_cu_c,
+\Phi(u)=\frac1{\ln(10)}\sum_sc_s(u)-\sum_cT_cu_c,
 \qquad
 \pdp\Phi{u_c}=\sum_s\nu_{sc}c_s-T_c,
 \end{align}
-puisque $\pdp{c_s}{u_c}=\ln10\,\nu_{sc}\,c_s$.
-Sa matrice des dérivées secondes (sa hessienne) a pour coefficients $\ln10\sum_s\nu_{sc}\nu_{sd}c_s$.
+puisque $\pdp{c_s}{u_c}=\nu_{sc}\,c_s\ln(10)$.
+Sa matrice des dérivées secondes (sa hessienne) a pour coefficients $\ln(10)\sum_s\nu_{sc}\nu_{sd}c_s$.
 Pour tout vecteur $z$ non nul,
 \begin{align}
-\sum_{c,d}z_cz_d\,\frac{\partial^2\Phi}{\partial u_c\partial u_d}=\ln10\sum_sc_s\pare{\nu_s\cdot z}^2>0,
+\sum_{c,d}z_cz_d\,\frac{\partial^2\Phi}{\partial u_c\partial u_d}=\ln(10)\sum_sc_s\pare{\nu_s\cdot z}^2>0,
 \end{align}
 car chaque composante est une espèce, pour laquelle $\nu_s\cdot z=z_c$, et l'un des $z_c$ n'est pas nul.
 $\Phi$ est donc strictement convexe : elle a au plus un point où son gradient s'annule, et l'équilibre à volume donné, sans solide, est \gras{unique}.
@@ -848,9 +848,9 @@ D'où deux dichotomies imbriquées, chacune sur une fonction monotone, sans Newt
 \subsection{Le cas de la complexométrie}
 Les deux bilans sont $g_L$ et $g_H$, et leurs dérivées, en $(\pH,u)$ avec $u=\log\ell$ :
 \begin{align}
-\pdp{g_H}\pH=R_\text{ab}'+\ln10\,\ell P_2,\quad
-\pdp{g_H}u=\pdp{g_L}\pH=-\ln10\,\ell P_1,\quad
-\pdp{g_L}u=\ln10\pare{\sum_mT_m\mathrm{Var}_m+\ell P},
+\pdp{g_H}\pH=R_\text{ab}'+\ell P_2\ln(10),\quad
+\pdp{g_H}u=\pdp{g_L}\pH=-\ell P_1\ln(10),\quad
+\pdp{g_L}u=\ln(10)\pare{\sum_mT_m\mathrm{Var}_m+\ell P},
 \end{align}
 où $R_\text{ab}'$ est le pouvoir tampon de la partie acido-basique \eqref{eq:dR}, et $\mathrm{Var}_m$ la variance du nombre de ligands fixés par le métal $m$.
 La matrice de ces dérivées, la jacobienne $J$, est symétrique, comme la hessienne de $\Phi$ dont elle provient.
