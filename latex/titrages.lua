@@ -25,7 +25,7 @@
 -- Copyright (c) 2026 antnardo — licence MIT (voir LICENSE).
 
 local M = {}
-M.version = "0.1.4"
+M.version = "0.2.0"
 M.titrages = {}
 
 local moteur_libre -- le moteur à pH calculé, défini après la précipitation

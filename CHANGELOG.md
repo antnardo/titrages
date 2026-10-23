@@ -6,6 +6,8 @@ LaTeX partagent un numéro de version.
 
 ## [Non publié]
 
+## [0.2.0] — 2026-10-23
+
 ### Ajouté
 
 - La complexométrie (`TitrageComplexometrique`, `SolutionComplexation`,
@@ -38,7 +40,7 @@ LaTeX partagent un numéro de version.
   forts, tampon) ; `TitrageComplexometrique.pH_du_melange`, colonne `pH` de
   `CourbeComplexometrique`. Dichotomies imbriquées à volume fixé, unicité par
   convexité, dérivées exactes ; confronté à une référence mpmath qui écrit
-  l'électroneutralité. Python seulement pour l'instant.
+  l'électroneutralité.
 - La précipitation à pH calculé, hydroxydes compris : un précipité de partenaire
   `"OH-"` (Mg(OH)₂, Ag₂O…) ; `SolutionPrecipitation.acidobasique` ;
   `TitrageParPrecipitation.pH_du_melange`, colonne `pH` de `CourbePrecipitation` ;
@@ -59,6 +61,14 @@ LaTeX partagent un numéro de version.
   `moments_complexes`.
 - Sections « La complexométrie » et « La précipitation » de `docs/DOC.md` et de la
   documentation LaTeX.
+
+### Modifié
+
+- Le README du paquet LaTeX a une introduction en anglais, que CTAN exige ; la
+  documentation LaTeX commence par un résumé en anglais, et ses tableaux de clés
+  passent d'une page à l'autre.
+- La température n'intervient pas : `pKe`, la pente de Nernst et les constantes se
+  règlent, et valent par défaut leur valeur à 25 °C (README, documents).
 
 ## [0.1.4] — 2026-10-11
 

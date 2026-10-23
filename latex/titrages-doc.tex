@@ -59,7 +59,7 @@
   \large Courbes de titrage sans approximation, pour Lua\LaTeX\\
   pH-métrie, conductimétrie, potentiométrie,\\ complexométrie, précipitation}
 \author{antnardo\thanks{\url{https://github.com/antnardo/titrages}}}
-\date{Version 0.1.4 — 11 octobre 2026}
+\date{Version 0.2.0 — 23 octobre 2026}
 
 \begin{document}
 \maketitle
@@ -1299,10 +1299,13 @@ moteur \texttt{pgf} ne saurait pas calculer. Il s'installe par
   avec leurs courbes.
 \item[0.1.4 (11 octobre 2026)] Rien côté \LaTeX{} ; \texttt{abscisse=} sur toutes les
   fonctions de tracé Python, exemples sous licence CC BY-NC-SA 4.0.
-\item[En préparation] La complexométrie (\cs{titragecomplexationdefinir}, \cs{titragepM})
-  et la précipitation (\cs{titrageprecipitationdefinir},
-  \cs{addplottitrageevenements}, \cs{titrageevenement}), à pH imposé ou calculé ; les
-  hydroxydes.
+\item[0.2.0 (23 octobre 2026)] La complexométrie (\cs{titragecomplexationdefinir},
+  \cs{titragepM}) et la précipitation (\cs{titrageprecipitationdefinir},
+  \cs{addplottitrageevenements}, \cs{titrageevenement}), sous le moteur \texttt{lua},
+  à pH imposé ou calculé à partir des solutions, hydroxydes compris ; clés de
+  solution \cle{protons ligand}, \cle{acide fort}, \cle{base forte}, \cle{espece}.
+  Un résumé en anglais en tête de cette documentation, et une introduction en anglais
+  dans le README.
 \end{description}
 
 \section{Licence}
